@@ -1,12 +1,14 @@
 <script lang="ts">
   import Icon from "$lib/ui/Icon.svelte";
   import { stepCell, type Cell } from "$lib/logSheet";
+  import { enterToNext } from "$lib/ui/input/entry";
 
   /**
    * One log-sheet number cell. On a desk it is a plain right-aligned mono
    * field; at phone width it grows into a 44px − field + stepper for
    * one-handed gym-floor entry. Stepping from blank starts at `from` (the
    * target shown as placeholder), so one tap logs "target + a plate".
+   * Enter moves to the next field and never submits the form around it.
    */
   let {
     value = $bindable(),
@@ -83,6 +85,7 @@
       aria-describedby={error ? errorId : undefined}
       oninput={() => onedit?.()}
       onchange={() => oncommit?.()}
+      onkeydown={enterToNext}
     />
     {#if copied}<span class="lstep-copied" aria-hidden="true" title="Filled down from an earlier set">↓</span>{/if}
     <button type="button" class="lstep-btn" tabindex="-1" aria-label={`${label} +${step}`} {disabled} onclick={() => nudge(1)}>

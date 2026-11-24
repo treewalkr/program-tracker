@@ -2,6 +2,7 @@
 	import { untrack } from 'svelte';
 	import FieldFrame from './input/FieldFrame.svelte';
 	import { describedBy } from './input/field';
+	import { enterToNext } from './input/entry';
 	import { durationIssue, formatDuration, parseDuration, RANGE_WORDS_EN, type RangeWords } from './input/duration';
 
 	/**
@@ -10,6 +11,7 @@
 	 * numeric keypad has no ":"; one or two digits are minutes. The value is whole seconds; the field shows it back
 	 * in the clock format on blur. ↑/↓ step by `step` seconds (Shift ×10).
 	 * `cell` is the quiet table-cell look of Input 04, for interval rows.
+	 * Enter moves to the next field (a cell just closes) and never submits the form.
 	 */
 	interface Props {
 		label: string;
@@ -88,6 +90,7 @@
 	}
 
 	function onkeydown(e: KeyboardEvent) {
+		if (e.key === 'Enter' && !cell) return enterToNext(e);
 		if (e.key === 'Enter' && cell) {
 			e.preventDefault();
 			(e.currentTarget as HTMLInputElement).blur();
@@ -111,6 +114,7 @@
 		class:bad={cell && !!issue}
 		type="text"
 		inputmode="numeric"
+		enterkeyhint={cell ? 'done' : 'next'}
 		autocomplete="off"
 		spellcheck="false"
 		{placeholder}
