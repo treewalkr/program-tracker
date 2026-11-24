@@ -22,11 +22,14 @@
 		maxlength?: number;
 		autocomplete?: FullAutoFill | null;
 		name?: string;
+		/** Fixed id, so the page can focus the field; generated when omitted. */
+		id?: string;
 		inputmode?: HTMLInputAttributes['inputmode'];
 		/** Off for paths and codes, so they don't get underlined as typos. */
 		spellcheck?: boolean;
 		oninput?: (value: string) => void;
 		onchange?: (value: string) => void;
+		onblur?: () => void;
 	}
 
 	let {
@@ -43,13 +46,16 @@
 		maxlength,
 		autocomplete,
 		name,
+		id: fixedId,
 		inputmode,
 		spellcheck,
 		oninput,
 		onchange,
+		onblur,
 	}: Props = $props();
 
-	const id = $props.id();
+	const autoId = $props.id();
+	const id = $derived(fixedId ?? autoId);
 	const left = $derived(maxlength === undefined ? Infinity : maxlength - value.length);
 </script>
 
@@ -75,6 +81,7 @@
 		bind:value
 		oninput={() => oninput?.(value)}
 		onchange={() => onchange?.(value)}
+		onblur={() => onblur?.()}
 	/>
 </FieldFrame>
 

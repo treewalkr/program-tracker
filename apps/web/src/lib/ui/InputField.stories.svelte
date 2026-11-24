@@ -22,6 +22,8 @@
   let blank = $state('');
   let program = $state('Off-season strength block');
   let phone = $state('');
+  let invite = $state('');
+  let inviteErr = $state<string | null>(null);
 </script>
 
 <Story name="Default" asChild>
@@ -54,4 +56,18 @@
 
 <Story name="Path, no spellcheck" asChild>
   <div style="max-width: 320px"><InputField label="Page" optional placeholder="/clients" autocomplete="off" spellcheck={false} /></div>
+</Story>
+
+<Story name="Fixed id, check on blur" asChild>
+  <div style="max-width: 320px">
+    <InputField
+      label="Google email"
+      id="invite-email"
+      type="email"
+      bind:value={invite}
+      error={inviteErr}
+      placeholder="name@gmail.com"
+      onblur={() => (inviteErr = invite.includes('@') ? null : 'Enter a full email address.')}
+    />
+  </div>
 </Story>
