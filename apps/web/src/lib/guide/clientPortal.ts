@@ -63,7 +63,7 @@ const en: Guide = {
         },
         {
           h: "They open it once on their phone",
-          p: `The page offers *${portalEn["link.open"]}*. After that they stay signed in on that phone, with no password. *Last seen* fills in.`,
+          p: `The page offers *${portalEn["link.open"]}*. After that, that browser keeps them signed in, with no password. *Last seen* fills in.`,
         },
       ],
       aside: "**Try it yourself.** Open the link in the browser you use for Program Tracker. The portal keeps its own sign-in, so you stay signed in here and see exactly what your client sees.",
@@ -173,7 +173,7 @@ const th: Guide = {
         },
         {
           h: "เมมเบอร์เปิดบนมือถือครั้งเดียว",
-          p: `หน้าจอมีปุ่ม *${portalTh["link.open"]}* หลังจากนั้นเมมเบอร์จะอยู่ในระบบบนมือถือเครื่องนั้นโดยไม่ต้องใช้รหัสผ่าน *Last seen* จะอัปเดต`,
+          p: `หน้าจอมีปุ่ม *${portalTh["link.open"]}* หลังจากนั้นเมมเบอร์จะอยู่ในระบบบนเบราว์เซอร์นั้นโดยไม่ต้องใช้รหัสผ่าน *Last seen* จะอัปเดต`,
         },
       ],
       aside: "**ลองเองได้** เปิดลิงก์ในเบราว์เซอร์เดียวกับที่คุณใช้ Program Tracker พอร์ทัลแยกการเข้าสู่ระบบของตัวเอง คุณจึงยังอยู่ในระบบแอปนี้ต่อได้ และเห็นเหมือนที่เมมเบอร์เห็นทุกอย่าง",
