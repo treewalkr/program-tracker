@@ -238,6 +238,26 @@
           : null
   );
 
+  /** Scroll `el` to the middle of the screen unless it is already fully in view above the phone bar. */
+  function bringIntoView(el: HTMLElement) {
+    const r = el.getBoundingClientRect();
+    if (r.top >= 0 && r.bottom <= window.innerHeight - mbarHeight) return;
+    el.scrollIntoView({ block: "center" });
+  }
+
+  /** Reject… opens its reason box near the top: on a phone the bar's button is far below it. */
+  let rejectBox = $state<HTMLElement | null>(null);
+  $effect(() => {
+    if (!rejectBox) return;
+    bringIntoView(rejectBox);
+    rejectBox.querySelector<HTMLTextAreaElement>("textarea")?.focus({ preventScroll: true });
+  });
+
+  /** Approved or rejected: the outcome and its next step, on screen. */
+  let outcomeEl = $state<HTMLElement | null>(null);
+  $effect(() => {
+    if (outcomeEl) bringIntoView(outcomeEl);
+  });
   /** Every change since the previous version; plan changes are listed from planDelta (they carry the week). */
   const slotChanges = $derived(prev?.draft ? diffDrafts(prev.draft, draft).filter((c) => c.kind !== "plan") : []);
   /** The same change made in several weeks reads once, with its weeks ("W1, W3"). */
@@ -409,6 +429,8 @@
 
 {#if revisionCancelled}<Note tone="warn" role="status">Revision cancelled — the previous draft is untouched.</Note>{/if}
 {#if approveError && !newProgram}<Note tone="bad" role="alert">{approveError}</Note>{/if}
+{#if newProgram || gen.status === "rejected"}
+<div class="outcome" bind:this={outcomeEl}>
 {#if newProgram}
   <Note tone="ok" class="flash" role="status">
     {isFill
@@ -417,12 +439,16 @@
       ? `Week ${gen.targetWeek} replaced in “${newProgram.name}” (v${newProgram.version}) — the rest of the block is untouched.`
       : `Approved. “${newProgram.name}” is now a draft program — edit it, then activate when ready.`}
   </Note>
-{:else if gen.status === "rejected"}
+{:else}
   <Note tone="bad" class="flash" role="status">Discarded — this draft won't be used.</Note>
+{/if}
+  <!-- Phones hide the header's actions (the bottom bar held them until now): the next step goes here. -->
+  <div class="outcome-actions">{@render actions()}</div>
+</div>
 {/if}
 
 {#if rejectOpen && !decided}
-  <div class="reject-box">
+  <div class="reject-box" bind:this={rejectBox}>
     <InputNote
       label="Why reject v{version}?"
       id="rv-reject"
@@ -706,7 +732,9 @@
   .mt6 { margin-top: 6px; }
   .mt10 { margin-top: 10px; }
 
-  .reject-box { border: 1px solid var(--bad-line); background: var(--bad-bg); border-radius: 6px; padding: 12px; display: grid; gap: 8px; margin-bottom: 16px; }
+  .outcome { margin-bottom: 16px; scroll-margin: 72px; }
+  .outcome-actions { display: none; }
+  .reject-box { scroll-margin: 72px; border: 1px solid var(--bad-line); background: var(--bad-bg); border-radius: 6px; padding: 12px; display: grid; gap: 8px; margin-bottom: 16px; }
 
   .band { display: grid; grid-template-columns: 1.15fr 1fr 1fr; }
   .band > section { padding: 14px 16px; min-width: 0; }
@@ -811,6 +839,8 @@
   }
   @media (max-width: 700px) {
     .rv-actions { display: none; }
+    .outcome-actions { display: block; margin-top: 10px; }
+    .outcome-actions .row :global(.btn) { flex: 1; justify-content: center; min-height: 44px; }
     .mbar { display: block; position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; background: var(--surface); border-top: 1px solid var(--line); padding: 10px 16px 12px; box-shadow: var(--shadow-overlay-up); }
     .mbar .row :global(.btn) { flex: 1; justify-content: center; min-height: 36px; }
     .mbar .lock, .mbar .paused { margin-top: 6px; }
