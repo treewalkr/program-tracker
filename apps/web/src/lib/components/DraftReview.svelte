@@ -708,7 +708,7 @@
     <div class="md prose">{@html renderMarkdown(why.general.join("\n\n"))}</div>
   </details>
   <details class="client">
-    <summary>What {firstName} will read <span class="subtle">editable after approval</span></summary>
+    <summary>Summary for {firstName} <span class="subtle">AI-written · {firstName} doesn't see this</span></summary>
     <div class="md prose">{@html renderMarkdown(draft.clientSummary)}</div>
   </details>
 </div>
