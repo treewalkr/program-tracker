@@ -22,6 +22,7 @@
   let blank = $state('');
   let program = $state('Off-season strength block');
   let phone = $state('');
+  let scheme = $state('');
 </script>
 
 <Story name="Default" asChild>
@@ -54,4 +55,11 @@
 
 <Story name="Path, no spellcheck" asChild>
   <div style="max-width: 320px"><InputField label="Page" optional placeholder="/clients" autocomplete="off" spellcheck={false} /></div>
+</Story>
+
+<Story name="Hidden label" asChild>
+  <div style="display: flex; gap: 8px; align-items: center; max-width: 420px">
+    <div style="flex: 1"><InputField label="Scheme name" hideLabel bind:value={scheme} placeholder="Scheme name, e.g. 5-week peak" /></div>
+    <button type="button" class="btn small">Save scheme</button>
+  </div>
 </Story>
