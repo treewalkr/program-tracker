@@ -1,6 +1,6 @@
 <script lang="ts">
   import { tick } from "svelte";
-  import { goto } from "$app/navigation";
+  import { afterNavigate, goto } from "$app/navigation";
   import { page } from "$app/state";
   import { i18n, inLang } from "$lib/portal/i18n.svelte";
   import { isAdminSession } from "$lib/settingsNav";
@@ -24,6 +24,7 @@
       results: (n: number) => (n === 1 ? "1 result" : `${n} results`),
       none: (q: string) => `Nothing matches “${q}” in English or Thai.`,
       browse: "Browse the Guide",
+      close: "Close search",
       hints: [["↑↓", "move"], ["↵", "open"], [isMac ? "⌘↵" : "Ctrl ↵", "new tab"], ["esc", "close"]] as [string, string][],
     },
     th: {
@@ -35,6 +36,7 @@
       results: (n: number) => `${n} รายการ`,
       none: (q: string) => `ไม่พบ “${q}” ทั้งภาษาอังกฤษและภาษาไทย`,
       browse: "ดูคู่มือทั้งหมด",
+      close: "ปิดการค้นหา",
       hints: [["↑↓", "เลื่อน"], ["↵", "เปิด"], [isMac ? "⌘↵" : "Ctrl ↵", "แท็บใหม่"], ["esc", "ปิด"]] as [string, string][],
     },
   } as const;
@@ -108,6 +110,12 @@
     requestAnimationFrame(() => land(u));
   }
 
+  // Back/forward (or any navigation) under an open palette closes it: it
+  // belongs to the page it was opened on.
+  afterNavigate(() => {
+    guideSearch.open = false;
+  });
+
   /** ⌘K on a Mac, Ctrl+K elsewhere (either works, like ⌘B): toggles the palette. */
   function onkeydown(e: KeyboardEvent) {
     if (e.key.toLowerCase() !== "k" || !(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return;
@@ -135,6 +143,7 @@
   hints={t.hints}
   note="EN + ไทย"
   status={words.length ? t.results(count) : ""}
+  closeLabel={t.close}
   lang={locale}
 >
   {#snippet row(u)}

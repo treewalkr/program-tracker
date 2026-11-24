@@ -38,8 +38,10 @@
     note?: string;
     /** Read out politely when results change ("4 results"). */
     status?: string;
-    /** Text for the Esc chip (the close hint). */
+    /** Text for the Esc chip (the close button; touch screens show ✕ instead). */
     escLabel?: string;
+    /** Accessible name of the close button. */
+    closeLabel?: string;
     lang?: string;
   }
 
@@ -57,6 +59,7 @@
     note,
     status = "",
     escLabel = "esc",
+    closeLabel = "Close",
     lang,
   }: Props = $props();
 
@@ -169,7 +172,11 @@
         {placeholder}
         {onkeydown}
       />
-      <kbd aria-hidden="true">{escLabel}</kbd>
+      <!-- The Esc hint doubles as the close button: a tap target on touch screens. -->
+      <button type="button" class="close" aria-label={closeLabel} onclick={() => (open = false)}>
+        <kbd aria-hidden="true">{escLabel}</kbd>
+        <Icon name="x" />
+      </button>
     </div>
 
     <div class="list" role="listbox" id="{uid}-list" aria-label={label} bind:this={list}>
@@ -286,6 +293,42 @@
     background: var(--surface);
     color: var(--muted);
     white-space: nowrap;
+  }
+
+  .close {
+    position: relative;
+    display: grid;
+    place-items: center;
+    flex: none;
+    padding: 0;
+    border: 0;
+    border-radius: 4px;
+    background: none;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .close:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--focus);
+  }
+  .bar .close :global(svg) {
+    display: none;
+  }
+  /* Touch: no Esc key to hint at — a ✕ with a 44px target. */
+  @media (hover: none) {
+    .close {
+      width: 44px;
+      height: 44px;
+      margin-right: -8px;
+    }
+    .close kbd {
+      display: none;
+    }
+    .bar .close :global(svg) {
+      display: block;
+      width: 18px;
+      height: 18px;
+    }
   }
 
   .list {
