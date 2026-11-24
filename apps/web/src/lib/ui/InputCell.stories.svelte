@@ -11,7 +11,7 @@
       docs: {
         description: {
           component:
-            'Edit text or a figure inside a dense table or week row. Plain text at rest, aligned with the column; the field appears on hover and takes the full focus ring on focus — the same rhythm as Select 04, so the two share a row. `figure` makes it mono, tabular and right-aligned. Enter commits, Esc reverts to the value it had on focus; `oncommit` fires only when the value changed.',
+            'Edit text or a figure inside a dense table or week row. Plain text at rest, aligned with the column; the field appears on hover and takes the full focus ring on focus — the same rhythm as Select 04, so the two share a row. `figure` makes it mono, tabular and right-aligned; with `step` (and `min`/`max`) ↑/↓ step it, Shift ×10. `maxlength` caps the text; `invalid` marks a value that cannot be saved. Enter commits, Esc reverts to the value it had on focus; `oncommit` fires only when the value changed.',
         },
       },
     },
@@ -32,6 +32,9 @@
   let load = $state('102.5');
   let blank = $state('');
   let committed = $state('');
+  let rest = $state('90');
+  let tempo = $state('3-1-1-0');
+  let rpe = $state('8.x');
   let rows = $state([
     { name: 'Back squat', role: 'main' as string | undefined, reps: 5, load: '102.5', note: 'Pause 2 s at the bottom' },
     { name: 'Romanian deadlift', role: 'secondary' as string | undefined, reps: 8, load: '80', note: '' },
@@ -48,6 +51,18 @@
 
 <Story name="Figure cell" asChild>
   <div style="padding: 0 6px"><InputCell label="Load for Back squat, kg" bind:value={load} figure width={6} /></div>
+</Story>
+
+<Story name="Stepped figure" asChild>
+  <div style="padding: 0 6px"><InputCell label="Rest seconds" bind:value={rest} figure width={6} step={15} min={0} max={600} /></div>
+</Story>
+
+<Story name="Capped length" asChild>
+  <div style="padding: 0 6px"><InputCell label="Tempo" bind:value={tempo} width={8} maxlength={7} placeholder="3-1-1-0" /></div>
+</Story>
+
+<Story name="Invalid" asChild>
+  <div style="padding: 0 6px"><InputCell label="RPE" bind:value={rpe} figure width={6} invalid /></div>
 </Story>
 
 <Story name="Empty" asChild>
