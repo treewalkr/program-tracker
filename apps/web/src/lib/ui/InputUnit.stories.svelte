@@ -22,6 +22,7 @@
   let pct = $state<number | null>(75);
   let both = $state<number | null>(140);
   let over = $state<number | null>(650);
+  let bpm = $state<number | null>(58);
 </script>
 
 <Story name="1RM kg" exportName="OneRmKg" asChild>
@@ -50,4 +51,8 @@
 
 <Story name="Hidden label (list row)" asChild>
   <div style="max-width: 320px"><InputUnit label="1RM 1 kg" unit="kg" value={140} width="auto" hideLabel /></div>
+</Story>
+
+<Story name="Whole number (bpm)" asChild>
+  <div style="max-width: 320px"><InputUnit label="Resting HR" unit="bpm" bind:value={bpm} decimals={0} min={30} max={120} hint="decimals=0: the digits-only keypad on touch." /></div>
 </Story>

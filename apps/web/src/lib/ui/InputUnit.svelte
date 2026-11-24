@@ -20,6 +20,7 @@
 		step?: number;
 		min?: number;
 		max?: number;
+		/** Rounds the figure; 0 = whole numbers, with the digits-only keypad. */
 		decimals?: number;
 		hint?: string | null;
 		error?: string | null;
@@ -98,7 +99,8 @@
 			{id}
 			class="in"
 			type="text"
-			inputmode="decimal"
+			inputmode={decimals === 0 ? 'numeric' : 'decimal'}
+			pattern={decimals === 0 ? '[0-9]*' : undefined}
 			autocomplete="off"
 			spellcheck="false"
 			{disabled}

@@ -79,6 +79,13 @@
     }
   }
 
+  /** bpm is a whole number: the zone cells ask for the digits-only keypad (InputCell's figure mode asks for the decimal one). */
+  const wholeNumberPad = (node: HTMLElement) => {
+    for (const input of node.querySelectorAll("input")) {
+      input.inputMode = "numeric";
+      input.pattern = "[0-9]*";
+    }
+  };
   const zoneRows = $derived<readonly HrZone[] | null>(editing ? ("zones" in preview ? preview.zones : draft.method === "custom" ? draft.zones : null) : (current?.zones ?? null));
 </script>
 
@@ -90,10 +97,10 @@
     <p class="hint">{HR_METHOD_HINT[draft.method]}</p>
 
     <div class="inputs">
-      <div class="u"><InputUnit label="Resting HR" unit="bpm" min={30} max={120} optional={draft.method !== "karvonen"} bind:value={draft.restingHr} disabled={busy} /></div>
-      <div class="u"><InputUnit label="Max HR" unit="bpm" min={100} max={240} optional={draft.method === "lthr" || draft.method === "custom"} bind:value={draft.maxHr} disabled={busy} /></div>
+      <div class="u"><InputUnit label="Resting HR" unit="bpm" decimals={0} min={30} max={120} optional={draft.method !== "karvonen"} bind:value={draft.restingHr} disabled={busy} /></div>
+      <div class="u"><InputUnit label="Max HR" unit="bpm" decimals={0} min={100} max={240} optional={draft.method === "lthr" || draft.method === "custom"} bind:value={draft.maxHr} disabled={busy} /></div>
       <div class="d"><InputDate label="Max HR tested on" optional {today} max={today} hint="Blank = not tested" bind:value={draft.maxHrTestedOn} disabled={busy} /></div>
-      <div class="u"><InputUnit label="LTHR" unit="bpm" min={80} max={230} optional={draft.method !== "lthr"} bind:value={draft.lthr} disabled={busy} /></div>
+      <div class="u"><InputUnit label="LTHR" unit="bpm" decimals={0} min={80} max={230} optional={draft.method !== "lthr"} bind:value={draft.lthr} disabled={busy} /></div>
     </div>
 
     {@render table(zoneRows, draft.method === "custom")}
@@ -167,7 +174,7 @@
           {@const z = zones?.find((x) => x.zone === n)}
           <td class="r num">
             {#if editable && z}
-              <span class="pair">
+              <span class="pair" {@attach wholeNumberPad}>
                 <InputCell label="Zone {n} min bpm" figure width={4} placeholder="min" bind:value={() => (z.min ? String(z.min) : ""), (v) => setZone(z, "min", v)} />
                 <span class="dash">–</span>
                 <InputCell label="Zone {n} max bpm" figure width={4} placeholder="max" bind:value={() => (z.max ? String(z.max) : ""), (v) => setZone(z, "max", v)} />
