@@ -14,7 +14,7 @@
   import Icon from "$lib/ui/Icon.svelte";
   import Skeleton from "$lib/ui/Skeleton.svelte";
   import Note from "$lib/ui/Note.svelte";
-  import { cachedWeekDto, portalDraftKey, PORTAL_WEEK_CACHE_KEY, PORTAL_WEEK_DTO_CACHE_KEY, portalWeekCacheJson } from "$lib/portal/logForm";
+  import { cachedWeekDto, PORTAL_WEEK_CACHE_KEY, PORTAL_WEEK_DTO_CACHE_KEY, portalWeekCacheJson, portalWeekDtoCacheJson, readPortalDraft } from "$lib/portal/logForm";
   import { clearPortalCopies } from "$lib/portal/offline";
 
   let { data } = $props();
@@ -56,7 +56,7 @@
       keepCopy(dto);
     } catch {
       // no signal: the week as last loaded here, so the member can still open today's session
-      const copy = cachedWeekDto(readStored(PORTAL_WEEK_DTO_CACHE_KEY), today);
+      const copy = me ? cachedWeekDto(readStored(PORTAL_WEEK_DTO_CACHE_KEY), today, me.client.id) : null;
       if (copy) {
         dto = copy;
         offline = true;
@@ -82,16 +82,19 @@
   /** Sessions with a half-logged draft on this phone: their card says "Continue". */
   const drafts = $derived.by(() => {
     const ids = new Set<string>();
-    for (const w of dto?.weeks ?? []) for (const x of w.sessions) if (!x.log && readStored(portalDraftKey(x.id))) ids.add(x.id);
+    const clientId = me?.client.id;
+    if (!clientId || typeof localStorage === "undefined") return ids;
+    for (const w of dto?.weeks ?? []) for (const x of w.sessions) if (!x.log && readPortalDraft(localStorage, clientId, x.id)) ids.add(x.id);
     return ids;
   });
 
   /** Keep the week on this phone: the home page and every session in it open offline. */
   function keepCopy(d: PortalWeekDto) {
+    if (!me) return;
     try {
-      localStorage.setItem(PORTAL_WEEK_DTO_CACHE_KEY, JSON.stringify(d));
+      localStorage.setItem(PORTAL_WEEK_DTO_CACHE_KEY, portalWeekDtoCacheJson(d, me.client.id));
       const on = d.weeks.find((w) => w.loggable);
-      if (on) localStorage.setItem(PORTAL_WEEK_CACHE_KEY, portalWeekCacheJson(on));
+      if (on) localStorage.setItem(PORTAL_WEEK_CACHE_KEY, portalWeekCacheJson(on, me.client.id));
     } catch {
       // storage full or private mode: no offline copy, nothing else changes
     }

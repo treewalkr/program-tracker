@@ -50,6 +50,26 @@ describe("portal gate offline", () => {
     expect(store.peek()).toBeNull();
   });
 
+  test("a real sign-out, or another member signed in, forgets this phone's copies", async () => {
+    let cleared = 0;
+    const forget = () => void cleared++;
+    await gateSession(async () => inn, memory(JSON.stringify(inn)), forget);
+    expect(cleared).toBe(0);
+    // first sign-in on this phone: nothing to forget
+    await gateSession(async () => inn, memory(), forget);
+    expect(cleared).toBe(0);
+    await gateSession(async () => out, memory(JSON.stringify(inn)), forget);
+    expect(cleared).toBe(1);
+    const other: PortalSession = { kind: "signedIn", me: { client: { id: "c-other", name: "Bee" }, trainer: { name: "Coach" } } };
+    const store = memory(JSON.stringify(inn));
+    expect(await gateSession(async () => other, store, forget)).toEqual({ session: other, offline: false });
+    expect(cleared).toBe(2);
+    expect(parseCachedSession(store.peek())).toEqual(other);
+    // a failed check is no answer: nothing is forgotten
+    await gateSession(async () => Promise.reject(new Error("503")), memory(JSON.stringify(inn)), forget);
+    expect(cleared).toBe(2);
+  });
+
   test("a failed check falls back to the last signed-in session on this phone", async () => {
     const store = memory(JSON.stringify(inn));
     const failing = async (): Promise<PortalSession> => {

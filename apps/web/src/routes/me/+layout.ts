@@ -3,6 +3,7 @@ import { apiMode } from "$lib/api";
 import { portalApi } from "$lib/api/portal";
 import { gateSession, portalRedirect, PORTAL_SESSION_CACHE_KEY } from "$lib/portal/gate";
 import { splitLang, withLang } from "$lib/portal/lang";
+import { clearPortalCopies } from "$lib/portal/offline";
 
 export const ssr = false;
 export const prerender = false;
@@ -33,7 +34,7 @@ const sessionStore = {
  * portal's own language and frame, never the trainer's error page.
  */
 export const load = async ({ url }) => {
-  const gate = await gateSession(() => portalApi.session(), sessionStore);
+  const gate = await gateSession(() => portalApi.session(), sessionStore, () => clearPortalCopies());
   if (!gate.session) return { portal: { kind: "signedOut" as const }, offline: true, unreachable: true };
   const session = gate.session;
   // the demo is always signed in; it still shows its sign-in page when asked for it

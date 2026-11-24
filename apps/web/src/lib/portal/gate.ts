@@ -43,16 +43,21 @@ export type GateSession = { session: PortalSession; offline: boolean } | { sessi
 
 /**
  * The gate's session check, with a dropped connection in mind. A real answer
- * (signed in, or a 401 → signed out) is remembered (or forgotten); a failed
+ * (signed in, or a 401 → signed out) is remembered (or forgotten, with the
+ * week copies: likewise when another member signed in here); a failed
  * check (no signal, a 5xx) falls back to the last signed-in session on this
  * phone, so a member mid-workout keeps going. Never seen signed in here → no session.
  */
 export async function gateSession(
   check: () => Promise<PortalSession>,
   store: { get(): string | null; set(v: string | null): void },
+  /** Forget this phone's offline copies: the member signed out, or another one signed in. */
+  forget: () => void = () => {},
 ): Promise<GateSession> {
   try {
     const session = await check();
+    const was = parseCachedSession(store.get());
+    if (session.kind === "signedOut" || (was?.kind === "signedIn" && was.me.client.id !== session.me.client.id)) forget();
     store.set(session.kind === "signedIn" ? JSON.stringify(session) : null);
     return { session, offline: false };
   } catch {

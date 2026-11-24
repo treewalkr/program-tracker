@@ -42,6 +42,7 @@ async function unwrap<T>(p: Promise<{ data: unknown; error: { value: unknown; st
     if (code === 409 && typeof value === "object" && value?.existing) {
       throw new PortalDuplicateError(portalWire(value.existing) as PortalDuplicateError["existing"]);
     }
+    // apiFailure tags Eden's failed fetch (value is the thrown Error) as network: true, so mayHaveLanded skips it
     throw apiFailure(error, headers as HeadersInit | undefined);
   }
   return portalWire(data) as T;

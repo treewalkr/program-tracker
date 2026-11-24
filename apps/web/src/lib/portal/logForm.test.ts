@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { PortalSession } from "@pt/shared";
 import { EMPTY_READINESS, setFlagNote, toggleFlag } from "$lib/logFlags";
 import { setSkipReason, skipExercise } from "$lib/logSheet";
-import { buildPortalLog, cachedSession, cachedWeekDto, cardioFormOf, defaultLogDate, extraRow, formOfSession, parsePortalDraft, portalWeekCacheJson, portalDraftJson, rowsOfSession, sameForm, saveSummary, setLoad, setsMissingKg, touchedExercises, type PortalLogForm, type PortalRow } from "./logForm";
+import { buildPortalLog, cachedSession, cachedWeekDto, cardioFormOf, defaultLogDate, draftWrite, extraRow, formOfSession, parsePortalDraft, portalDraftKey, portalWeekCacheJson, portalWeekDtoCacheJson, portalDraftJson, readPortalDraft, rowsOfSession, sameForm, saveSummary, setLoad, setsMissingKg, touchedExercises, type PortalLogForm, type PortalRow } from "./logForm";
 
 const exerciseSession: PortalSession = {
   id: "ps1", name: "Lower", kind: "exercises", seq: 1, weekday: 1, order: 0, cardio: null, log: null,
@@ -189,6 +189,29 @@ describe("portal log form", () => {
     expect(back.rows[1].planned).toBeUndefined();
   });
 
+  test("a coach swap in a slot: the new exercise, its own targets, nothing carried from the old one", () => {
+    const f = form(exerciseSession, { flags: toggleFlag({}, "pe1", "pain") });
+    f.rows[0] = { ...f.rows[0], weight: 105, reps: 7, rpe: 9, planned: undefined };
+    f.rows = setSkipReason(skipExercise(f.rows, "pe1"), "pe1", "time");
+    const sq = exerciseSession.exercises[0];
+    // same program-exercise id, a new exercise: the coach swapped Back Squat for Leg Press
+    const swapped: PortalSession = {
+      ...exerciseSession,
+      exercises: [{ ...sq, exerciseId: "ex-legpress", exerciseName: "Leg Press", prescribedSets: sq.prescribedSets.map((p) => ({ ...p, targetWeightKg: 60 })) }, exerciseSession.exercises[1]],
+    };
+    const back = parsePortalDraft(portalDraftJson(f), rowsOfSession(swapped))!;
+    expect(back.merged).toBe(true);
+    const lp = back.rows.filter((r) => r.programExerciseId === "pe1");
+    expect(lp.map((r) => [r.exerciseId, r.slotExerciseId, r.name, r.weight, r.reps, r.rpe, r.exerciseSkip ?? null])).toEqual([
+      ["ex-legpress", "ex-legpress", "Leg Press", 60, 6, "", null],
+      ["ex-legpress", "ex-legpress", "Leg Press", 60, 6, "", null],
+    ]);
+    // the pain was on the squat, not the leg press
+    expect(back.flags).toEqual({});
+    const built = buildPortalLog(swapped, back, false);
+    expect("input" in built && built.input.sets.filter((x) => x.programExerciseId === "pe1").every((x) => x.exerciseId === "ex-legpress")).toBe(true);
+  });
+
   test("a whole-exercise skip covers sets the coach added to it", () => {
     const f = form(exerciseSession, { rows: setSkipReason(skipExercise(rowsOfSession(exerciseSession), "pe1"), "pe1", "time") });
     const sq = exerciseSession.exercises[0];
@@ -346,23 +369,82 @@ describe("skip, something hurt, missed set", () => {
 describe("offline: the opened week is kept on this phone", () => {
   const week = { week: 2, startDate: "2026-11-16", endDate: "2026-11-22", loggable: true, sessions: [exerciseSession] };
   test("a cached week opens its session again while the week lasts", () => {
-    const raw = portalWeekCacheJson(week);
-    expect(cachedSession(raw, "ps1", "2026-11-18")?.session.id).toBe("ps1");
-    expect(cachedSession(raw, "ps1", "2026-11-18")?.week.endDate).toBe("2026-11-22");
+    const raw = portalWeekCacheJson(week, "c1");
+    expect(cachedSession(raw, "ps1", "2026-11-18", "c1")?.session.id).toBe("ps1");
+    expect(cachedSession(raw, "ps1", "2026-11-18", "c1")?.week.endDate).toBe("2026-11-22");
   });
   test("another session, a week that has ended, or junk: nothing", () => {
-    const raw = portalWeekCacheJson(week);
-    expect(cachedSession(raw, "nope", "2026-11-18")).toBeNull();
-    expect(cachedSession(raw, "ps1", "2026-11-23")).toBeNull();
-    expect(cachedSession("{junk", "ps1", "2026-11-18")).toBeNull();
-    expect(cachedSession(null, "ps1", "2026-11-18")).toBeNull();
+    const raw = portalWeekCacheJson(week, "c1");
+    expect(cachedSession(raw, "nope", "2026-11-18", "c1")).toBeNull();
+    expect(cachedSession(raw, "ps1", "2026-11-23", "c1")).toBeNull();
+    expect(cachedSession("{junk", "ps1", "2026-11-18", "c1")).toBeNull();
+    expect(cachedSession(null, "ps1", "2026-11-18", "c1")).toBeNull();
   });
-  test("the whole week page opens from this phone while its week lasts", () => {
+  test("another member's copy, or one an older build kept without a member, is never opened", () => {
+    expect(cachedSession(portalWeekCacheJson(week, "c1"), "ps1", "2026-11-18", "c2")).toBeNull();
+    expect(cachedSession(JSON.stringify(week), "ps1", "2026-11-18", "c1")).toBeNull();
+  });
+  test("the whole week page opens from this phone while its week lasts, for the member who kept it", () => {
     const dto = { program: { id: "p1", name: "Base" }, currentWeek: 2, weeks: [week, { ...week, week: 3, loggable: false }], cardio: null };
-    expect(cachedWeekDto(JSON.stringify(dto), "2026-11-20")?.weeks).toHaveLength(2);
-    expect(cachedWeekDto(JSON.stringify(dto), "2026-11-23")).toBeNull();
-    expect(cachedWeekDto(JSON.stringify({ ...dto, weeks: [] }), "2026-11-20")).toBeNull();
-    expect(cachedWeekDto("{junk", "2026-11-20")).toBeNull();
+    expect(cachedWeekDto(portalWeekDtoCacheJson(dto, "c1"), "2026-11-20", "c1")?.weeks).toHaveLength(2);
+    expect(cachedWeekDto(portalWeekDtoCacheJson(dto, "c1"), "2026-11-23", "c1")).toBeNull();
+    expect(cachedWeekDto(portalWeekDtoCacheJson({ ...dto, weeks: [] }, "c1"), "2026-11-20", "c1")).toBeNull();
+    expect(cachedWeekDto("{junk", "2026-11-20", "c1")).toBeNull();
+    expect(cachedWeekDto(portalWeekDtoCacheJson(dto, "c1"), "2026-11-20", "c2")).toBeNull();
+    expect(cachedWeekDto(JSON.stringify(dto), "2026-11-20", "c1")).toBeNull();
+  });
+});
+
+describe("drafts are kept per member", () => {
+  const memory = (init: Record<string, string> = {}) => {
+    const m = new Map(Object.entries(init));
+    return {
+      getItem: (k: string) => m.get(k) ?? null,
+      setItem: (k: string, v: string) => void m.set(k, v),
+      removeItem: (k: string) => void m.delete(k),
+      keys: () => [...m.keys()],
+    };
+  };
+
+  test("each member's draft has its own key", () => {
+    expect(portalDraftKey("c1", "ps1")).not.toBe(portalDraftKey("c2", "ps1"));
+    const store = memory({ [portalDraftKey("c1", "ps1")]: "mine" });
+    expect(readPortalDraft(store, "c1", "ps1")).toBe("mine");
+    expect(readPortalDraft(store, "c2", "ps1")).toBeNull();
+  });
+
+  test("an older build's draft moves to the member's key, never lost", () => {
+    const store = memory({ "pt:portal-log-draft:ps1": "old" });
+    expect(readPortalDraft(store, "c1", "ps1")).toBe("old");
+    expect(store.keys()).toEqual([portalDraftKey("c1", "ps1")]);
+    expect(readPortalDraft(store, "c1", "ps1")).toBe("old");
+  });
+
+  test("the member's own key wins over an older build's leftover", () => {
+    const store = memory({ "pt:portal-log-draft:ps1": "old", [portalDraftKey("c1", "ps1")]: "new" });
+    expect(readPortalDraft(store, "c1", "ps1")).toBe("new");
+  });
+});
+
+describe("draftWrite: compare-and-set on the stored draft", () => {
+  const f = form(exerciseSession, { notes: "a" });
+  const json = (over: Partial<PortalLogForm> = {}, at = "2026-11-24T10:00:00.000Z") => JSON.stringify({ ...f, ...over, savedAt: at });
+
+  test("an unchanged form isn't written again, whatever its savedAt", () => {
+    expect(draftWrite(json({}, "2026-11-24T10:05:00.000Z"), json(), json())).toBe("skip");
+    expect(draftWrite(null, null, null)).toBe("skip");
+  });
+
+  test("a change over what this tab last wrote (or found) is written", () => {
+    expect(draftWrite(json({ notes: "b" }), json(), json())).toBe("write");
+    expect(draftWrite(json(), null, null)).toBe("write");
+    expect(draftWrite(null, json(), json())).toBe("write");
+  });
+
+  test("someone else changed or cleared the stored draft since: never overwritten", () => {
+    expect(draftWrite(json({ notes: "b" }), json({ notes: "other tab" }), json())).toBe("conflict");
+    expect(draftWrite(json({ notes: "b" }), null, json())).toBe("conflict");
+    expect(draftWrite(json({ notes: "b" }), json(), null)).toBe("conflict");
   });
 });
 

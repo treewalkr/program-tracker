@@ -25,9 +25,11 @@
     extraRow,
     formOfSession,
     parsePortalDraft,
+    draftWrite,
     portalDraftJson,
     portalDraftKey,
     portalWeekCacheJson,
+    readPortalDraft,
     PORTAL_WEEK_CACHE_KEY,
     sameForm,
     saveSummary,
@@ -41,6 +43,7 @@
   import RestTimer, { restActive } from "$lib/portal/RestTimer.svelte";
   import { restOf } from "$lib/portal/restTimer";
   import { PortalTimeoutError, SAVE_TIMEOUT_MS, withTimeout } from "$lib/portal/timeout";
+  import { duplicateAction, mayHaveLanded } from "$lib/portal/saveRetry";
   import Button from "$lib/ui/Button.svelte";
   import Icon from "$lib/ui/Icon.svelte";
   import BackButton from "$lib/ui/BackButton.svelte";
@@ -62,6 +65,8 @@
 
   let week = $state<PortalWeek | null>(null);
   let session = $state<PortalSession | null>(null);
+  /** Where this session's draft is kept: the member's own key. */
+  const draftKey = $derived(me && session ? portalDraftKey(me.client.id, session.id) : null);
   let loadState = $state<"loading" | "ready" | "missing" | "failed">("loading");
 
   let rows = $state<PortalRow[]>([]);
@@ -87,7 +92,9 @@
   let ownsDraft = false;
   /** Another tab changed this session's draft: this one stops writing until reloaded. */
   let otherTab = $state(false);
-  /** The last save attempt never got an answer: a 409 "by you" now most likely is that save. */
+  /** The draft as this tab last wrote it, or found it on opening the session: the compare in compare-and-set. */
+  let lastDraft: string | null = null;
+  /** The last save attempt may have reached the server (a timeout, a 5xx): a 409 on the member's own log is resent as a replace. */
   let lastSaveLost = false;
   /** Opened from this phone's copy of the week: the connection dropped. */
   let offline = $state(false);
@@ -194,6 +201,7 @@
     merged = false;
     otherTab = false;
     ownsDraft = false;
+    lastDraft = null;
     lastSaveLost = false;
     showRpe = false;
     feelOpen = false;
@@ -204,12 +212,12 @@
       offline = false;
       // kept on this phone, so a dropped connection mid-workout can still open the session
       try {
-        if (w) localStorage.setItem(PORTAL_WEEK_CACHE_KEY, portalWeekCacheJson(w));
+        if (w && me) localStorage.setItem(PORTAL_WEEK_CACHE_KEY, portalWeekCacheJson(w, me.client.id));
       } catch {
         // storage full or private mode: no offline copy, nothing else changes
       }
     } catch {
-      const cached = cachedSession(readStored(PORTAL_WEEK_CACHE_KEY), id, today);
+      const cached = me ? cachedSession(readStored(PORTAL_WEEK_CACHE_KEY), id, today, me.client.id) : null;
       if (!cached) {
         loadState = "failed";
         return;
@@ -225,7 +233,9 @@
       return;
     }
     fresh(s);
-    const draft = parsePortalDraft(readStored(portalDraftKey(id)), rows, cardioFormOf(s.cardio));
+    const raw = storedDraft(id);
+    lastDraft = raw;
+    const draft = parsePortalDraft(raw, rows, cardioFormOf(s.cardio));
     if (draft && !sameForm(draft, freshForm(s))) {
       rows = draft.rows;
       cardio = draft.cardio;
@@ -242,6 +252,16 @@
     // a restored draft or a saved log may already carry a skip or pain: never hide it
     issuesOpen = flaggedAt(0);
     loadState = "ready";
+  }
+
+  /** This member's stored draft for the session (an older build's moves to their key). */
+  function storedDraft(id: string): string | null {
+    if (!me) return null;
+    try {
+      return readPortalDraft(localStorage, me.client.id, id);
+    } catch {
+      return null;
+    }
   }
 
   function readStored(key: string): string | null {
@@ -265,15 +285,29 @@
     return sameForm(form, freshForm(session)) ? null : portalDraftJson(form);
   });
 
-  /** Write (or clear) the stored draft now. Never clears one this page didn't restore or write. */
+  /**
+   * Write (or clear) the stored draft now, compare-and-set: nothing when the form hasn't changed
+   * since this tab last wrote it, and never over a draft another tab changed since (a frozen
+   * background tab never missed a storage event's worth of entries). Never clears one this page
+   * didn't restore or write.
+   */
   function writeDraft(json: string | null | undefined) {
-    if (json === undefined || !session || otherTab) return;
-    const key = portalDraftKey(session.id);
+    if (json === undefined || !draftKey || otherTab) return;
     try {
+      const step = draftWrite(json, localStorage.getItem(draftKey), lastDraft);
+      if (step === "skip") return;
+      if (step === "conflict") {
+        otherTab = true;
+        return;
+      }
       if (json) {
-        localStorage.setItem(key, json);
+        localStorage.setItem(draftKey, json);
         ownsDraft = true;
-      } else if (ownsDraft) localStorage.removeItem(key);
+        lastDraft = json;
+      } else if (ownsDraft) {
+        localStorage.removeItem(draftKey);
+        lastDraft = null;
+      }
     } catch {
       // storage full or private mode: the form still works, it just won't survive a reload
     }
@@ -292,14 +326,15 @@
 
   /** Another tab wrote or cleared this session's draft: stop overwriting it, offer a reload. */
   function onStorage(e: StorageEvent) {
-    if (!session || e.key !== portalDraftKey(session.id) || e.storageArea !== localStorage) return;
+    if (!draftKey || e.key !== draftKey || e.storageArea !== localStorage) return;
     otherTab = true;
   }
 
   function startOver() {
     if (!session) return;
     try {
-      localStorage.removeItem(portalDraftKey(session.id));
+      if (draftKey) localStorage.removeItem(draftKey);
+      lastDraft = null;
     } catch {
       // private mode: nothing was kept
     }
@@ -400,44 +435,55 @@
     // the draft is on the phone before the request leaves: a 401 redirect or a closed tab keeps every entry
     flushDraft();
     saving = true;
+    let input = built.input;
     try {
-      const log = await withTimeout((signal) => portalApi.log(built.input, { signal }), SAVE_TIMEOUT_MS);
-      done(log, built);
-    } catch (e) {
-      if (e instanceof PortalDuplicateError) {
-        if (lastSaveLost && !byYou && e.existing.loggedBy === "client" && e.existing.date === built.input.date) {
-          // the earlier attempt landed, only its answer was lost: that is this save
-          done({ id: e.existing.id, programSessionId: session.id, date: e.existing.date, loggedBy: "client" }, built);
+      for (;;) {
+        try {
+          const log = await withTimeout((signal) => portalApi.log(input, { signal }), SAVE_TIMEOUT_MS);
+          done(log, built, input.onDuplicate === "replace");
+          return;
+        } catch (e) {
+          // the earlier attempt may have landed: its log is the member's own, and what's on screen wins
+          if (e instanceof PortalDuplicateError && duplicateAction(e.existing, { lastSaveLost, replacing: input.onDuplicate === "replace" }) === "replace") {
+            input = { ...input, onDuplicate: "replace" };
+            continue;
+          }
+          saveFailed(e);
           return;
         }
-        // someone logged it meanwhile: show who, from fresh data
-        error = e.existing.loggedBy === "trainer" ? t("log.byCoach") : t("log.byYou", { date: fmtShortDate(e.existing.date) });
-        if (session) session = { ...session, log: { id: e.existing.id, loggedBy: e.existing.loggedBy, date: e.existing.date } };
-      } else if (e instanceof PortalTimeoutError) {
-        lastSaveLost = true;
-        error = t("log.timeout");
-      } else {
-        const status = (e as { status?: unknown }).status;
-        // no answer at all (Eden's failed fetch): the server may still have it
-        if (typeof status !== "number" || status >= 500) lastSaveLost = true;
-        // the server's schema refused a value: say so, never "check your connection"
-        error = status === 422 ? (/invalid log/.test((e as Error).message) ? t("log.invalid") : t("log.notThisWeek")) : t("log.error");
       }
     } finally {
       saving = false;
     }
   }
 
+  function saveFailed(e: unknown) {
+    // only a save that could have reached the server counts as maybe landed; offline it never left
+    if (mayHaveLanded(e, navigator.onLine !== false)) lastSaveLost = true;
+    if (e instanceof PortalDuplicateError) {
+      // someone logged it meanwhile: show who, from fresh data
+      error = e.existing.loggedBy === "trainer" ? t("log.byCoach") : t("log.byYou", { date: fmtShortDate(e.existing.date) });
+      if (session) session = { ...session, log: { id: e.existing.id, loggedBy: e.existing.loggedBy, date: e.existing.date } };
+    } else if (e instanceof PortalTimeoutError) {
+      error = t("log.timeout");
+    } else {
+      const status = (e as { status?: unknown }).status;
+      // the server's schema refused a value: say so, never "check your connection"
+      error = status === 422 ? (/invalid log/.test((e as Error).message) ? t("log.invalid") : t("log.notThisWeek")) : t("log.error");
+    }
+  }
+
   /** The save landed: the draft goes, the recap shows. */
-  function done(log: PortalSavedLog, built: { sets: number; input: PortalLogInput }) {
+  function done(log: PortalSavedLog, built: { sets: number; input: PortalLogInput }, replaced: boolean) {
     if (!session) return;
     try {
-      localStorage.removeItem(portalDraftKey(session.id));
+      if (draftKey) localStorage.removeItem(draftKey);
+      lastDraft = null;
     } catch {
       // private mode: nothing was kept
     }
     lastSaveLost = false;
-    saved = { log, sets: built.sets, prep: summary?.prep ?? null, replaced: byYou, skipped: !!built.input.cardio?.skipped, pain: !!built.input.cardio?.pain?.reported || built.input.cardio?.skipped?.reason === "pain" };
+    saved = { log, sets: built.sets, prep: summary?.prep ?? null, replaced, skipped: !!built.input.cardio?.skipped, pain: !!built.input.cardio?.pain?.reported || built.input.cardio?.skipped?.reason === "pain" };
     undone = false;
     window.scrollTo({ top: 0 });
     void focusRecap();
@@ -711,7 +757,8 @@
     {#if byCoach}
       <Note tone="warn" role="note">{t("log.byCoach")}</Note>
     {:else if byYou && session.log}
-      <Note tone="warn" role="note">{t("log.byYou", { date: fmtShortDate(session.log.date) })}</Note>
+      <!-- D5: the member's edit clears the coach's reviewed mark; the coach's note stays -->
+      <Note tone="warn" role="note">{t(session.log.entry?.reviewedAt ? "log.byYouReviewed" : "log.byYou", { date: fmtShortDate(session.log.date) })}</Note>
     {/if}
     {#if offline}
       <Note tone="warn" role="status">{t("log.offline")}</Note>
