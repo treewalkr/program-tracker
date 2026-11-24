@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { inAppBrowser, inAppName, phoneBrowser, withExternalBrowser, withoutExternalBrowser } from "./inAppBrowser";
+import { inAppBrowser, inAppHint, inAppName, phoneBrowser, withExternalBrowser, withoutExternalBrowser } from "./inAppBrowser";
 
 /** Real user agents, as each app sends them (iOS 17 / Android 14). */
 const UA = {
@@ -56,6 +56,12 @@ describe("inAppBrowser", () => {
     expect(phoneBrowser(UA.lineIos)).toBe("Safari");
     expect(phoneBrowser(UA.lineAndroid)).toBe("Chrome");
     expect(inAppName("line")).toBe("LINE");
+  });
+
+  test("hint: app, browser and menu glyph per platform", () => {
+    expect(inAppHint(UA.instagramIos)).toEqual({ app: "instagram", name: "Instagram", browser: "Safari", menu: "⋯" });
+    expect(inAppHint(UA.messengerAndroid)).toEqual({ app: "messenger", name: "Messenger", browser: "Chrome", menu: "⋮" });
+    expect(inAppHint(UA.safariIos)).toBeNull();
   });
 });
 

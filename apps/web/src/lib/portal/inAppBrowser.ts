@@ -26,6 +26,14 @@ export const phoneBrowser = (ua: string): "Safari" | "Chrome" => (/Android/i.tes
 export const inAppName = (app: InAppBrowser): string | null =>
   app === "line" ? "LINE" : app === "messenger" ? "Messenger" : app === "facebook" ? "Facebook" : app === "instagram" ? "Instagram" : null;
 
+/** What the copy needs to send a member to the phone's browser; null in a real browser. */
+export function inAppHint(ua: string): { app: InAppBrowser; name: string | null; browser: "Safari" | "Chrome"; menu: "⋯" | "⋮" } | null {
+  const app = inAppBrowser(ua);
+  if (!app) return null;
+  // the in-app browser's menu: ⋯ on iOS, ⋮ on Android
+  return { app, name: inAppName(app), browser: phoneBrowser(ua), menu: /Android/i.test(ua) ? "⋮" : "⋯" };
+}
+
 /** LINE opens a URL carrying this in the phone's browser instead of its own (LINE URL scheme docs). */
 export const EXTERNAL_BROWSER_PARAM = "openExternalBrowser";
 
