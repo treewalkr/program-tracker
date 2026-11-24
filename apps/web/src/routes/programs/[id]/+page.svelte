@@ -989,7 +989,8 @@
           {#if stale}
             <ConfirmButton label="Reload latest" confirmLabel="Drop my edits and reload?" variant="primary" armedVariant="danger" small onconfirm={reloadLatest} />
           {:else}
-            <button class="btn ghost small" onclick={discard} disabled={saving}>Discard</button>
+            <!-- Two taps (a whole editing session goes) and kept apart from Save changes for thumbs. -->
+            <ConfirmButton label="Discard" confirmLabel="Discard all edits?" variant="ghost" armedVariant="danger" small class="discard" disabled={saving} onconfirm={discard} />
             <button class="btn primary small" onclick={save} disabled={saving || !validation.ok}>{saving ? "Saving…" : "Save changes"}</button>
           {/if}
         </div>
@@ -1052,6 +1053,8 @@
     gap: 8px;
   }
   .dock > :global(.savebar) { position: static; margin-top: 0; }
+  /* 16 px from Save changes with the bar's 8 px gap. */
+  .savebar :global(.discard) { margin-right: 8px; }
   @media (max-width: 700px) { .dock { bottom: 60px; } }
   /* Same look as the draft edit dock's toast. */
   .copy-toast {
