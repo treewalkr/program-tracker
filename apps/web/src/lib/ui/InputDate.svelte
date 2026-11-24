@@ -27,6 +27,8 @@
 		/** Program starts: a non-Monday gets a warning and a fix. */
 		mondayOnly?: boolean;
 		disabled?: boolean;
+		/** Keep the label for screen readers only (a date in a list row). */
+		hideLabel?: boolean;
 		onchange?: (value: string) => void;
 	}
 
@@ -47,6 +49,7 @@
 		required = false,
 		mondayOnly = false,
 		disabled = false,
+		hideLabel = false,
 		onchange,
 	}: Props = $props();
 
@@ -66,7 +69,7 @@
 	}
 </script>
 
-<FieldFrame {id} {label} hint={offDay ? null : hint} {error} {optional}>
+<FieldFrame {id} {label} hint={offDay ? null : hint} {error} {optional} {hideLabel}>
 	<div class="box" class:bad={!!error} class:off={disabled}>
 		<input
 			{id}

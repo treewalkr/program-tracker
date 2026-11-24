@@ -45,3 +45,7 @@
 <Story name="Disabled" asChild>
   <div style="max-width: 320px"><InputDate label="Logged on" value="2026-11-19" {today} disabled /></div>
 </Story>
+
+<Story name="Hidden label (list row)" asChild>
+  <div style="max-width: 320px"><InputDate label="Start of Week 2" value="2026-11-16" {today} hideLabel /></div>
+</Story>
