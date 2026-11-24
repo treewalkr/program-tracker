@@ -3,6 +3,7 @@
 	import Icon from './Icon.svelte';
 	import FieldFrame from './input/FieldFrame.svelte';
 	import { describedBy } from './input/field';
+	import { enterToNext, selectOnTap } from './input/entry';
 	import { formatFigure, parseFigure, rangeIssue, signedDelta, stepFigure } from './input/figure';
 	import { RANGE_WORDS_EN, type RangeWords } from './input/duration';
 
@@ -11,6 +12,8 @@
 	 * actual, was → now. A unit field with a leading baseline cap; when the
 	 * value differs, the baseline is struck and a blue delta chip and a reset
 	 * button appear, in DraftReview's diff grammar. Changed, not good or bad.
+	 * A tap selects the figure, so typing replaces it; Enter moves to the next
+	 * field and never submits the form.
 	 */
 	interface Props {
 		label: string;
@@ -89,6 +92,7 @@
 	}
 
 	function onkeydown(e: KeyboardEvent) {
+		if (e.key === 'Enter') return enterToNext(e);
 		if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
 		e.preventDefault();
 		const next = stepFigure(value ?? baseline, step * (e.shiftKey ? 10 : 1), e.key === 'ArrowUp' ? 1 : -1, min, max);
@@ -113,6 +117,7 @@
 				class="in"
 				type="text"
 				inputmode="decimal"
+				enterkeyhint="next"
 				autocomplete="off"
 				spellcheck="false"
 				{disabled}
@@ -123,6 +128,7 @@
 				{oninput}
 				{onblur}
 				{onkeydown}
+				{@attach selectOnTap}
 			/>
 			<span class="cap" id="{id}-unit">{unit}</span>
 		</div>

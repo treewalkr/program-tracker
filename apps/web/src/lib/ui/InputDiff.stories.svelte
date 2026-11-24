@@ -10,7 +10,7 @@
       docs: {
         description: {
           component:
-            'Change a figure against a baseline: plan vs actual, was → now. A unit field with a leading baseline cap ("plan 100"). When the value differs, the baseline figure is struck and a blue delta chip ("+2.5", "−5") and a reset button ("Reset to plan") appear — DraftReview\'s diff grammar: changed, not good or bad. Screen readers hear "Plan 100 kg, now 102.5 kg, up 2.5". ↑/↓ step like the unit field.',
+            'Change a figure against a baseline: plan vs actual, was → now. A unit field with a leading baseline cap ("plan 100"). When the value differs, the baseline figure is struck and a blue delta chip ("+2.5", "−5") and a reset button ("Reset to plan") appear — DraftReview\'s diff grammar: changed, not good or bad. Screen readers hear "Plan 100 kg, now 102.5 kg, up 2.5". ↑/↓ step like the unit field. A tap selects the figure, so typing replaces it; Enter moves to the next field and never submits the form.',
         },
       },
     },
@@ -24,6 +24,9 @@
   let bodyweight = $state<number | null>(72.4);
   let top = $state<number | null>(105);
   let reps = $state<number | null>(5);
+  let logTop = $state<number | null>(100);
+  let logReps = $state<number | null>(5);
+  let submits = $state(0);
 </script>
 
 <Story name="Unchanged" asChild>
@@ -44,4 +47,13 @@
     <InputDiff label="Top set" bind:value={top} baseline={100} unit="kg" step={2.5} />
     <InputDiff label="Reps" bind:value={reps} baseline={5} unit="reps" baselineLabel="plan" />
   </div>
+</Story>
+
+<Story name="Prefilled in a form" asChild>
+  <!-- Tap "Top set" and type 105: the plan is selected, so it becomes 105, not 100105. Enter moves to Reps, never submits. -->
+  <form style="max-width: 320px; display: grid; gap: 12px" onsubmit={(e) => { e.preventDefault(); submits += 1; }}>
+    <InputDiff label="Top set" bind:value={logTop} baseline={100} unit="kg" step={2.5} />
+    <InputDiff label="Reps" bind:value={logReps} baseline={5} unit="reps" />
+    <p style="font: 12px var(--font-ui); color: var(--muted); margin: 0">Form submitted {submits} times</p>
+  </form>
 </Story>

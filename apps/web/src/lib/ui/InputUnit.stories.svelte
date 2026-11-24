@@ -9,7 +9,7 @@
       docs: {
         description: {
           component:
-            'A typed number with a unit: 1RM kg, bodyweight, weekly cardio minutes, % of 1RM. The figure is right-aligned mono; the unit sits in a well cap like Select 03. ↑/↓ step by `step` (Shift ×10), a comma decimal is read as a dot, and min/max show their error line on blur. A number picked repeatedly from a fixed ladder stays Select 05 Figure stepper.',
+            'A typed number with a unit: 1RM kg, bodyweight, weekly cardio minutes, % of 1RM. The figure is right-aligned mono; the unit sits in a well cap like Select 03. ↑/↓ step by `step` (Shift ×10), a comma decimal is read as a dot, and min/max show their error line on blur. A tap selects a prefilled figure, so typing replaces it rather than appending; Enter moves to the next field and never submits the form. A number picked repeatedly from a fixed ladder stays Select 05 Figure stepper.',
         },
       },
     },
@@ -22,6 +22,9 @@
   let pct = $state<number | null>(75);
   let both = $state<number | null>(140);
   let over = $state<number | null>(650);
+  let distance = $state<number | null>(5);
+  let avgHr = $state<number | null>(148);
+  let submits = $state(0);
 </script>
 
 <Story name="1RM kg" exportName="OneRmKg" asChild>
@@ -38,6 +41,15 @@
 
 <Story name="Prefix + suffix" asChild>
   <div style="max-width: 320px"><InputUnit label="Top set" prefix="@" unit="kg" bind:value={both} step={2.5} min={0} /></div>
+</Story>
+
+<Story name="Prefilled in a form" asChild>
+  <!-- Tap "Distance" and type 6.2: the planned 5 is selected, so it becomes 6.2, not 56.2. Enter moves to Avg HR, never submits. -->
+  <form style="max-width: 320px; display: grid; gap: 12px" onsubmit={(e) => { e.preventDefault(); submits += 1; }}>
+    <InputUnit label="Distance" unit="km" bind:value={distance} step={0.1} min={0} max={300} hint="Planned 5 km — tap and type yours." />
+    <InputUnit label="Avg HR" unit="bpm" bind:value={avgHr} min={30} max={240} optional />
+    <p style="font: 12px var(--font-ui); color: var(--muted); margin: 0">Form submitted {submits} times</p>
+  </form>
 </Story>
 
 <Story name="Out of range" asChild>
