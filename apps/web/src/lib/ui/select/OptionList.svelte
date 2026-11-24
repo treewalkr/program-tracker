@@ -162,4 +162,10 @@
 	.cnt { font: 500 11px var(--font-mono); background: var(--well-2); border-radius: 99px; padding: 0 6px; }
 	.sep { height: 1px; background: var(--line-soft); margin: 4px 0; }
 	.empty { padding: 8px 12px; color: var(--muted); font-size: 13px; }
+	/* Finger-sized rows on touch screens: the same 44px the Stepper's grid gives. */
+	@media (pointer: coarse) {
+		.opt { min-height: 44px; }
+		.opt.two { align-items: center; }
+		.opt.two .tick, .opt.two .box { margin-top: 0; }
+	}
 </style>
