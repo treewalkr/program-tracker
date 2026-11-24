@@ -148,7 +148,7 @@
       </button>
     {/if}
     <button type="button" class="strip-toggle" aria-expanded={open} onclick={() => (open = !open)}>
-      {open ? "Hide" : "Show"} draft <Icon name="chevron" />
+      {open ? "Hide" : "Show"}<span class="toggle-noun"> draft</span> <Icon name="chevron" />
     </button>
   </div>
 
@@ -394,8 +394,10 @@
       border-bottom: 0;
       border-radius: 6px;
     }
-    .scroll {
-      max-height: 45vh;
+    /* Open, the pane is a sticky sheet over the chat: cap it so the latest reply and the composer
+       (whose height the chat page passes as --dock-h) stay in view; the session list scrolls inside. */
+    .pane.open {
+      max-height: min(62dvh, calc(100dvh - var(--dock-h, 160px) - 24px));
     }
     .foot {
       flex-wrap: wrap;
@@ -404,7 +406,8 @@
       flex: 1 1 180px;
     }
     .pane-head {
-      flex-wrap: nowrap;
+      flex-wrap: wrap;
+      row-gap: 6px;
       padding: 8px 12px;
     }
     .days,
@@ -440,6 +443,42 @@
     .strip-toggle :global(svg) {
       width: 14px;
       height: 14px;
+    }
+  }
+  /* Phones: the lock note sits small beside the review button, one short row instead of three. */
+  @media (max-width: 720px) {
+    /* Collapsed, the pane is one slim sticky line: head only, no week tabs. */
+    .pane:not(.open) .weeks {
+      display: none;
+    }
+    .pane:not(.open) .pane-head {
+      padding-block: 4px;
+    }
+    .foot {
+      flex-wrap: nowrap;
+      padding: 8px 12px;
+    }
+    .foot span {
+      flex: 1 1 auto;
+      font-size: 11px;
+      line-height: 1.35;
+    }
+  }
+  /* The smallest phones: "Hide" alone and the "Draft" heading for screen readers only, so the open
+     head stays one row (version picker, Select, Hide); the foot keeps just its button. */
+  @media (max-width: 360px) {
+    .pane.open .pane-head h2,
+    .pane.open .toggle-noun {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+    /* No room for the lock note beside the button; the review page says the same before approving. */
+    .foot span {
+      display: none;
     }
   }
 </style>
