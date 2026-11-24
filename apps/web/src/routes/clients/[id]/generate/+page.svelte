@@ -4,7 +4,7 @@
   import { api } from "$lib/api";
   import { DEFAULT_PROVIDER_ID, INSTRUCTION_PRESETS, MAX_AI_BLOCK_WEEKS, MIN_BLOCK_WEEKS, NOTE_MAX, fillLockedWeeks, localDateOf, loggedWeeks, mentionsAlternating, profileOn, selectExamples, weekRangeLabel, type HrZone, type SignalProgram, type WeeksChoice } from "@pt/shared";
   import type { ClientDto, DraftEditResultDto, ExerciseDto, GenerationDto, InstructionTemplateDto, ProgramDto, ProgramExampleDto, ProgramPhasingDto, ProviderDto, SessionLogDto } from "$lib/api/types";
-  import { generationPhase, isLivePending, POLL_INTERVAL_MS } from "$lib/generation";
+  import { generationPhase, isLivePending } from "$lib/generation";
   import { blockPulse, pulseSummary } from "$lib/metrics";
   import { weekOf } from "$lib/signals";
   import { effectivePreferences } from "$lib/preferences";
@@ -118,39 +118,35 @@
   let approving = $state(false);
   let rejecting = $state(false);
   let startedAtIso = $state("");
-  let pollTimer: ReturnType<typeof setInterval> | null = null;
+  /** The running draft this page waits on (follow); a newer start or a cancel drops it. */
+  let followed: string | null = null;
 
   function stopPolling() {
-    if (pollTimer !== null) {
-      clearInterval(pollTimer);
-      pollTimer = null;
-    }
+    followed = null;
   }
 
-  function startPolling(genId: string) {
-    stopPolling();
-    pollTimer = setInterval(async () => {
-      try {
-        const row = await api.generation(genId);
-        gen = row;
-        allGens = allGens.map((g) => (g.id === row.id ? row : g));
-        if (row.status === "cancelled") {
-          onGenerationCancelled(row);
-          return;
-        }
-        const nextPhase = generationPhase(row);
-        if (nextPhase !== "generating") {
-          stopPolling();
-          await restLoaded; // the review needs the catalog and examples
-          if (nextPhase === "failed") {
-            failReason = row.error ?? null;
-          }
-          phase = nextPhase;
-        }
-      } catch {
-        // a failed poll request keeps waiting (next tick)
-      }
-    }, POLL_INTERVAL_MS);
+  /** Wait for a draft this page didn't start (refresh, Watch progress) on the app watcher's poll — one poller, slowed while hidden. */
+  async function startPolling(genId: string) {
+    followed = genId;
+    const row = await generationWatch.follow(genId, { clientId: id, clientName: client?.name ?? "" });
+    if (followed !== genId) return;
+    followed = null;
+    if (!row) {
+      reset();
+      return;
+    }
+    gen = row;
+    allGens = allGens.map((g) => (g.id === row.id ? row : g));
+    if (row.status === "cancelled") {
+      onGenerationCancelled(row);
+      return;
+    }
+    const nextPhase = generationPhase(row);
+    if (nextPhase === "generating") return;
+    await restLoaded.catch(() => {}); // the review needs the catalog and examples (a load error shows on its own)
+    if (followed !== null || gen?.id !== row.id) return; // a new draft started meanwhile
+    if (nextPhase === "failed") failReason = row.error ?? null;
+    phase = nextPhase;
   }
 
   function onGenerationCancelled(row: GenerationDto) {
