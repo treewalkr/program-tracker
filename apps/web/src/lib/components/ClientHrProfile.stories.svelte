@@ -52,3 +52,17 @@
 <Story name="Loading" asChild>
   <div style="max-width: 760px"><ClientHrProfile versions={null} {today} onsave={save} /></div>
 </Story>
+
+<Story
+  name="Custom zones (touch)"
+  asChild
+  parameters={{ docs: { description: { story: 'New version › Custom. On a coarse pointer (iPad, phone) the bpm cells are 40px tall with 16px figures and show as fields; they ask for the whole-number keypad.' } } }}
+  play={async ({ canvasElement }) => {
+    const button = (name: string) => [...canvasElement.querySelectorAll('button')].find((b) => b.textContent?.trim() === name);
+    button('New version')?.click();
+    await new Promise((r) => setTimeout(r));
+    button('Custom')?.click();
+  }}
+>
+  <div style="max-width: 760px"><ClientHrProfile versions={two} {today} onsave={save} /></div>
+</Story>

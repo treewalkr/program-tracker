@@ -220,6 +220,11 @@
   @media (max-width: 720px), (pointer: coarse) {
     .pair :global(.cell:not(:focus):not([aria-invalid='true'])) { border-color: var(--line); background: var(--surface); }
   }
+  /* A finger on an iPad: the desk's 23px quiet cells grow to a tappable height, apart from each other. */
+  @media (pointer: coarse) {
+    .pair { gap: 4px; }
+    .pair :global(.cell) { min-height: 40px; font-size: 16px; }
+  }
   .mono { font-family: var(--font-mono); }
   @media (max-width: 640px) {
     .zones { font-size: 12px; }
