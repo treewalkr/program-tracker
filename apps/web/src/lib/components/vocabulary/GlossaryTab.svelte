@@ -7,10 +7,12 @@
   import Button from "$lib/ui/Button.svelte";
   import ConfirmButton from "$lib/ui/ConfirmButton.svelte";
   import EmptyState from "$lib/ui/EmptyState.svelte";
-  import Icon from "$lib/ui/Icon.svelte";
+  import InputField from "$lib/ui/InputField.svelte";
+  import InputSearch from "$lib/ui/InputSearch.svelte";
   import Note from "$lib/ui/Note.svelte";
   import Panel from "$lib/ui/Panel.svelte";
   import Pill from "$lib/ui/Pill.svelte";
+  import SelectField from "$lib/ui/SelectField.svelte";
   import SkeletonRows from "$lib/ui/SkeletonRows.svelte";
 
   /**
@@ -23,6 +25,8 @@
   let loaded = $state(false);
   let query = $state("");
   let error = $state<string | null>(null);
+
+  const KIND_OPTIONS = GLOSSARY_KINDS.map((k) => ({ value: k, label: GLOSSARY_KIND_LABELS[k] }));
 
   let draft = $state({ term: "", meaning: "", kind: "abbreviation" as GlossaryKind });
   let adding = $state(false);
@@ -93,27 +97,24 @@
 </script>
 
 {#snippet kindSelect(value: GlossaryKind, onchange: (k: GlossaryKind) => void, label: string)}
-  <select class="select kind" {value} aria-label={label} onchange={(e) => onchange(e.currentTarget.value as GlossaryKind)}>
-    {#each GLOSSARY_KINDS as k (k)}<option value={k}>{GLOSSARY_KIND_LABELS[k]}</option>{/each}
-  </select>
+  <div class="kind"><SelectField {label} hideLabel maxWidth="none" options={KIND_OPTIONS} {value} {onchange} /></div>
 {/snippet}
 
 {#if error}<div class="err"><Note tone="bad">{error}</Note></div>{/if}
 
 <Panel title="Glossary" count={list.length}>
   <form class="panel-body add" onsubmit={add} aria-label="Add a term">
-    <input class="input term" placeholder="Term, e.g. LPD" bind:value={draft.term} maxlength={GLOSSARY_TERM_MAX} aria-label="Term" />
-    <input class="input meaning" placeholder="What it means, e.g. lat pulldown" bind:value={draft.meaning} maxlength={GLOSSARY_MEANING_MAX} aria-label="Meaning" />
+    <div class="term"><InputField label="Term" hideLabel placeholder="Term, e.g. LPD" bind:value={draft.term} maxlength={GLOSSARY_TERM_MAX} /></div>
+    <div class="meaning">
+      <InputField label="Meaning" hideLabel placeholder="What it means, e.g. lat pulldown" bind:value={draft.meaning} maxlength={GLOSSARY_MEANING_MAX} />
+    </div>
     {@render kindSelect(draft.kind, (k) => (draft.kind = k), "Kind")}
     <Button variant="primary" type="submit" disabled={adding || !draft.term.trim() || !draft.meaning.trim()}>
       {adding ? "Adding…" : "Add term"}
     </Button>
   </form>
 
-  <div class="search">
-    <Icon name="search" />
-    <input bind:value={query} type="search" placeholder="Search terms, meanings or kinds" aria-label="Search the glossary" autocomplete="off" />
-  </div>
+  <div class="search"><InputSearch label="Search the glossary" placeholder="Search terms, meanings or kinds" bind:value={query} /></div>
 
   {#if loaded && personalCount === 0 && !query.trim()}
     <p class="hint">
@@ -132,14 +133,16 @@
         <li class="row">
           {#if editingId === g.id}
             <form class="edit" onsubmit={(e) => { e.preventDefault(); save(g); }} aria-label="Edit {g.term}">
-              <input bind:this={editInput} bind:value={edit.term} class="input term" maxlength={GLOSSARY_TERM_MAX} aria-label="Term" />
-              <input
-                bind:value={edit.meaning}
-                class="input meaning"
-                maxlength={GLOSSARY_MEANING_MAX}
-                aria-label="Meaning"
-                onkeydown={(e) => { if (e.key === "Escape") editingId = null; }}
-              />
+              <div class="term"><InputField label="Term" hideLabel bind:input={editInput} bind:value={edit.term} maxlength={GLOSSARY_TERM_MAX} /></div>
+              <div class="meaning">
+                <InputField
+                  label="Meaning"
+                  hideLabel
+                  bind:value={edit.meaning}
+                  maxlength={GLOSSARY_MEANING_MAX}
+                  onkeydown={(e) => { if (e.key === "Escape") editingId = null; }}
+                />
+              </div>
               {@render kindSelect(edit.kind, (k) => (edit.kind = k), "Kind")}
               <Button small variant="primary" type="submit" disabled={!edit.term.trim() || !edit.meaning.trim()}>Save</Button>
               <Button small variant="ghost" type="button" onclick={() => (editingId = null)}>Cancel</Button>
@@ -169,12 +172,9 @@
   .add { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; border-bottom: 1px solid var(--line-soft); }
   .term { flex: 0 1 140px; min-width: 100px; }
   .meaning { flex: 1 1 240px; min-width: 180px; }
-  .kind { width: 136px; font-size: 13px; }
+  .kind { width: 136px; }
 
-  .search { display: flex; align-items: center; gap: 8px; padding: 0 16px; border-bottom: 1px solid var(--line-soft); color: var(--muted); }
-  .search :global(svg) { width: 14px; height: 14px; flex: none; }
-  .search input { flex: 1; border: none; outline: none; background: none; padding: 10px 0; font: 14px var(--font-ui); color: var(--ink); }
-  .search:focus-within { color: var(--blue); }
+  .search { padding: 8px 16px; border-bottom: 1px solid var(--line-soft); }
 
   .hint { margin: 0; padding: 10px 16px; font-size: 13px; color: var(--muted); border-bottom: 1px solid var(--line-soft); background: var(--well); }
 
