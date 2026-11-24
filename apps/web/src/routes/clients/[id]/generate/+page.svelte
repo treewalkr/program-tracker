@@ -46,6 +46,9 @@
   import StartDateDialog from "$lib/components/StartDateDialog.svelte";
   import { askNotifyPermission, generationWatch } from "$lib/draftWatch";
   import { shortReason } from "$lib/generationWatch.svelte";
+  import { generateBriefKey, initialBrief, readGenerateBrief, saveGenerateBrief, clearGenerateBrief } from "$lib/generateBrief";
+  import LeaveGuard from "$lib/ui/LeaveGuard.svelte";
+  import { createLeaveGuard } from "$lib/leaveGuard.svelte";
 
   const id = $derived(page.params.id ?? "");
   /** Arrived from "Watch progress": a generation is running, so the skeleton takes its shape. */
@@ -118,6 +121,32 @@
   let approving = $state(false);
   let rejecting = $state(false);
   let startedAtIso = $state("");
+  /** The brief and rules persist per client (sessionStorage) once restored, so a detour and Back keep them. */
+  const briefKey = $derived(generateBriefKey(id));
+  let briefReady = $state(false);
+  let briefHandoff = "";
+  const briefSnapshot = $derived(JSON.stringify({ instructions, selected }));
+  /** The brief as last sent; a failed or cancelled draft forgets it, so the brief counts as unsent again. */
+  let sentBrief = $state<string | null>(null);
+  const briefSent = $derived(sentBrief !== null && sentBrief === briefSnapshot);
+
+  $effect(() => {
+    if (!briefReady) return;
+    if (briefSent) clearGenerateBrief(briefKey);
+    else saveGenerateBrief(briefKey, { instructions, selected: [...selected], handoff: briefHandoff });
+  });
+
+  const guard = createLeaveGuard({
+    // only an unsent brief on the form; once Generate starts the page is in another phase
+    dirty: () => briefReady && phase === "form" && instructions.trim() !== "" && !briefSent,
+    prompt: () => ({
+      title: "Leave this brief?",
+      body: "It isn't sent yet. Your brief and rules stay on this device and come back when you return to Generate for this member.",
+      leaveLabel: "Leave, keep brief",
+      danger: false,
+    }),
+  });
+
   /** The running draft this page waits on (follow); a newer start or a cancel drops it. */
   let followed: string | null = null;
 
@@ -143,6 +172,7 @@
     }
     const nextPhase = generationPhase(row);
     if (nextPhase === "generating") return;
+    if (nextPhase === "failed") sentBrief = null;
     await restLoaded.catch(() => {}); // the review needs the catalog and examples (a load error shows on its own)
     if (followed !== null || gen?.id !== row.id) return; // a new draft started meanwhile
     if (nextPhase === "failed") failReason = row.error ?? null;
@@ -162,6 +192,7 @@
       gen = row;
       phase = "form";
       cancelledNote = "block";
+      sentBrief = null;
     }
   }
 
@@ -219,6 +250,7 @@
     activated = null;
     activateError = null;
     startedAtIso = new Date().toISOString();
+    sentBrief = briefSnapshot;
     phase = "generating";
     cancelledNote = null;
     askNotifyPermission();
@@ -277,6 +309,8 @@
         failReason = (err as Error).message || null;
       }
       phase = "failed";
+    } finally {
+      if (phase === "failed") sentBrief = null;
     }
   }
 
@@ -522,11 +556,16 @@
     blockWeeks = defaultBlockWeeks(current);
     weeksChoice = defaultWeeksChoice(current, savedChoice);
 
-    // Phase-signal handoff: ?tpl=<templateId>&note=<prefill>
-    const note = params.get("note");
-    const tpl = params.get("tpl");
-    if (note) instructions = note;
-    if (tpl && templates.some((t) => t.id === tpl)) selected = [tpl];
+    // Phase-signal handoff (?tpl=<templateId>&note=<prefill>), or the brief kept from before a detour.
+    const brief = initialBrief(
+      readGenerateBrief(briefKey),
+      { note: params.get("note"), tpl: params.get("tpl") },
+      (t) => templates.some((x) => x.id === t),
+    );
+    instructions = brief.instructions;
+    selected = brief.selected;
+    briefHandoff = brief.handoff ?? "";
+    briefReady = true;
   }
 
   onMount(() => {
@@ -535,6 +574,8 @@
 </script>
 
 <svelte:head><title>Generate program{client ? ` · ${client.name}` : ""} · Program Tracker</title></svelte:head>
+
+<LeaveGuard {guard} />
 
 {#if loadError}
   <ClientLoadError error={loadError} />
