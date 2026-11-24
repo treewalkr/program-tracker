@@ -1,11 +1,12 @@
 <script lang="ts">
-  import { onMount, tick } from "svelte";
-  import { progressionLabel, SCHEME_PRESETS, schemePreset, type SchemePreset, type SchemePresetGoal } from "@pt/shared";
+  import { onMount, tick, type Snippet } from "svelte";
+  import { SCHEME_PRESETS, schemePreset, type SchemePreset, type SchemePresetGoal } from "@pt/shared";
   import { api } from "$lib/api";
   import type { PeriodizationSchemeDto, WeekPlan } from "$lib/api/types";
-  import { weekPlanLabel } from "$lib/format";
+  import { planIndexes } from "$lib/draftReview";
   import { rowsToWeekPlans, weekPlansToRows, type PhasingRow } from "$lib/phasing";
-  import DirChip from "$lib/components/DirChip.svelte";
+  import SchemeScore from "$lib/components/SchemeScore.svelte";
+  import SchemeShape from "$lib/components/SchemeShape.svelte";
   import WeekPlanRows from "$lib/components/WeekPlanRows.svelte";
   import Button from "$lib/ui/Button.svelte";
   import ConfirmButton from "$lib/ui/ConfirmButton.svelte";
@@ -42,8 +43,10 @@
     general: "General",
   };
 
-  /** "W2 · +intensity · intensity +3% · +2.5% 1RM" — the rule is what the presets are for. */
-  const chipLabel = (w: WeekPlan) => weekPlanLabel(w) + (w.progression ? ` · ${progressionLabel(w.progression)}` : "");
+  /** One volume axis for every silhouette on the page, so a taller shape means a bigger block. */
+  const shapeScale = $derived(
+    Math.max(120, ...[...schemes.map((s) => s.weeks), ...SCHEME_PRESETS.map((p) => p.weeks)].flatMap((ws) => planIndexes({ weeks: ws }).map((x) => x.vol)))
+  );
 
   /** "Hypertrophy volume ramp" for a preset key, the scheme's name for a scheme id. */
   function basisName(basedOn: string | null): string | null {
@@ -67,19 +70,7 @@
     editorEl?.querySelector<HTMLInputElement>("input")?.focus();
   }
 
-  const startNew = () =>
-    openEditor({
-      id: null,
-      name: "",
-      description: "",
-      basedOn: null,
-      rows: [
-        { directive: "base", metric: "", deltaPercent: null },
-        { directive: "+intensity", metric: "", deltaPercent: null, progKind: "percent", progAmount: 2.5 },
-        { directive: "+intensity", metric: "", deltaPercent: null, progKind: "percent", progAmount: 2.5 },
-        { directive: "deload", metric: "", deltaPercent: null },
-      ],
-    });
+  const startNew = () => openEditor({ id: null, name: "", description: "", basedOn: null, rows: DEFAULT_ROWS() });
 
   const startEdit = (s: PeriodizationSchemeDto) =>
     openEditor({ id: s.id, name: s.name, description: s.description ?? "", basedOn: s.basedOn, rows: weekPlansToRows(s.weeks) });
@@ -138,6 +129,21 @@
       hidden = await api.setSchemePresetHidden(p.key, hide);
     });
 
+  /** A new scheme's starting weeks: three building weeks and a deload. */
+  const DEFAULT_ROWS = (): PhasingRow[] => [
+    { directive: "base", metric: "", deltaPercent: null },
+    { directive: "+intensity", metric: "", deltaPercent: null, progKind: "percent", progAmount: 2.5 },
+    { directive: "+intensity", metric: "", deltaPercent: null, progKind: "percent", progAmount: 2.5 },
+    { directive: "deload", metric: "", deltaPercent: null },
+  ];
+  /** Swap the draft's weeks for a preset's (or the blank 4-week start). */
+  function startFrom(p: SchemePreset | null) {
+    if (!editor) return;
+    editor.rows = p ? weekPlansToRows(p.weeks) : DEFAULT_ROWS();
+    editor.basedOn = p?.key ?? null;
+    if (p && !editor.description) editor.description = p.summary.slice(0, 500);
+  }
+
   onMount(async () => {
     await run(async () => {
       [schemes, hidden] = await Promise.all([api.schemes(), api.hiddenSchemePresets()]);
@@ -155,25 +161,28 @@
 
 {#if error}<div class="err"><Note tone="bad">{error}</Note></div>{/if}
 
-{#snippet chips(weeks: WeekPlan[])}
-  <div class="chips">
-    {#each weeks as w (w.week)}
-      <span title={w.note}><DirChip directive={w.directive}>{chipLabel(w)}</DirChip></span>
-    {/each}
-  </div>
-{/snippet}
-
 {#snippet schemeEditor()}
   {#if editor}
     <form class="editor" bind:this={editorEl} onsubmit={save} aria-label={editor.id ? `Edit ${editor.name}` : "New scheme"}>
       <div class="editor-fields">
-        <div class="field">
-          <InputField label="Name" maxlength={120} placeholder="e.g. 5-week peak" bind:value={editor.name} />
-        </div>
-        <div class="field grow">
-          <InputField label="Description" optional maxlength={500} placeholder="When you use it, what it's for" bind:value={editor.description} />
+        <div class="field"><InputField label="Name" maxlength={120} placeholder="e.g. 5-week peak" bind:value={editor.name} /></div>
+        <div class="field grow"><InputField label="Description" optional maxlength={500} placeholder="When you use it, what it's for" bind:value={editor.description} /></div>
+      </div>
+      {#if editor.id === null}
+      <div class="start">
+        <p class="start-lead">Start from</p>
+        <div class="picks" role="group" aria-label="Start from a preset">
+          <button type="button" class="pick" aria-pressed={editor.basedOn === null} onclick={() => startFrom(null)}>
+            <span class="blank" aria-hidden="true"></span><span>Blank</span>
+          </button>
+          {#each SCHEME_PRESETS as p (p.key)}
+            <button type="button" class="pick" aria-pressed={editor.basedOn === p.key} onclick={() => startFrom(p)}>
+              <SchemeShape weeks={p.weeks} scale={shapeScale} /><span>{p.name}</span>
+            </button>
+          {/each}
         </div>
       </div>
+      {/if}
       <WeekPlanRows bind:rows={editor.rows} />
       <div class="editor-acts">
         <Button variant="primary" type="submit" disabled={!editorValid || saving}>{saving ? "Saving…" : "Save scheme"}</Button>
@@ -182,6 +191,30 @@
       </div>
     </form>
   {/if}
+{/snippet}
+
+<!-- One scheme: the silhouette and name lead, the week score reads beside them
+     on a wide row and under them on a narrow one. -->
+{#snippet scheme(s: { name: string; weeks: WeekPlan[]; summary: string | null; goal?: SchemePresetGoal; basis?: string | null }, acts: Snippet, extra?: Snippet)}
+  <article class="scheme">
+    <div class="lede">
+      <div class="head">
+        <SchemeShape weeks={s.weeks} scale={shapeScale} />
+        <div class="title">
+          <h3 class="name">{s.name}</h3>
+          <p class="meta">
+            {#if s.goal}<Pill>{GOAL_LABEL[s.goal]}</Pill>{/if}
+            <span class="mono">{s.weeks.length} wk</span>
+            {#if s.basis}<span class="basis">from {s.basis}</span>{/if}
+          </p>
+        </div>
+      </div>
+      {#if s.summary}<p class="desc">{s.summary}</p>{/if}
+      {#if extra}<div class="extra">{@render extra()}</div>{/if}
+      <div class="acts">{@render acts()}</div>
+    </div>
+    <div class="score"><SchemeScore weeks={s.weeks} name={s.name} /></div>
+  </article>
 {/snippet}
 
 <div class="stack">
@@ -195,7 +228,7 @@
     {#if !loaded}
       <div class="panel-body"><Skeleton h="120px" /></div>
     {:else if schemes.length === 0 && !editor}
-      <EmptyState>No schemes of your own yet. Duplicate a preset below, or start a new one.</EmptyState>
+      <p class="empty">No schemes of your own yet. Duplicate a preset below, or start a new one.</p>
     {:else}
       <ul class="rows">
         {#each schemes as s (s.id)}
@@ -203,18 +236,12 @@
             {#if editor?.id === s.id}
               {@render schemeEditor()}
             {:else}
-              <div class="row-head">
-                <h3 class="name">{s.name}</h3>
-                <span class="weeks mono">{s.weeks.length} wk</span>
-                <div class="acts">
-                  <Button small variant="ghost" onclick={() => startEdit(s)}>Edit</Button>
-                  <Button small variant="ghost" onclick={() => duplicateScheme(s)}>Duplicate</Button>
-                  <ConfirmButton label="Delete" confirmLabel="Delete {s.name}?" onconfirm={() => remove(s)} small variant="ghost" class="danger" />
-                </div>
-              </div>
-              {#if s.description}<p class="desc">{s.description}</p>{/if}
-              {@render chips(s.weeks)}
-              {#if basisName(s.basedOn)}<p class="basis">Based on {basisName(s.basedOn)}</p>{/if}
+              {#snippet acts()}
+                <Button small onclick={() => startEdit(s)}>{#snippet icon()}<Icon name="pencil" />{/snippet}Edit</Button>
+                <Button small variant="ghost" onclick={() => duplicateScheme(s)}>Duplicate</Button>
+                <ConfirmButton label="Delete" confirmLabel="Delete {s.name}?" subject={s.name} onconfirm={() => remove(s)} small variant="ghost" class="danger" />
+              {/snippet}
+              {@render scheme({ name: s.name, weeks: s.weeks, summary: s.description, basis: basisName(s.basedOn) }, acts)}
             {/if}
           </li>
         {/each}
@@ -229,23 +256,19 @@
       <ul class="rows">
         {#each visiblePresets as p (p.key)}
           <li class="row">
-            <div class="row-head">
-              <h3 class="name">{p.name}</h3>
-              <Pill>{GOAL_LABEL[p.goal]}</Pill>
-              <span class="weeks mono">{p.weeks.length} wk</span>
-              <div class="acts">
-                <Button small variant="ghost" onclick={() => duplicatePreset(p)}>Duplicate</Button>
-                <Button small variant="ghost" onclick={() => setHidden(p, true)}>Hide</Button>
-              </div>
-            </div>
-            <p class="desc">{p.summary}</p>
-            {@render chips(p.weeks)}
-            <details class="sources">
-              <summary>Sources <span class="mono">{p.sources.length}</span></summary>
-              <ul>
-                {#each p.sources as src (src)}<li>{src}</li>{/each}
-              </ul>
-            </details>
+            {#snippet acts()}
+              <Button small onclick={() => duplicatePreset(p)}>{#snippet icon()}<Icon name="layers" />{/snippet}Duplicate</Button>
+              <Button small variant="ghost" onclick={() => setHidden(p, true)}>{#snippet icon()}<Icon name="eye" />{/snippet}Hide</Button>
+            {/snippet}
+            {#snippet sources()}
+              <details class="sources">
+                <summary>Sources <span class="mono">{p.sources.length}</span></summary>
+                <ul>
+                  {#each p.sources as src (src)}<li>{src}</li>{/each}
+                </ul>
+              </details>
+            {/snippet}
+            {@render scheme({ name: p.name, weeks: p.weeks, summary: p.summary, goal: p.goal }, acts, sources)}
           </li>
         {/each}
       </ul>
@@ -258,17 +281,13 @@
           Hidden <span class="mono">{hiddenPresets.length}</span>
         </button>
         {#if showHidden}
-          <ul class="rows">
+          <ul class="hidden-rows">
             {#each hiddenPresets as p (p.key)}
-              <li class="row muted">
-                <div class="row-head">
-                  <h3 class="name">{p.name}</h3>
-                  <Pill>{GOAL_LABEL[p.goal]}</Pill>
-                  <span class="weeks mono">{p.weeks.length} wk</span>
-                  <div class="acts">
-                    <Button small variant="ghost" onclick={() => setHidden(p, false)}>Show</Button>
-                  </div>
-                </div>
+              <li class="hidden-row">
+                <SchemeShape weeks={p.weeks} scale={shapeScale} />
+                <span class="name">{p.name}</span>
+                <span class="mono weeks">{p.weeks.length} wk</span>
+                <Button small variant="ghost" onclick={() => setHidden(p, false)}>Show</Button>
               </li>
             {/each}
           </ul>
@@ -281,33 +300,51 @@
 <style>
   .err { margin-bottom: 12px; }
   .stack { display: flex; flex-direction: column; gap: 16px; }
-
-  .rows { list-style: none; margin: 0; padding: 0; }
-  .row { display: flex; flex-direction: column; gap: 6px; padding: 12px 16px; border-bottom: 1px solid var(--line-soft); }
-  .row:last-child { border-bottom: none; }
-  .row-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-  .name { margin: 0; font: 600 14px var(--font-ui); color: var(--ink); }
-  .weeks { font-size: 12px; color: var(--muted); }
   .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
-  .acts { margin-left: auto; display: flex; gap: 4px; }
-  .desc { margin: 0; font-size: 13px; color: var(--muted); max-width: 72ch; }
-  .basis { margin: 0; font-size: 12px; color: var(--muted); }
-  .chips { display: flex; flex-wrap: wrap; gap: 4px; }
-  .row.muted .name { color: var(--muted); }
+
+  .empty { margin: 0; padding: 14px 16px; font-size: 13px; color: var(--muted); }
+
+  /* —— one scheme ——————————————————————— */
+  .rows { list-style: none; margin: 0; padding: 0; container-type: inline-size; }
+  .row { border-bottom: 1px solid var(--line-soft); }
+  .row:last-child { border-bottom: none; }
+  /* Narrow rows read top to bottom: who it is, the weeks, then what to do. */
+  .scheme { display: flex; flex-direction: column; gap: 10px; padding: 16px; }
+  .lede { display: contents; }
+  .score { order: 1; margin-block: 2px; }
+  .extra, .acts { order: 2; }
+  .head { display: flex; align-items: flex-end; gap: 12px; }
+  .title { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+  .name { margin: 0; font: 600 15px/1.3 var(--font-ui); color: var(--ink); text-wrap: balance; }
+  .meta { margin: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; font-size: 12px; color: var(--muted); }
+  .basis::before { content: "· "; }
+  .desc { margin: 0; font-size: 13px; line-height: 1.5; color: var(--muted); max-width: 64ch; text-wrap: pretty; }
+  .acts { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 2px; }
+  .score { min-width: 0; }
 
   .sources { font-size: 12px; color: var(--muted); }
   .sources summary { cursor: pointer; width: fit-content; }
-  .sources ul { margin: 4px 0 0; padding-left: 18px; }
-  .sources li + li { margin-top: 2px; }
+  .sources summary:hover { color: var(--ink); }
+  .sources ul { margin: 6px 0 0; padding-left: 18px; line-height: 1.45; }
+  .sources li + li { margin-top: 4px; }
 
+  /* Wide rows: the story on the left, the score on the right. */
+  @container (min-width: 760px) {
+    .scheme { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 32px; padding: 18px 20px; }
+    .lede { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+    .score { margin: 0; }
+  }
+
+  /* —— editor ——————————————————————————— */
   .editor { display: flex; flex-direction: column; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--line-soft); background: var(--well); }
-  .row .editor { margin: -12px -16px; border-bottom: none; }
+  .row .editor { border-bottom: none; }
   .editor-fields { display: flex; gap: 12px; flex-wrap: wrap; }
-  .field { min-width: 200px; }
-  .field.grow { flex: 1; }
+  .field { flex: 1 1 200px; }
+  .field.grow { flex: 2 1 260px; }
   .editor-acts { display: flex; align-items: center; gap: 8px; }
-  .editor-acts .subtle { margin-left: auto; font-size: 12px; color: var(--muted); }
+  .editor-acts .subtle { margin-left: auto; display: inline-flex; align-items: flex-end; gap: 10px; font-size: 12px; color: var(--muted); }
 
+  /* —— hidden presets ———————————————————— */
   .hidden-group { border-top: 1px solid var(--line); }
   .toggle {
     display: flex;
@@ -321,13 +358,33 @@
     color: var(--muted);
     cursor: pointer;
   }
+  .toggle:hover { color: var(--ink); }
   .toggle :global(svg) { width: 12px; height: 12px; transform: rotate(-90deg); transition: transform 120ms; }
   .toggle[aria-expanded="true"] :global(svg) { transform: none; }
+  .hidden-rows { list-style: none; margin: 0; padding: 0 0 6px; }
+  .hidden-row { display: flex; align-items: center; gap: 12px; padding: 6px 16px; opacity: 0.75; }
+  .hidden-row:hover { opacity: 1; }
+  .hidden-row .name { font-weight: 500; color: var(--muted); min-width: 0; }
+  .hidden-row .weeks { font-size: 12px; color: var(--muted); }
+  .hidden-row :global(.btn) { margin-left: auto; }
 
-  @media (max-width: 640px) {
-    .acts { margin-left: 0; width: 100%; }
-  }
   @media (prefers-reduced-motion: reduce) {
     .toggle :global(svg) { transition: none; }
   }
+
+  /* —— start from a preset ————————————— */
+  .start { display: flex; flex-direction: column; gap: 6px; }
+  .start-lead { margin: 0; font: 600 12px var(--font-ui); color: var(--ink); }
+  .picks { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; margin-inline: -16px; padding-inline: 16px; scroll-snap-type: x proximity; }
+  .pick {
+    flex: none; scroll-snap-align: start;
+    display: flex; flex-direction: column; align-items: flex-start; gap: 6px;
+    width: 116px; padding: 8px 10px 9px;
+    border: 1px solid var(--line); border-radius: 6px; background: var(--surface);
+    font: 500 12px/1.3 var(--font-ui); color: var(--ink); text-align: left; cursor: pointer;
+  }
+  .pick:hover { border-color: var(--line-strong); }
+  .pick[aria-pressed="true"] { border-color: var(--hover-ink); box-shadow: inset 0 0 0 1px var(--hover-ink); }
+  .pick:focus-visible { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px var(--focus-ring); }
+  .blank { display: block; height: 36px; width: 40px; border-bottom: 1px solid var(--line-strong); }
 </style>
