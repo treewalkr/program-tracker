@@ -467,7 +467,8 @@ function portalInterval(iv: CardioInterval, zones: HrZones | null | undefined): 
     repeat: iv.repeat ?? 1,
     durationSec: opt(iv.durationSec),
     distanceM: opt(iv.distanceM),
-    hrZone: opt(iv.hrZone),
+    // the coach's own band overrides the zone: the member is told the band, not "zone N"
+    hrZone: iv.hrBpm ? undefined : opt(iv.hrZone),
     hrBpm: bpmOf(iv.hrBpm, iv.hrZone, zones),
     paceSecPerKm: opt(iv.paceSecPerKm),
     rpe: opt(iv.rpe),
@@ -491,7 +492,7 @@ export function portalCardioRx(c: CardioPrescription, zones?: HrZones | null): P
   return {
     modality: c.modality,
     durationMin: opt(c.durationMin),
-    hrZone: opt(c.hrZone),
+    hrZone: c.hrBpm ? undefined : opt(c.hrZone),
     intensity: opt(c.intensity),
     distanceKm: opt(c.distanceKm),
     targetRpe: opt(c.targetRpe),

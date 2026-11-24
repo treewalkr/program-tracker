@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { cardioLine } from "./cardioLine";
+import { cardioLine, sessionLogTag } from "./cardioLine";
 
 describe("cardioLine", () => {
   test("a prescription reads modality, time, zone, intensity, distance and target RPE", () => {
@@ -30,4 +30,32 @@ describe("cardioLine", () => {
 
 test("an old preset slug (easy, tempo, intervals, long) is left out", () => {
   expect(cardioLine({ modality: "Bike", durationMin: 60, hrZone: 2, intensity: "easy", targetRpe: 3 })).toBe("Bike · 60 min · Z2 · RPE 3");
+});
+
+describe("cardioLine bpm band", () => {
+  test("the coach's band shows in place of the zone it overrides", () => {
+    expect(cardioLine({ modality: "Cycling", durationMin: 60, hrZone: 2, hrBpm: { min: 135, max: 145 }, targetRpe: 3 })).toBe(
+      "Cycling · 60 min · 135–145 bpm · RPE 3",
+    );
+  });
+});
+
+describe("sessionLogTag", () => {
+  test("a real log reads Logged and its dates", () => {
+    expect(sessionLogTag([{ date: "2026-11-24", cardio: { durationSec: 1800 } }])).toEqual({ done: true, text: "Logged Tue 24 Nov" });
+  });
+  test("a skip reads Not done with its reason, never Logged", () => {
+    expect(sessionLogTag([{ date: "2026-11-24", cardio: { skipped: { reason: "time" } } }])).toEqual({
+      done: false,
+      text: "Not done · No time · Tue 24 Nov",
+    });
+  });
+  test("a real log next to a skip counts only the real one as logged", () => {
+    expect(
+      sessionLogTag([
+        { date: "2026-11-23", cardio: { skipped: { reason: "pain" } } },
+        { date: "2026-11-24", cardio: { durationSec: 600 } },
+      ]),
+    ).toEqual({ done: true, text: "Logged Tue 24 Nov" });
+  });
 });

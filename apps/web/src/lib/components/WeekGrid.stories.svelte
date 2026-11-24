@@ -48,6 +48,8 @@
     skip?: number;
     /** Exactly these dates were skipped (overrides `skip`). */
     skipped?: string[];
+    /** Cardio the client marked "not done" on these dates (a neutral skip, never logged). */
+    notDone?: string[];
     /** Every past session logged, or none (missed — or not logged yet inside the grace period). */
     all?: 'logged' | 'missed';
     cardio?: ClientStrip['cardio'];
@@ -68,6 +70,8 @@
         const sessions: StripSession[] = names.map((name, k) => {
           const id = `${spec.id}-${i + 1}-${k}`;
           const skipped = spec.all ? spec.all === 'missed' : spec.skipped ? spec.skipped.includes(date) : r() < (spec.skip ?? 0.15);
+          const notDone = CARDIO.test(name) && !!spec.notDone?.includes(date);
+          if (notDone) return { id, name, status: 'skipped', planned: true, kind: 'cardio', skipReason: 'time' };
           const status: StripSession['status'] =
             date > today
               ? 'upcoming'
@@ -81,7 +85,7 @@
           return { id, name, status, planned: true, kind: CARDIO.test(name) ? 'cardio' : 'exercises' };
         });
         const logged = sessions.some((s) => s.status === 'logged');
-        const worst = (['missed', 'unlogged', 'today', 'upcoming', 'logged'] as const).find((st) => sessions.some((s) => s.status === st));
+        const worst = (['missed', 'unlogged', 'today', 'upcoming', 'skipped', 'logged'] as const).find((st) => sessions.some((s) => s.status === st));
         return {
           date,
           weekday: i + 1,
@@ -90,7 +94,7 @@
           volume: logged ? { basis: 'tonnage' as const, amount: Math.round(2500 + r() * 4000) } : null,
           level: 0,
           partial: isPartial(sessions),
-          openSessionId: sessions.find((s) => s.status !== 'logged')?.id ?? undefined,
+          openSessionId: sessions.find((s) => s.status !== 'logged' && s.status !== 'skipped')?.id ?? undefined,
         };
       })
     );
@@ -199,7 +203,11 @@
     strip({ id: 'kofi', name: 'Kofi Mensah', plan: { 2: ['Long ride', 'Strength A', 'Intervals', 'Core', 'Mobility'], 6: ['Zone 2 run', 'Zone 2 bike'] }, seed: 2, cardio: { done: 2, target: 4, unitLabel: 'sessions' } }),
   ]);
 
-
+  /** Cardio the client skipped ("not done · No time"): a neutral dashed cell, never "done". */
+  const cardioSkipped = exceptionOrder([
+    strip({ id: 'nok', name: 'Nok Siriporn', plan: { 1: ['Zone 2 run'], 3: ['Easy bike'], 6: ['Intervals'] }, notDone: ['2026-10-14', '2026-10-07'], skip: 0, seed: 6 }),
+    strip({ id: 'maya', name: 'Maya Chen', plan: { 1: ['Upper'], 2: ['Zone 2 bike', 'Lower'] }, notDone: ['2026-10-13'], skip: 0, seed: 5 }),
+  ]);
 </script>
 
 {#snippet template(args: { strips: ClientStrip[]; today: string; showOnTrack?: boolean })}
@@ -232,6 +240,8 @@
 <Story name="Grace period" {template} args={{ strips: grace, today }} />
 
 <Story name="Behind on logging" {template} args={{ strips: behind, today }} />
+
+<Story name="Cardio skipped" {template} args={{ strips: cardioSkipped, today }} />
 
 <Story name="All logged" {template} args={{ strips: allLogged, today }} />
 

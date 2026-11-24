@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { CardioMetric } from "@pt/shared";
   import type { LogReviewDto, LogReviewInput, SessionLogDto } from "$lib/api/types";
-  import { dayLabel, planIntervals, planSource, reviewRows } from "$lib/cardioTab";
+  import { dayLabel, planIntervals, planSource, repResults, reviewRows } from "$lib/cardioTab";
   import { SKIP_REASON_LABEL } from "$lib/cardioForm";
   import { MAX_HR_UNTESTED } from "$lib/hrProfile";
   import InputNote from "$lib/ui/InputNote.svelte";
@@ -31,6 +31,8 @@
   const plan = $derived(log.prescription ?? null);
   const rows = $derived(reviewRows(cardio, plan, metric));
   const ivs = $derived(planIntervals(plan?.session.cardio));
+  const reps = $derived(repResults(cardio, plan, metric));
+  const VS_BAND = { below: "below the work target", in: "in the work target", above: "above the work target" } as const;
   const skipped = $derived(cardio.skipped ?? null);
   const reviewed = $derived(!!log.reviewedAt);
 
@@ -81,6 +83,39 @@
         </tbody>
       </table>
     </div>
+    {#if reps.rows.length}
+      <div class="scroll">
+        <table class="reps">
+          <caption>{reps.band && reps.cols.hr ? `Work reps as logged · target ${reps.band.min}–${reps.band.max} bpm` : "Work reps as logged"}</caption>
+          <thead>
+            <tr>
+              <th scope="col">Rep</th>
+              {#if reps.cols.time}<th scope="col">Time</th>{/if}
+              {#if reps.cols.distance}<th scope="col">Dist.</th>{/if}
+              {#if reps.cols.pace}<th scope="col">{metric === "split" ? "Split" : metric === "speed" ? "Speed" : "Pace"}</th>{/if}
+              {#if reps.cols.hr}<th scope="col">Avg HR</th>{/if}
+              {#if reps.cols.rpe}<th scope="col">RPE</th>{/if}
+            </tr>
+          </thead>
+          <tbody>
+            {#each reps.rows as x (x.rep)}
+              <tr>
+                <th scope="row">{x.rep}</th>
+                {#if reps.cols.time}<td class:planned={x.timePlanned} title={x.timePlanned ? "As planned" : undefined}>{x.time ?? "—"}</td>{/if}
+                {#if reps.cols.distance}<td class:planned={x.distancePlanned} title={x.distancePlanned ? "As planned" : undefined}>{x.distance ?? "—"}</td>{/if}
+                {#if reps.cols.pace}<td>{x.pace ?? "—"}</td>{/if}
+                {#if reps.cols.hr}
+                  <td class="hr {x.hrVsBand ?? ''}">
+                    {x.hr ?? "—"}{#if x.hrVsBand === "above"}<span aria-hidden="true">↑</span>{:else if x.hrVsBand === "below"}<span aria-hidden="true">↓</span>{/if}{#if x.hrVsBand}<span class="sr">, {VS_BAND[x.hrVsBand]}</span>{/if}
+                  </td>
+                {/if}
+                {#if reps.cols.rpe}<td>{x.rpe ?? "—"}</td>{/if}
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
+    {/if}
     {#if zonesApprox}<p class="approx">{MAX_HR_UNTESTED}</p>{/if}
     {#if ivs.length}
       <details class="ivs">
@@ -129,6 +164,17 @@
   .aside { margin-left: 8px; font: 400 12px var(--font-ui); color: var(--muted); }
   .note-row td { padding-top: 0; font-size: 12px; color: var(--muted); }
   .pva tr:has(+ .note-row) td, .pva tr:has(+ .note-row) th { border-bottom: none; }
+  .reps { border-collapse: collapse; font: 400 12px var(--font-mono); font-variant-numeric: tabular-nums; }
+  .reps caption { caption-side: top; text-align: left; padding: 0 0 4px; font: 500 12px var(--font-ui); color: var(--muted); }
+  .reps th, .reps td { padding: 4px 8px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--line-soft); }
+  .reps th:first-child { text-align: left; padding-left: 0; }
+  .reps thead th { font: 500 12px var(--font-ui); color: var(--muted); border-bottom-color: var(--line); }
+  .reps tbody th { font: 500 12px var(--font-ui); color: var(--muted); }
+  .reps td { color: var(--ink); }
+  .reps td.planned { color: var(--muted); }
+  .reps td.hr.above { color: var(--warn); font-weight: 600; }
+  .reps td.hr.below { color: var(--muted); }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .ivs summary { cursor: pointer; font-size: 13px; color: var(--muted); }
   .ivs ol { margin: 6px 0 0; padding-left: 20px; font: 400 12px var(--font-mono); color: var(--ink); }
   .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px 20px; margin: 0; }

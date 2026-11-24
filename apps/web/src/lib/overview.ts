@@ -6,19 +6,23 @@ import {
   cardioWeekTotals,
   dayIntensityLevels,
   dayVolume,
+  isSkippedCardio,
   sessionsByWeekday,
   timedExerciseIds,
   type DayVolume,
+  type SkipReason,
 } from "@pt/shared";
+import { SKIP_REASON_LABEL } from "./cardioForm";
 import type { ClientDto, ProgramDto, SessionLogDto } from "$lib/api/types";
 import { fmtWeightRound } from "./units.svelte";
 
 /**
  * A planned session's state on its date. `unlogged` is the grace period: a past
  * session not logged yet but within `GRACE_DAYS` of today (clients report late,
- * trainers log in batches); only older ones are `missed`.
+ * trainers log in batches); only older ones are `missed`. `skipped` is a cardio
+ * session the client marked "not done": neutral, never counted as logged.
  */
-export type SessionStatus = "logged" | "missed" | "unlogged" | "today" | "upcoming";
+export type SessionStatus = "logged" | "skipped" | "missed" | "unlogged" | "today" | "upcoming";
 export type DayStatus = SessionStatus | "rest" | "before-start";
 
 export interface StripSession {
@@ -32,6 +36,8 @@ export interface StripSession {
   kind: "exercises" | "cardio";
   /** Set when a planned session was logged on another day of its week. */
   loggedOn?: string;
+  /** Why a `skipped` session wasn't done. */
+  skipReason?: SkipReason;
 }
 
 export interface StripDay {
@@ -119,7 +125,7 @@ export function stripWeeks(now: Date, count = 6): string[][] {
   return Array.from({ length: count }, (_, i) => current.map((d) => addDays(d, -7 * (count - 1 - i))));
 }
 
-const STATUS_RANK: SessionStatus[] = ["missed", "unlogged", "today", "upcoming", "logged"];
+const STATUS_RANK: SessionStatus[] = ["missed", "unlogged", "today", "upcoming", "skipped", "logged"];
 
 /**
  * One client's contributions strip: every day of `weeks`, its planned sessions
@@ -173,14 +179,21 @@ export function buildClientStrip(
 
   for (const dates of weeks) {
     const inWeek = programLogs.filter((l) => l.date.slice(0, 10) >= dates[0] && l.date.slice(0, 10) <= dates[6]);
-    /** slot → the date it was logged on this week */
+    /** slot → the date it was logged on this week (a real log, not a skip) */
     const slotLoggedOn = new Map<string, string>();
+    /** slot → why it was skipped, when this week has only skips for it */
+    const slotSkipped = new Map<string, SkipReason>();
     for (const l of [...inWeek].sort((a, b) => a.date.localeCompare(b.date))) {
       const sl = l.programSessionId ? slotById.get(l.programSessionId) : undefined;
-      if (sl && !slotLoggedOn.has(sl)) slotLoggedOn.set(sl, l.date.slice(0, 10));
+      if (!sl) continue;
+      if (isSkippedCardio(l.cardio)) {
+        if (!slotSkipped.has(sl)) slotSkipped.set(sl, l.cardio!.skipped!.reason);
+      } else if (!slotLoggedOn.has(sl)) slotLoggedOn.set(sl, l.date.slice(0, 10));
     }
     const unresolvedDates = new Set(
-      inWeek.filter((l) => !l.programSessionId || !slotById.has(l.programSessionId)).map((l) => l.date.slice(0, 10))
+      inWeek
+        .filter((l) => (!l.programSessionId || !slotById.has(l.programSessionId)) && !isSkippedCardio(l.cardio))
+        .map((l) => l.date.slice(0, 10))
     );
 
     let byDay = new Map<number, NonNullable<ProgramDto["weeks"]>[number]["sessions"]>();
@@ -203,11 +216,14 @@ export function buildClientStrip(
         for (const s of byDay.get(weekday) ?? []) {
           const on = slotLoggedOn.get(slot(s));
           const logged = on !== undefined || unresolvedDates.has(date);
-          if (!logged && !due) continue;
+          const skipReason = logged ? undefined : slotSkipped.get(slot(s));
+          if (!logged && !skipReason && !due) continue;
           plannedSlots.add(slot(s));
           const status: SessionStatus = logged
             ? "logged"
-            : date === today
+            : skipReason
+              ? "skipped"
+              : date === today
               ? "today"
               : date > today
                 ? "upcoming"
@@ -221,30 +237,36 @@ export function buildClientStrip(
             planned: true,
             kind: s.kind === "cardio" ? "cardio" : "exercises",
             ...(on && on !== date ? { loggedOn: on } : {}),
+            ...(skipReason ? { skipReason } : {}),
           });
         }
         for (const l of dayLogs) {
           const sl = l.programId === program?.id && l.programSessionId ? slotById.get(l.programSessionId) : undefined;
           const covers = l.programId === program?.id && (sl ? plannedSlots.has(sl) : sessions.length > 0);
+          const skipped = isSkippedCardio(l.cardio);
+          // A skip of a session planned another day this week shows on that day, not as an extra here.
+          if (skipped && sl && slotSkipped.has(sl)) continue;
           if (!covers)
             sessions.push({
               id: (sl && l.programSessionId) || null,
               name: extraName(l),
-              status: "logged",
+              status: skipped ? "skipped" : "logged",
               planned: false,
               kind: l.kind === "cardio" ? "cardio" : "exercises",
+              ...(skipped ? { skipReason: l.cardio!.skipped!.reason } : {}),
             });
         }
         const worst = STATUS_RANK.find((st) => sessions.some((s) => s.status === st));
         const status: DayStatus = worst ?? (due ? "rest" : "before-start");
-        const open = sessions.find((s) => s.planned && s.status !== "logged");
+        const open = sessions.find((s) => s.planned && s.status !== "logged" && s.status !== "skipped");
         return {
           date,
           weekday,
           status,
           sessions,
           partial: isPartial(sessions),
-          volume: date <= today ? dayVolume(dayLogs, timed) : null,
+          // A skip did nothing: it adds no volume (and alone, no "1 session").
+          volume: date <= today ? dayVolume(dayLogs.filter((l) => !isSkippedCardio(l.cardio)), timed) : null,
           level: 0,
           ...(open?.id ? { openSessionId: open.id } : {}),
         };
@@ -272,11 +294,11 @@ export function buildClientStrip(
   return strip;
 }
 
-/** ≥1 session logged and ≥1 planned session missed or not logged yet. */
+/** ≥1 session logged and ≥1 planned session missed, not logged yet or skipped. */
 export function isPartial(sessions: StripSession[]): boolean {
   return (
     sessions.some((s) => s.status === "logged") &&
-    sessions.some((s) => s.planned && (s.status === "missed" || s.status === "unlogged"))
+    sessions.some((s) => s.planned && (s.status === "missed" || s.status === "unlogged" || s.status === "skipped"))
   );
 }
 
@@ -403,15 +425,23 @@ export const LEVEL_WORDS = ["", "light day", "below usual", "usual day", "big da
 
 export const SESSION_WORDS: Record<SessionStatus, string> = {
   logged: "logged",
+  skipped: "not done",
   missed: "missed",
   unlogged: "not logged",
   today: "due today",
   upcoming: "upcoming",
 };
 
+/** A session's state words: "logged Tue, Nov 3", "not done · No time", "missed". */
+export function sessionState(s: StripSession): string {
+  if (s.loggedOn) return `logged ${dayDateLabel(s.loggedOn)}`;
+  if (s.status === "skipped" && s.skipReason) return `not done · ${SKIP_REASON_LABEL[s.skipReason]}`;
+  return SESSION_WORDS[s.status];
+}
+
 /** The session's line in a label or popover: "Upper — logged Tue, Nov 3". */
 export function sessionLine(s: StripSession): string {
-  return `${s.name} ${s.loggedOn ? `logged ${dayDateLabel(s.loggedOn)}` : SESSION_WORDS[s.status]}`;
+  return `${s.name} ${sessionState(s)}`;
 }
 
 /** Full-sentence accessible name for one day square or cell. */

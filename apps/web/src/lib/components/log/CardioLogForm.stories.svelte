@@ -28,6 +28,8 @@
   let missing = $state<CardioForm>(cardioFormOf({ modality: 'Cycling', durationMin: 60 }));
   let skipped = $state<CardioForm>({ ...emptyCardioForm('Cycling'), skipped: 'time' });
   let touch = $state<CardioForm>(cardioFormOf({ modality: 'Run', durationMin: 30 }));
+  let ride = $state<CardioForm>({ ...emptyCardioForm('Cycling'), durationSec: 3690, rpe: 4, distanceKm: 25.3 });
+  let narrowSheet = $state<CardioForm>({ ...cardioFormOf(intervals), rpe: 7 });
 </script>
 
 <Story name="From the plan" asChild>
@@ -44,6 +46,16 @@
 
 <Story name="RPE missing" asChild>
   <div class="panel" style="max-width: 860px"><CardioLogForm bind:value={missing} {modalities} metric="speed" problem="rpe" /></div>
+</Story>
+
+<!-- A ride's calculated line says "Speed" (a row's says "Split"), as the coach's review does. -->
+<Story name="Ride (speed)" asChild>
+  <div class="panel" style="max-width: 860px"><CardioLogForm bind:value={ride} {modalities} metric="speed" /></div>
+</Story>
+
+<!-- The coach's sheet on an iPhone SE (set a 320px viewport): RPE takes its own row so the stepper stays on screen. -->
+<Story name="Sheet at 320px" asChild>
+  <div class="panel" style="max-width: 288px"><CardioLogForm bind:value={narrowSheet} {modalities} metric="pace" /></div>
 </Story>
 
 <Story name="Skipped" asChild>

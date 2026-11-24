@@ -408,3 +408,39 @@ test("a session-load target counts RPE × minutes this week, labelled AU", () =>
   const s = buildClientStrip(nok, program([session("a", 1, 1)]), [ride], weeks, "2026-11-04");
   expect(s.cardio).toEqual({ done: 240, target: 600, unitLabel: "AU" });
 });
+
+describe("skipped cardio (a neutral 'not done', never logged)", () => {
+  const skip = (date: string, sid: string, reason = "time") =>
+    ({ ...log(date, sid, []), kind: "cardio", cardio: { skipped: { reason } } }) as unknown as SessionLogDto;
+  const p = program([session("run", 1, 1, "cardio"), session("bike", 3, 2, "cardio")]);
+
+  test("a skip on the planned day is skipped, not logged, and not counted as logged", () => {
+    const s = buildClientStrip(client, p, [skip("2026-11-02", "run")], weeks, "2026-11-04");
+    const mon = day(s, "2026-11-02");
+    expect(mon.sessions[0]).toMatchObject({ status: "skipped", skipReason: "time" });
+    expect(mon.status).toBe("skipped");
+    expect(mon.openSessionId).toBeUndefined();
+    expect(weekTally([s])).toMatchObject({ logged: 0, planned: 2 });
+    expect(weekDayTally([s], "2026-11-04")).toMatchObject({ missed: 0, unlogged: 0 });
+    expect(mon.volume).toBeNull();
+  });
+
+  test("a skip filed on another day marks the planned session skipped there", () => {
+    const s = buildClientStrip(client, p, [skip("2026-11-03", "bike", "pain")], weeks, "2026-11-04");
+    expect(day(s, "2026-11-04").sessions[0]).toMatchObject({ status: "skipped", skipReason: "pain" });
+    expect(day(s, "2026-11-04").status).toBe("skipped");
+    // The skip is not an extra "logged" session on Tue either.
+    expect(day(s, "2026-11-03").sessions).toEqual([]);
+  });
+
+  test("a real log in the week wins over a skip of the same slot", () => {
+    const done = { ...log("2026-11-03", "run", []), kind: "cardio", cardio: { durationSec: 1800 } } as unknown as SessionLogDto;
+    const s = buildClientStrip(client, p, [skip("2026-11-02", "run"), done], weeks, "2026-11-04");
+    expect(day(s, "2026-11-02").sessions[0].status).toBe("logged");
+  });
+
+  test("the label says not done and why", () => {
+    const s = buildClientStrip(client, p, [skip("2026-11-02", "run", "pain")], weeks, "2026-11-04");
+    expect(daySentence("Ada", day(s, "2026-11-02"))).toBe("Ada, Monday, Nov 2: Session 1 not done · Pain or injury.");
+  });
+});

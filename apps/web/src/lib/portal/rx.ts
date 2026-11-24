@@ -1,11 +1,11 @@
-import { cardioTotals, kmToMi, recoveryCount, type CardioMetric, type CardioIntervalType, type CardioLog, type PortalCardioInterval, type PortalCardioPrescription, type PortalLastSet, type PortalSet } from "@pt/shared";
+import { cardioTotals, recoveryCount, type CardioMetric, type CardioIntervalType, type CardioLog, type PortalCardioInterval, type PortalCardioPrescription, type PortalLastSet, type PortalSet } from "@pt/shared";
 import { formatDuration } from "$lib/ui/input/duration";
 import { coachIntensity } from "$lib/cardioLine";
-import { targetMetric } from "$lib/cardioTarget";
+import { paceField, targetMetric } from "$lib/cardioTarget";
 
 export { coachIntensity };
 import { loadIn } from "@pt/shared";
-import { showDistance, showPace, units } from "$lib/units.svelte";
+import { showDistance, units } from "$lib/units.svelte";
 import type { MessageKey } from "./messages";
 
 /**
@@ -95,12 +95,13 @@ export function metresText(m: number, t: T): string {
 /** A pace target in the modality's metric: "5:20 /km" (run, walk), "1:50 /500 m" (row, ski), "30 km/h" (bike); null for none. */
 export function paceText(secPerKm: number, t: T, metric: CardioMetric = "pace"): string | null {
   if (metric === "split") return `${formatDuration(Math.round(secPerKm / 2))} ${t("unit.per500m")}`;
+  // the coach's editor shows the same snapped figure (32.5 km/h, 9:05 /mi), not the whole-second drift
   if (metric === "speed") {
-    const kmh = 3600 / secPerKm;
-    return units.distance === "mi" ? `${num1(kmToMi(kmh))} ${t("unit.mph")}` : `${num1(kmh)} ${t("unit.kmh")}`;
+    const v = paceField("speed", units.distance)!.show(secPerKm);
+    return units.distance === "mi" ? `${num1(v)} ${t("unit.mph")}` : `${num1(v)} ${t("unit.kmh")}`;
   }
   if (metric === "none") return null;
-  return units.distance === "mi" ? t("rx.paceMi", { t: formatDuration(showPace(secPerKm, "mi")) }) : t("rx.pace", { t: formatDuration(secPerKm) });
+  return units.distance === "mi" ? t("rx.paceMi", { t: formatDuration(paceField("pace", "mi")!.show(secPerKm)) }) : t("rx.pace", { t: formatDuration(secPerKm) });
 }
 const num1 = (n: number) => String(Math.round(n * 10) / 10);
 
@@ -116,7 +117,9 @@ export function cardioParts(c: Pick<PortalCardioPrescription, "durationMin" | "h
   const metric = portalMetric(c.modality);
   if (total) {
     if (total.durationSec) parts.push(durationText(total.durationSec, t));
-    if (total.distanceM > 0) parts.push(metresText(total.distanceM, t));
+    // a distance-only part: the timed minutes around it still count ("30 min + 4.8 km")
+    if (!total.durationSec && total.timedSec > 0 && total.distanceM > 0) parts.push(`${durationText(total.timedSec, t)} + ${metresText(total.distanceM, t)}`);
+    else if (total.distanceM > 0) parts.push(metresText(total.distanceM, t));
   } else {
     if (c.durationMin) parts.push(t("rx.minutes", { n: c.durationMin }));
     if (c.hrZone) parts.push(t("rx.zone", { n: c.hrZone }));

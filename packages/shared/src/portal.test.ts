@@ -152,6 +152,12 @@ describe("portalCardioRx", () => {
     expect(rx.hrBpm).toEqual({ min: 124, max: 135 });
     expect(rx.intervals![0].hrBpm).toEqual({ min: 112, max: 123 });
     expect(rx.intervals![1].hrBpm).toEqual({ min: 160, max: 170 });
+    // its band overrides zone 4, so the member isn't told "zone 4" next to it
+    expect(rx.intervals![1].hrZone).toBeUndefined();
+    expect(rx.intervals![0].hrZone).toBe(1);
+    const band = portalCardioRx({ modality: "Bike", hrZone: 2, hrBpm: { min: 135, max: 145 } }, zones);
+    expect(band).toMatchObject({ hrBpm: { min: 135, max: 145 } });
+    expect(band.hrZone).toBeUndefined();
     expect(rx.intervals![1].recovery).toEqual({ type: "active_recovery", durationSec: 120, distanceM: undefined });
     expect(JSON.stringify(rx)).not.toContain("secret");
     expect(portalCardioRx({ modality: "Bike", hrZone: 2 }, null).hrBpm).toBeUndefined();

@@ -11,7 +11,7 @@
       docs: {
         description: {
           component:
-            'A logged cardio session, plan beside actual. The plan is the copy saved with the log (program and HR-zone versions named), work reps without per-interval results read "Insufficient data", and the feedback is what the member sees in the portal.',
+            'A logged cardio session, plan beside actual. The plan is the copy saved with the log (program and HR-zone versions named), work reps without per-interval results read "Insufficient data" (with them, a per-rep table: time, distance, pace, avg HR against the work target, RPE), and the feedback is what the member sees in the portal.',
         },
       },
     },
@@ -64,6 +64,18 @@
 <Story name="Reviewed with feedback" asChild>
   <div style="max-width: 640px">
     <CardioReview log={{ ...base, reviewedAt: '2026-11-22T08:00:00Z', trainerFeedback: 'Good pacing. Next week, keep reps 3–5 at the same effort as rep 1.' }} member="Nok" metric="pace" onreview={review} />
+  </div>
+</Story>
+
+<!-- Time-based reps with the member's per-rep distance, avg HR and RPE: the per-rep table and the work-reps HR. -->
+<Story name="Per-rep results" asChild>
+  <div style="max-width: 375px">
+    <CardioReview
+      log={{ ...base, cardio: { ...base.cardio!, avgHr: undefined, maxHr: undefined, intervals: [520, 510, 520, 500, 530].map((distanceM, i) => ({ intervalId: 'w', rep: i + 1, distanceM, avgHr: [158, 162, 165, 168, 172][i], rpe: i === 4 ? 9 : undefined })) } }}
+      member="Nok"
+      metric="pace"
+      onreview={review}
+    />
   </div>
 </Story>
 

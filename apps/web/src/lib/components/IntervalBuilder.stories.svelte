@@ -39,6 +39,7 @@
   ];
   let tempo = $state(structuredClone(aiTempo));
   let tempoPhone = $state(structuredClone(aiTempo));
+  let tempoSE = $state(structuredClone(aiTempo));
   let row = $state<CardioInterval[]>([
     { id: 'w', type: 'warmup', repeat: 1, durationSec: 600 },
     { id: 'r', type: 'work', repeat: 4, distanceM: 500, paceSecPerKm: 220, recovery: { type: 'passive_recovery', durationSec: 120 } },
@@ -55,6 +56,11 @@
 
 <Story name="AI tempo on a phone (targets on the second line)" asChild>
   <div style="max-width: 390px"><IntervalBuilder bind:intervals={tempoPhone} {zones} metric="pace" /></div>
+</Story>
+
+<!-- An iPhone SE card (~250px): distance and remove join the second line, so nothing hides past the edge. -->
+<Story name="AI tempo on an iPhone SE (distance on the second line)" asChild>
+  <div style="max-width: 251px"><IntervalBuilder bind:intervals={tempoSE} {zones} metric="pace" /></div>
 </Story>
 
 <Story name="Rowing: a /500 m split" asChild>

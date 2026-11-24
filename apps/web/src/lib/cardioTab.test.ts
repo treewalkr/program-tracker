@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { computeHrZones, type CardioLog, type LogPrescription, type ProgramSession } from "@pt/shared";
-import { cardioLogRows, cardioTiles, cardioWeeks, dayLabel, distanceByModality, planSource, reviewRows } from "./cardioTab";
+import { cardioLogRows, cardioTiles, cardioWeeks, dayLabel, distanceByModality, hoursMinutes, planSource, repResults, reviewRows } from "./cardioTab";
 
 const monday = "2026-11-16";
 const log = (id: string, date: string, cardio: CardioLog, extra: Record<string, unknown> = {}) => ({
@@ -111,4 +111,44 @@ describe("plan vs actual", () => {
     expect(free.some((r) => r.label === "Work reps")).toBe(false);
     expect(planSource(null)).toContain("Freestyle");
   });
+
+  test("per-rep distance, HR and RPE reach the review", () => {
+    const hrs = [158, 162, 165, 168, 172];
+    const kms = [520, 510, 520, 500, 530];
+    const reps = { ...actual, avgHr: undefined, maxHr: undefined, intervals: kms.map((distanceM, i) => ({ intervalId: "w", rep: i + 1, distanceM, avgHr: hrs[i], rpe: i === 4 ? 9 : undefined })) };
+    const rows = reviewRows(reps, plan, "pace");
+    const by = Object.fromEntries(rows.map((r) => [r.label, r]));
+    expect(by["Work reps"]).toMatchObject({ actual: "0.52 · 0.51 · 0.52 · 0.50 · 0.53 km", aside: "5 of 5 with distance" });
+    expect(by["Heart rate"]).toMatchObject({ actual: "work reps avg 165" });
+    expect(by["Heart rate"].note).toContain("reps' own");
+
+    const table = repResults(reps, plan, "pace");
+    expect(table.band).toEqual({ min: zones[3].min, max: zones[3].max });
+    expect(table.cols).toEqual({ time: true, distance: true, pace: true, hr: true, rpe: true });
+    expect(table.rows[0]).toMatchObject({ rep: "1", time: "2:00", distance: "0.52 km", pace: "3:51 /km", hr: 158, hrVsBand: "in", rpe: null });
+    expect(table.rows[4]).toMatchObject({ hr: 172, hrVsBand: "above", rpe: "9" });
+    // nothing typed per rep: no table, and the coach is told there's nothing
+    expect(repResults(actual, plan, "pace").rows).toEqual([]);
+    const blank = { ...actual, intervals: [{ intervalId: "w", rep: 1 }] };
+    expect(reviewRows(blank, plan, "pace").find((r) => r.label === "Work reps")).toMatchObject({ actual: "1 reported" });
+  });
+
+  test("a bpm band the coach set is the plan, not the zone it overrides", () => {
+    const bike = (cardio: ProgramSession["cardio"]): LogPrescription => ({ ...plan, session: { ...intervals, cardio } });
+    const ride: CardioLog = { modality: "Cycling", durationSec: 3690, rpe: 4, avgHr: 140 };
+    const hr = (p: LogPrescription) => reviewRows(ride, p, "speed").find((r) => r.label === "Heart rate")!.plan;
+    expect(hr(bike({ modality: "Cycling", durationMin: 60, hrZone: 2, hrBpm: { min: 135, max: 145 } }))).toBe("135–145 bpm");
+    // a band with no zone still has a plan
+    expect(hr(bike({ modality: "Cycling", durationMin: 60, hrBpm: { min: 135, max: 145 } }))).toBe("135–145 bpm");
+    // a work interval's own band wins over its zone
+    const work = intervals.cardio!.intervals!.map((iv) => (iv.type === "work" ? { ...iv, hrBpm: { min: 160, max: 170 } } : iv));
+    expect(hr(bike({ modality: "Running", intervals: work }))).toBe("work · 160–170 bpm");
+  });
+});
+
+test("the Time tile reads hours and minutes in words, not h:mm", () => {
+  expect(hoursMinutes(104)).toBe("1 h 44 min");
+  expect(hoursMinutes(42)).toBe("42 min");
+  expect(hoursMinutes(120)).toBe("2 h");
+  expect(hoursMinutes(119.6)).toBe("2 h");
 });

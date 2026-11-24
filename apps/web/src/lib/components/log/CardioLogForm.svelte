@@ -29,6 +29,9 @@
     rep: string;
     time: string;
     pace: string;
+    /** The calculated line's word for a ride ("Speed") and a row ("Split"); pace is for runs. */
+    speed?: string;
+    split?: string;
     load: string;
     skip: string;
     skipped: string;
@@ -107,6 +110,8 @@
     rep: "Rep",
     time: "Time",
     pace: "Pace",
+    speed: "Speed",
+    split: "Split",
     load: "Session load",
     skip: "Didn't do it",
     skipped: "Not done",
@@ -171,6 +176,8 @@
     return reps > 1 ? text.repOf.replace("{name}", name).replace("{rep}", String(row.rep)).replace("{reps}", String(reps)) : name;
   }
   const calc = $derived(cardioFormCalc(value, metric, text.paceWords));
+  /** A ride reads "Speed", a row "Split". A caller that words only `pace` keeps its own word, never a mixed language. */
+  const calcWord = $derived(metric === "speed" ? (given.speed ?? (given.pace ? given.pace : ENGLISH.speed)) : metric === "split" ? (given.split ?? (given.pace ? given.pace : ENGLISH.split)) : text.pace);
   /** A logged time far under the plan is usually minutes read as seconds: say so, don't block. */
   const durationHint = $derived(farUnderPlan(value.durationSec, plannedSec) ? text.underPlan.replace("{planned}", formatDuration(plannedSec)) : text.durationHint);
   const load = $derived(calc.load != null && value.rpe != null && value.durationSec != null ? { au: calc.load, rpe: value.rpe, min: Math.round((value.durationSec / 60) * 10) / 10 } : null);
@@ -249,7 +256,7 @@
 
     {#if calc.pace || load}
       <p class="calc" aria-live="polite">
-        {#if calc.pace}<span>{text.pace} <b>{calc.pace}</b></span>{/if}
+        {#if calc.pace}<span>{calcWord} <b>{calc.pace}</b></span>{/if}
         {#if load}<span>{text.load} <b>{load.au}{text.loadUnit ? ` ${text.loadUnit}` : ""}</b> <span class="muted">= {load.rpe} × {load.min} {text.minutes}</span></span>{/if}
       </p>
     {/if}
@@ -358,6 +365,10 @@
   @media (max-width: 860px) {
     .grid { grid-template-columns: 1fr 1fr; }
     .wide { grid-column: 1 / -1; }
+  }
+  /* iPhone SE: the RPE stepper (two 44px arrows + the figure) won't fit half a 320px sheet */
+  @media (max-width: 400px) {
+    .rpe-field { grid-column: 1 / -1; }
   }
   .touch { padding: 0; }
   .touch .grid { grid-template-columns: 1fr 1fr; }

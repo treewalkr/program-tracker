@@ -47,8 +47,13 @@ export const dayLabel = (iso: string) => {
   return `${DAY_NAMES[wd]} ${dayMonth(iso)}`;
 };
 
-/** "2:15" (h:mm) for a minute total. */
-export const hoursMinutes = (min: number) => `${Math.floor(min / 60)}:${String(Math.round(min % 60)).padStart(2, "0")}`;
+/** "45 min", "1 h 44 min", "2 h" for a minute total — never "1:44", which the log list would read as m:ss. */
+export const hoursMinutes = (min: number) => {
+  const total = Math.round(min);
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  return h === 0 ? `${m} min` : m === 0 ? `${h} h` : `${h} h ${m} min`;
+};
 
 const isCardio = (l: Log) => l.kind === "cardio" && !!l.cardio;
 const day = (iso: string) => iso.slice(0, 10);
@@ -184,8 +189,11 @@ const km2 = (km: number) => `${showDistance(km).toFixed(2)} ${distanceUnit()}`;
 const paceText = (p: ReturnType<typeof cardioPace>) =>
   p?.metric === "pace" ? fmtPace(p.secPerKm) : p?.metric === "split" ? `${formatDuration(p.secPer500m)} /500 m` : p?.metric === "speed" ? fmtSpeed(p.kmh) : null;
 
+/** The heart-rate target the member was given: a coach's bpm band overrides its zone, as on the member's card. */
 function planZone(rx: CardioPrescription, zones: LogPrescription["zonesBpm"]): string | null {
-  const work = rx.intervals?.find((i) => i.type === "work" && i.hrZone != null);
+  const work = rx.intervals?.find((i) => i.type === "work" && (i.hrBpm != null || i.hrZone != null));
+  const band = work ? work.hrBpm : rx.hrBpm;
+  if (band) return `${work ? "work · " : ""}${band.min}–${band.max} bpm`;
   const z = work?.hrZone ?? rx.hrZone ?? null;
   if (z == null) return null;
   const b = zoneBpm(zones, z);
@@ -212,13 +220,21 @@ export function reviewRows(cardio: CardioLog, plan: LogPrescription | null | und
   }
 
   const zone = rx ? planZone(rx, plan?.zonesBpm) : null;
-  if (zone || cardio.avgHr || cardio.maxHr) {
-    const hr = [cardio.avgHr ? `avg ${cardio.avgHr}` : null, cardio.maxHr ? `max ${cardio.maxHr}` : null].filter(Boolean).join(" · ");
+  const work = rx?.intervals?.filter((i) => i.type === "work") ?? [];
+  const results = (cardio.intervals ?? []).filter((r) => work.some((w) => w.id === r.intervalId));
+  const repHrs = results.flatMap((r) => (r.avgHr != null ? [r.avgHr] : []));
+  const repHr = repHrs.length ? Math.round(repHrs.reduce((a, b) => a + b, 0) / repHrs.length) : null;
+  if (zone || cardio.avgHr || cardio.maxHr || repHr) {
+    const hr = [repHr ? `work reps avg ${repHr}` : null, cardio.avgHr ? `avg ${cardio.avgHr}` : null, cardio.maxHr ? `max ${cardio.maxHr}` : null].filter(Boolean).join(" · ");
     rows.push({
       label: "Heart rate",
       plan: zone ?? dash,
       actual: hr || dash,
-      note: rx?.intervals?.length && cardio.avgHr ? "The average includes warm-up and recovery, so it isn't compared with the work zone." : undefined,
+      note: repHr
+        ? "Work reps avg is the mean of the reps' own averages, so it compares with the work target."
+        : rx?.intervals?.length && cardio.avgHr
+          ? "The average includes warm-up and recovery, so it isn't compared with the work zone."
+          : undefined,
     });
   }
 
@@ -231,23 +247,91 @@ export function reviewRows(cardio: CardioLog, plan: LogPrescription | null | und
     aside: load != null && sec != null ? `${cardio.rpe} × ${Math.round((sec / 60) * 10) / 10} min` : undefined,
   });
 
-  const work = rx?.intervals?.filter((i) => i.type === "work") ?? [];
   if (work.length) {
     const planWork = work.map((i) => `${i.repeat ?? 1} × ${i.durationSec ? formatDuration(i.durationSec) : i.distanceM ? `${i.distanceM} m` : "?"}`).join(", ");
-    const results = (cardio.intervals ?? []).filter((r) => work.some((w) => w.id === r.intervalId));
+    const planned = work.reduce((n, w) => n + (w.repeat ?? 1), 0);
     const timed = results.filter((r) => r.durationSec != null);
+    const far = results.filter((r) => r.distanceM != null);
     rows.push(
-      results.length
-        ? {
-            label: "Work reps",
-            plan: planWork,
-            actual: timed.length ? timed.map((r) => formatDuration(r.durationSec!)).join(" · ") : `${results.length} reported`,
-            aside: timed.length ? `${timed.length} of ${work.reduce((n, w) => n + (w.repeat ?? 1), 0)} timed` : undefined,
-          }
-        : { label: "Work reps", plan: planWork, actual: "Insufficient data", aside: "no per-interval results", insufficient: true },
+      !results.length
+        ? { label: "Work reps", plan: planWork, actual: "Insufficient data", aside: "no per-interval results", insufficient: true }
+        : timed.length
+          ? { label: "Work reps", plan: planWork, actual: timed.map((r) => formatDuration(r.durationSec!)).join(" · "), aside: `${timed.length} of ${planned} timed` }
+          : far.length
+            ? {
+                label: "Work reps",
+                plan: planWork,
+                actual: `${far.map((r) => showDistance(r.distanceM! / 1000).toFixed(2)).join(" · ")} ${distanceUnit()}`,
+                aside: `${far.length} of ${planned} with distance`,
+              }
+            : // only HR or RPE per rep (the table below has them), or truly empty rows
+              { label: "Work reps", plan: planWork, actual: `${results.length} reported` },
     );
   }
   return rows;
+}
+
+export interface RepResultRow {
+  /** "3", or "2.3" (block 2, rep 3) when the session has several work blocks. */
+  rep: string;
+  time: string | null;
+  /** The time is the plan's (a timed rep the member gave only a distance for). */
+  timePlanned: boolean;
+  distance: string | null;
+  distancePlanned: boolean;
+  pace: string | null;
+  hr: number | null;
+  /** The rep's avg HR against the work band; null without one. */
+  hrVsBand: "below" | "in" | "above" | null;
+  rpe: string | null;
+}
+
+/**
+ * What the member typed per work rep, one row each (reps with nothing typed left out),
+ * with the work interval's own time or distance filled in so pace still reads.
+ * `cols` says which columns carry anything, so a phone shows only those.
+ */
+export function repResults(
+  cardio: CardioLog,
+  plan: LogPrescription | null | undefined,
+  metric: CardioMetric,
+): { rows: RepResultRow[]; band: { min: number; max: number } | null; cols: Record<"time" | "distance" | "pace" | "hr" | "rpe", boolean> } {
+  const work = plan?.session.cardio?.intervals?.filter((i) => i.type === "work") ?? [];
+  const bandOf = (iv: (typeof work)[number] | undefined) => (iv ? (iv.hrBpm ?? zoneBpm(plan?.zonesBpm, iv.hrZone) ?? null) : null);
+  const rows: RepResultRow[] = [];
+  for (const r of cardio.intervals ?? []) {
+    const block = work.findIndex((w) => w.id === r.intervalId);
+    if (block < 0) continue;
+    if (r.durationSec == null && r.distanceM == null && r.avgHr == null && r.rpe == null) continue;
+    const iv = work[block];
+    const sec = r.durationSec ?? iv.durationSec ?? null;
+    const m = r.distanceM ?? iv.distanceM ?? null;
+    const band = bandOf(iv);
+    rows.push({
+      rep: work.length > 1 ? `${block + 1}.${r.rep}` : String(r.rep),
+      time: sec != null ? formatDuration(sec) : null,
+      timePlanned: r.durationSec == null && sec != null,
+      distance: m != null ? km2(m / 1000) : null,
+      distancePlanned: r.distanceM == null && m != null,
+      pace: sec != null && m != null ? paceText(cardioPace({ durationSec: sec, distanceKm: m / 1000 }, metric)) : null,
+      hr: r.avgHr ?? null,
+      hrVsBand: r.avgHr == null || !band ? null : r.avgHr < band.min ? "below" : r.avgHr > band.max ? "above" : "in",
+      rpe: r.rpe != null ? String(r.rpe) : null,
+    });
+  }
+  rows.sort((a, b) => a.rep.localeCompare(b.rep, undefined, { numeric: true }));
+  const firstBand = work.map(bandOf).find(Boolean) ?? null;
+  return {
+    rows,
+    band: firstBand ? { min: firstBand.min, max: firstBand.max } : null,
+    cols: {
+      time: rows.some((x) => x.time),
+      distance: rows.some((x) => x.distance),
+      pace: rows.some((x) => x.pace),
+      hr: rows.some((x) => x.hr != null),
+      rpe: rows.some((x) => x.rpe),
+    },
+  };
 }
 
 /** "Plan as assigned · program v4" — where the plan side comes from. */

@@ -1,9 +1,11 @@
 import { fmtDistance } from "./units.svelte";
 import { cardioTotals, type CardioInterval, type CardioIntervalResult, type CardioLog, type CardioPrescription } from "@pt/shared";
 import { formatDuration } from "$lib/ui/input/duration";
+import { SKIP_REASON_LABEL } from "./cardioForm";
+import { logDateLabel } from "./programLogs";
 
 /** What a cardio line reads: a prescription (targetRpe) or a log (rpe). */
-export type CardioLineSource = Partial<Pick<CardioPrescription, "durationMin" | "hrZone" | "intensity" | "distanceKm" | "targetRpe">> &
+export type CardioLineSource = Partial<Pick<CardioPrescription, "durationMin" | "hrZone" | "hrBpm" | "intensity" | "distanceKm" | "targetRpe">> &
   Partial<Pick<CardioLog, "rpe">> & {
     modality: string;
     /** A prescription's intervals; a log's per-rep results are ignored here. */
@@ -59,11 +61,26 @@ export function cardioLine(c: CardioLineSource | null | undefined): string {
   return [
     c.modality,
     c.durationMin ? `${c.durationMin} min` : null,
-    c.hrZone ? `Z${c.hrZone}` : null,
+    // the coach's own band overrides the zone, so it replaces it
+    c.hrBpm ? `${c.hrBpm.min}–${c.hrBpm.max} bpm` : c.hrZone ? `Z${c.hrZone}` : null,
     coachIntensity(c.intensity),
     c.distanceKm ? fmtDistance(c.distanceKm) : null,
     rpe ? `RPE ${rpe}` : null,
   ]
     .filter(Boolean)
     .join(" · ");
+}
+
+/**
+ * The program editor's line over a session's logs: "Logged Tue 24 Nov", or for a cardio
+ * session the client only skipped, "Not done · No time · Tue 24 Nov" — a skip is never done.
+ */
+export function sessionLogTag(logs: readonly { date: string; cardio?: Pick<CardioLog, "skipped"> | null }[]): {
+  done: boolean;
+  text: string;
+} {
+  const done = logs.filter((l) => !l.cardio?.skipped);
+  if (done.length || !logs.length) return { done: true, text: `Logged ${done.map((l) => logDateLabel(l.date)).join(", ")}` };
+  const reasons = [...new Set(logs.map((l) => SKIP_REASON_LABEL[l.cardio!.skipped!.reason]))];
+  return { done: false, text: ["Not done", ...reasons, logs.map((l) => logDateLabel(l.date)).join(", ")].join(" · ") };
 }
