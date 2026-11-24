@@ -117,6 +117,8 @@ describe("interval targets", () => {
     expect(intervalLines(tempo, tEn, "speed")[1].extra).toBe("11.3 km/h");
     expect(intervalLines(tempo, tEn, "none")[1].extra).toBeNull();
     expect(cardioParts({ modality: "Rowing", paceSecPerKm: 220 }, tEn)).toEqual(["1:50 /500 m"]);
+    // the member reads the speed the coach typed (32.5), not the whole-second drift (32.4)
+    expect(cardioParts({ modality: "Cycling", paceSecPerKm: 111 }, tEn)).toEqual(["32.5 km/h"]);
     expect(cardioParts({ modality: "Elliptical", durationMin: 30, paceSecPerKm: 220 }, tEn)).toEqual(["30 min"]);
   });
 });

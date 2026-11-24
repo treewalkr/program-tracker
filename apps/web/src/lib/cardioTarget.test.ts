@@ -36,6 +36,18 @@ describe("pace targets follow the modality", () => {
     expect(paceTargetText(120, "speed", "km")).toBe("30 km/h");
   });
 
+  test("a typed speed or per-mile pace survives the whole-second round trip", () => {
+    const trip = (f: NonNullable<ReturnType<typeof paceField>>, v: number) => f.show(f.store(v)!);
+    const kmh = paceField("speed", "km")!;
+    for (const v of [25, 27.5, 32.5, 42.5, 50]) expect(trip(kmh, v)).toBe(v);
+    const mph = paceField("speed", "mi")!;
+    for (const v of [15, 22.5, 25, 30.5]) expect(trip(mph, v)).toBe(v);
+    const mi = paceField("pace", "mi")!;
+    expect(trip(mi, 545)).toBe(545); // 9:05 /mi, was 9:06
+    expect(paceTargetText(kmh.store(32.5)!, "speed", "km")).toBe("32.5 km/h");
+    expect(paceTargetText(mi.store(545)!, "pace", "mi")).toBe("9:05 /mi");
+  });
+
   test("elliptical and stairs: no pace at all", () => {
     expect(paceField("none", "km")).toBeNull();
     expect(paceTargetText(300, "none", "km")).toBeNull();
