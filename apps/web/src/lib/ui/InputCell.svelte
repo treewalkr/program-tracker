@@ -93,4 +93,6 @@
 	.cell[aria-invalid='true'], .cell[aria-invalid='true']:hover { border-color: var(--bad); }
 	.cell:disabled { cursor: not-allowed; opacity: 0.55; }
 	@media (max-width: 720px) { .cell { min-height: 40px; font-size: 16px; } }
+	/* No hover on touch: a resting hairline marks the field as editable. */
+	@media (hover: none) { .cell:not(:focus) { border-color: var(--line-soft); } }
 </style>
