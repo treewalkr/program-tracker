@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
+	import InputSearch from './InputSearch.svelte';
 
 	/**
 	 * The row above every list (DESIGN.md › Lists): search → filters/tabs →
@@ -25,9 +26,8 @@
 </script>
 
 <div class="list-toolbar" role="search">
-	<div class="search" class:has-kbd={kbd}>
-		<input bind:this={input} class="input" type="search" {placeholder} aria-label={label} bind:value />
-		{#if kbd}<kbd aria-hidden="true">{kbd}</kbd>{/if}
+	<div class="search">
+		<InputSearch {label} {placeholder} shortcut={kbd} bind:value bind:input />
 	</div>
 	{@render filters?.()}
 	<span class="count" role="status">{count ?? ''}</span>
@@ -45,25 +45,6 @@
 		position: relative;
 		flex: 1 1 240px;
 		max-width: 320px;
-	}
-	.search .input {
-		width: 100%;
-	}
-	.has-kbd .input {
-		padding-right: 36px;
-	}
-	kbd {
-		position: absolute;
-		right: 8px;
-		top: 50%;
-		transform: translateY(-50%);
-		font: 500 11px/1 var(--font-mono);
-		padding: 2px 5px;
-		border: 1px solid var(--line);
-		border-bottom-width: 2px;
-		border-radius: 4px;
-		background: var(--surface);
-		color: var(--muted);
 	}
 	.count {
 		margin-left: auto;
