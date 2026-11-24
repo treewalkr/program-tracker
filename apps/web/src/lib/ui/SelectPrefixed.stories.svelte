@@ -46,3 +46,8 @@
     <div style="width: 220px"><SelectPrefixed prefix="Pattern" options={patterns} bind:value={pattern} /></div>
   </div>
 </Story>
+
+<Story name="Narrow slot" asChild>
+  <!-- A phone list head pins Sort at 156px: a long value ends in … -->
+  <div style="width: 156px; min-height: 220px"><SelectPrefixed prefix="Sort" options={sorts} value={sorts[sorts.length - 1].value} /></div>
+</Story>

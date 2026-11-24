@@ -55,7 +55,7 @@
 			onkeydown={lb.onkeydown}
 		>
 			<span class="p">{prefix}</span>
-			<span class="v">{chosen?.label ?? ''}<Icon name="chevrons-up-down" /></span>
+			<span class="v"><span class="t">{chosen?.label ?? ''}</span><Icon name="chevrons-up-down" /></span>
 		</button>
 	{/snippet}
 	<OptionList id="{uid}-list" label={prefix} {options} selected={value === undefined ? [] : [value]} active={lb.active} onpick={pick} onhover={(i) => (lb.active = i)} />
@@ -86,10 +86,12 @@
 		background: var(--well-2);
 		border-right: 1px solid var(--line);
 	}
-	.v { flex: 1; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 5px 10px 5px 12px; }
+	.v { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 5px 10px 5px 12px; }
 	.sel:hover:not(:disabled) .v { background: var(--well-2); }
 	.sel:focus-visible, .sel[aria-expanded='true'] { border-color: var(--blue); box-shadow: 0 0 0 3px var(--focus-ring); outline: none; }
 	.sel:disabled { opacity: 0.55; cursor: not-allowed; }
+	/* A long value in a narrow slot ends in … instead of being cut. */
+	.t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 	.v :global(svg) { width: 14px; height: 14px; flex: none; color: var(--muted); }
 	@media (max-width: 720px) { .sel { min-height: 40px; font-size: 16px; } }
 </style>

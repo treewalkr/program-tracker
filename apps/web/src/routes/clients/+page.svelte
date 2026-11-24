@@ -121,7 +121,7 @@
   <section class="panel roster-box" aria-label="Clients" aria-busy="true">
     <span class="sr-only" role="status">Loading clients…</span>
     <div class="panel-head box-head" inert>
-      <div class="states">
+      <div class="states x-scroll">
         {#each ROSTER_STATUSES as s (s)}
           <button type="button" class="state" class:on={list.params.status === s}>
             {STATUS_LABEL[s]}<Skeleton shape="round" h="18px" w="24px" />
@@ -187,7 +187,7 @@
 
   <section class="panel roster-box" aria-label="Clients" aria-busy={loading}>
     <div class="panel-head box-head">
-      <div class="states" role="group" aria-label="Status">
+      <div class="states x-scroll" role="group" aria-label="Status">
         {#each ROSTER_STATUSES as s (s)}
           <button
             type="button"
@@ -325,6 +325,14 @@
   .state:hover { color: var(--ink); background: var(--well-2); }
   .state.on { color: var(--ink); font-weight: 600; }
   .sort { flex: none; width: 200px; }
+  /* Phone: one row. States scroll sideways (the shared edge fade), Sort stays
+     pinned right; 3px padding keeps focus rings unclipped. */
+  @media (max-width: 720px) {
+    .box-head { flex-wrap: nowrap; gap: 8px; }
+    .states { flex: 1 1 auto; min-width: 0; flex-wrap: nowrap; overflow-x: auto; margin: -3px 0 -3px -3px; padding: 3px; }
+    .state { flex: none; }
+    .sort { width: 156px; }
+  }
 
   .rows { overflow-x: auto; transition: opacity 120ms ease-out; }
   .rows.stale { opacity: 0.55; pointer-events: none; }
