@@ -939,6 +939,8 @@
   .stack :global(.label) { margin-bottom: 6px; }
 
   .blocker { font-size: 13px; color: var(--muted); }
+  /* Phone: after the buttons in their one scrolling row, not between them. */
+  @media (max-width: 720px) { .blocker { order: 1; } }
   .mode { margin: -6px 0 16px; }
   .mode :global(.tabs) { margin: 0; }
   :global(.filled) { margin: 0 0 16px; }

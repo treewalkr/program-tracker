@@ -565,7 +565,7 @@
               {/if}
               <a class="act" href={`/programs/${prog.id}`}>Open program →</a>
             {/snippet}
-            <div class="week-chips" role="group" aria-label="Program week">
+            <div class="week-chips x-scroll" role="group" aria-label="Program week">
               {#each weekOptions(prog.weeks, pulseWeek) as opt (opt.week)}
                 <button
                   type="button"
@@ -1322,24 +1322,14 @@
   @container main (max-width: 760px) {
     .two-col { grid-template-columns: minmax(0, 1fr); }
   }
-  /* Narrow: one row that scrolls sideways, Generate first so the main action
-     is never the one cut off. 4px padding keeps lips and focus rings unclipped. */
+  /* Phones get app.css's one scrolling row (Generate first). */
   @media (max-width: 900px) {
-    .client-top .head-actions {
-      width: calc(100% + 8px);
-      flex-wrap: nowrap;
-      overflow-x: auto;
-      scrollbar-width: none;
-      margin: -4px;
-      padding: 4px;
-    }
-    .client-top .head-actions::-webkit-scrollbar { display: none; }
-    .client-top .head-actions > :global(*) { flex: none; }
-    .client-top .head-actions > :global(.primary),
-    .client-top .head-actions > :global(.skeleton) { order: -1; }
+    .client-top .head-actions { width: 100%; }
   }
 
-  .week-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 16px 4px; }
+  /* One line that scrolls sideways, like the draft's week tabs. */
+  .week-chips { display: flex; gap: 6px; padding: 12px 16px 4px; overflow-x: auto; }
+  .week-chips > :global(*) { flex: none; }
   .dir-panel { padding: 12px 14px; }
   .side-hint { margin: 2px 0 8px; font-size: 11.5px; color: var(--faint); line-height: 1.4; }
   .dir-actions { display: flex; justify-content: flex-end; margin-top: 8px; }

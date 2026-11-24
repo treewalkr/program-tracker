@@ -901,9 +901,7 @@ a.rowlink { color: var(--ink); font-weight: 600; }
   box-shadow: inset 0 -1px 0 var(--line);
   margin: 16px 0 18px;
   overflow-x: auto;
-  scrollbar-width: none;
 }
-.tabs::-webkit-scrollbar { display: none; }
 .tabs a,
 .tabs button {
   appearance: none;
@@ -927,6 +925,14 @@ a.rowlink { color: var(--ink); font-weight: 600; }
 .tabs button.on { color: var(--ink); font-weight: 600; border-bottom-color: var(--tab-on); }
 .tabs button:disabled { opacity: 0.5; cursor: default; }
 
+/* Sideways scrollers (tab bars, phone action rows, .x-scroll): touch screens
+   swipe and show no bar; a mouse keeps a thin one, its only way across. */
+.tabs, .head-actions, .x-scroll { scrollbar-width: thin; }
+@media (hover: none) and (pointer: coarse) {
+  .tabs, .head-actions, .x-scroll { scrollbar-width: none; }
+  .tabs::-webkit-scrollbar, .head-actions::-webkit-scrollbar, .x-scroll::-webkit-scrollbar { display: none; }
+}
+
 /* —— misc ————————————————————————————— */
 
 .page-head {
@@ -937,6 +943,21 @@ a.rowlink { color: var(--ink); font-weight: 600; }
   margin-bottom: 22px;
 }
 .head-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+/* Phone: a page's actions take their own row under the title, on one line
+   that scrolls sideways; the primary goes first so it is never the one cut
+   off. 4px padding keeps button lips and focus rings unclipped. */
+@media (max-width: 720px) {
+  .head-actions {
+    flex: 1 1 100%;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    margin: -4px;
+    padding: 4px;
+  }
+  .head-actions > * { flex: none; }
+  .head-actions > .primary,
+  .head-actions > .skeleton { order: -1; }
+}
 
 .crumbs { font: 400 14px/1 var(--font-ui); color: var(--muted); margin: 0 0 14px; }
 
