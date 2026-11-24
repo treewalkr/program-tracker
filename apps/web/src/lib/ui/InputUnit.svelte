@@ -2,13 +2,16 @@
 	import { untrack } from 'svelte';
 	import FieldFrame from './input/FieldFrame.svelte';
 	import { describedBy } from './input/field';
+	import { enterToNext, selectOnTap } from './input/entry';
 	import { formatFigure, parseFigure, rangeIssue, stepFigure } from './input/figure';
 	import { RANGE_WORDS_EN, type RangeWords } from './input/duration';
 
 	/**
 	 * Input 02 · Unit field — a typed number with its unit in a cap: 1RM kg,
 	 * bodyweight, cardio minutes, % of 1RM. Right-aligned mono figure, no
-	 * native spinners. ↑/↓ step (Shift ×10); min/max check on blur.
+	 * native spinners. ↑/↓ step (Shift ×10); min/max check on blur. A tap
+	 * selects a prefilled figure, so typing replaces it; Enter moves to the
+	 * next field and never submits the form.
 	 */
 	interface Props {
 		label: string;
@@ -83,6 +86,7 @@
 	}
 
 	function onkeydown(e: KeyboardEvent) {
+		if (e.key === 'Enter') return enterToNext(e);
 		if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
 		e.preventDefault();
 		const next = stepFigure(value ?? null, step * (e.shiftKey ? 10 : 1), e.key === 'ArrowUp' ? 1 : -1, min, max);
@@ -99,6 +103,7 @@
 			class="in"
 			type="text"
 			inputmode="decimal"
+			enterkeyhint="next"
 			autocomplete="off"
 			spellcheck="false"
 			{disabled}
@@ -109,6 +114,7 @@
 			{oninput}
 			{onblur}
 			{onkeydown}
+			{@attach selectOnTap}
 		/>
 		<span class="cap" id="{id}-unit">{unit}</span>
 	</div>
