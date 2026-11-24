@@ -27,6 +27,7 @@
     summaryLine,
   } from "$lib/generateForm";
   import DraftReview from "$lib/components/DraftReview.svelte";
+  import DraftBanner from "$lib/components/DraftBanner.svelte";
   import ToggleChip from "$lib/ui/ToggleChip.svelte";
   import Segmented from "$lib/ui/Segmented.svelte";
   import Note from "$lib/ui/Note.svelte";
@@ -46,6 +47,9 @@
   import StartDateDialog from "$lib/components/StartDateDialog.svelte";
   import { askNotifyPermission, generationWatch } from "$lib/draftWatch";
   import { shortReason } from "$lib/generationWatch.svelte";
+  import { generateBriefKey, initialBrief, readGenerateBrief, saveGenerateBrief, clearGenerateBrief } from "$lib/generateBrief";
+  import LeaveGuard from "$lib/ui/LeaveGuard.svelte";
+  import { createLeaveGuard } from "$lib/leaveGuard.svelte";
 
   const id = $derived(page.params.id ?? "");
   /** Arrived from "Watch progress": a generation is running, so the skeleton takes its shape. */
@@ -118,6 +122,32 @@
   let approving = $state(false);
   let rejecting = $state(false);
   let startedAtIso = $state("");
+  /** The brief and rules persist per client (sessionStorage) once restored, so a detour and Back keep them. */
+  const briefKey = $derived(generateBriefKey(id));
+  let briefReady = $state(false);
+  let briefHandoff = "";
+  const briefSnapshot = $derived(JSON.stringify({ instructions, selected }));
+  /** The brief as last sent; a failed or cancelled draft forgets it, so the brief counts as unsent again. */
+  let sentBrief = $state<string | null>(null);
+  const briefSent = $derived(sentBrief !== null && sentBrief === briefSnapshot);
+
+  $effect(() => {
+    if (!briefReady) return;
+    if (briefSent) clearGenerateBrief(briefKey);
+    else saveGenerateBrief(briefKey, { instructions, selected: [...selected], handoff: briefHandoff });
+  });
+
+  const guard = createLeaveGuard({
+    // only an unsent brief on the form; once Generate starts the page is in another phase
+    dirty: () => briefReady && phase === "form" && instructions.trim() !== "" && !briefSent,
+    prompt: () => ({
+      title: "Leave this brief?",
+      body: "It isn't sent yet. Your brief and rules stay on this device and come back when you return to Generate for this member.",
+      leaveLabel: "Leave, keep brief",
+      danger: false,
+    }),
+  });
+
   /** The running draft this page waits on (follow); a newer start or a cancel drops it. */
   let followed: string | null = null;
 
@@ -143,6 +173,7 @@
     }
     const nextPhase = generationPhase(row);
     if (nextPhase === "generating") return;
+    if (nextPhase === "failed") sentBrief = null;
     await restLoaded.catch(() => {}); // the review needs the catalog and examples (a load error shows on its own)
     if (followed !== null || gen?.id !== row.id) return; // a new draft started meanwhile
     if (nextPhase === "failed") failReason = row.error ?? null;
@@ -162,6 +193,7 @@
       gen = row;
       phase = "form";
       cancelledNote = "block";
+      sentBrief = null;
     }
   }
 
@@ -219,6 +251,7 @@
     activated = null;
     activateError = null;
     startedAtIso = new Date().toISOString();
+    sentBrief = briefSnapshot;
     phase = "generating";
     cancelledNote = null;
     askNotifyPermission();
@@ -277,6 +310,8 @@
         failReason = (err as Error).message || null;
       }
       phase = "failed";
+    } finally {
+      if (phase === "failed") sentBrief = null;
     }
   }
 
@@ -522,11 +557,16 @@
     blockWeeks = defaultBlockWeeks(current);
     weeksChoice = defaultWeeksChoice(current, savedChoice);
 
-    // Phase-signal handoff: ?tpl=<templateId>&note=<prefill>
-    const note = params.get("note");
-    const tpl = params.get("tpl");
-    if (note) instructions = note;
-    if (tpl && templates.some((t) => t.id === tpl)) selected = [tpl];
+    // Phase-signal handoff (?tpl=<templateId>&note=<prefill>), or the brief kept from before a detour.
+    const brief = initialBrief(
+      readGenerateBrief(briefKey),
+      { note: params.get("note"), tpl: params.get("tpl") },
+      (t) => templates.some((x) => x.id === t),
+    );
+    instructions = brief.instructions;
+    selected = brief.selected;
+    briefHandoff = brief.handoff ?? "";
+    briefReady = true;
   }
 
   onMount(() => {
@@ -535,6 +575,8 @@
 </script>
 
 <svelte:head><title>Generate program{client ? ` · ${client.name}` : ""} · Program Tracker</title></svelte:head>
+
+<LeaveGuard {guard} />
 
 {#if loadError}
   <ClientLoadError error={loadError} />
@@ -606,33 +648,26 @@
   {#if phase === "form"}
     {@const firstName = client.name.split(" ")[0]}
     {#if activated}
-      {@const p = activated}
-      <div class="gf-banner done" role="status">
-        <span class="lamp green" aria-hidden="true"></span>
-        <div class="gf-banner-text"><strong>“{p.name}” is live.</strong><span>{firstName} can see it now. New drafts build on it.</span></div>
-      </div>
+      <DraftBanner class="gf-state" tone="done" title={`“${activated.name}” is live`} text={`${firstName} can see it now. New drafts build on it.`} />
     {:else if pending}
       {@const p = pending}
+      <!-- the version of the draft it was approved from; the new program's own version is always 1 -->
       {@const dv = approvedDraftVersion(allGens, p.id)}
-      <div class="gf-banner" role="status">
-        <span class="lamp amber" aria-hidden="true"></span>
-        <div class="gf-banner-text">
-          <strong>“{p.name}” is approved but not active.</strong>
-          <span>{dv ? `Made from draft v${dv}. ` : ""}{firstName} can't see it yet, and new drafts can't build on it until you activate it.</span>
-        </div>
-        <div class="gf-banner-act">
+      <DraftBanner
+        class="gf-state"
+        title={dv ? `v${dv} approved, not active` : "Approved, not active"}
+        text={`“${p.name}” — ${firstName} can't see it yet, and new drafts can't build on it until you activate it.`}
+      >
+        {#snippet actions()}
           <Button small href="/programs/{p.id}">Open program</Button>
           <Button small type="button" onclick={() => (startDialogOpen = true)} disabled={activating}>
             {activating ? "Activating…" : "Activate"}
           </Button>
-        </div>
-      </div>
+        {/snippet}
+      </DraftBanner>
       {#if activateError}<Note tone="bad" role="status">{activateError}</Note>{/if}
     {:else if cancelledNote === "block"}
-      <div class="gf-banner warn" role="status">
-        <span class="lamp gray" aria-hidden="true"></span>
-        <div class="gf-banner-text"><strong>Generation cancelled.</strong><span>Nothing was drafted — your brief is kept below.</span></div>
-      </div>
+      <DraftBanner class="gf-state" tone="quiet" title="Generation cancelled" text="Nothing was drafted — your brief is kept below." />
     {/if}
 
     <div class="gf-grid">
@@ -901,6 +936,10 @@
 <style>
   .manage { font: 500 12px var(--font-ui); color: var(--muted); margin-left: auto; }
   .manage:hover { color: var(--ink); }
+  /* touch: a 44px-tall hit area around the same 12px text link (WCAG 2.5.5) */
+  @media (pointer: coarse) {
+    .manage { display: inline-flex; align-items: center; min-height: 44px; padding-inline: 8px; margin-block: -10px; margin-right: -8px; }
+  }
   .skel-manage { flex-basis: 100%; text-align: right; }
   .save-tpl { display: flex; gap: 8px; margin-top: 14px; }
   .tpl-name { flex: 1; min-width: 0; }
@@ -924,17 +963,8 @@
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .lamp { display: inline-block; width: 8px; height: 8px; border-radius: 99px; flex: none; }
 
-  /* banner: approved-but-inactive / live / cancelled */
-  .gf-banner {
-    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-    border: 1px solid var(--warn-line); background: var(--warn-bg);
-    border-radius: 6px; padding: 12px 14px; margin-bottom: 20px;
-  }
-  .gf-banner.warn { background: var(--well); border-color: var(--line); }
-  .gf-banner.done { background: var(--good-bg); border-color: var(--good-line); }
-  .gf-banner-text { flex: 1; min-width: 240px; display: flex; flex-direction: column; gap: 2px; }
-  .gf-banner-text span { color: var(--muted); font-size: 13px; }
-  .gf-banner-act { display: flex; gap: 8px; }
+  /* DraftBanner: approved-but-inactive / live / cancelled */
+  :global(.gf-state) { margin-bottom: 20px; }
 
   /* layout: composer + sticky "What the AI reads" column */
   .gf-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 24px; align-items: start; }
@@ -1005,7 +1035,7 @@
   .nobr { white-space: nowrap; }
   .fig { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
   .sz { font: 400 11px/1 var(--font-mono); font-variant-numeric: tabular-nums; opacity: 0.75; }
-  .rules { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; padding: 10px 14px; border-top: 1px solid var(--line-soft); }
+  .rules { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; padding: 10px 14px; min-width: 0; border-top: 1px solid var(--line-soft); }
   .rules .lbl { font-size: 12px; color: var(--muted); margin-right: 2px; }
   .row { display: flex; align-items: center; gap: 8px; padding: 8px 10px 10px 8px; border-top: 1px solid var(--line-soft); flex-wrap: wrap; }
   .spacer { flex: 1; }

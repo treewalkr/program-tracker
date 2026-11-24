@@ -29,7 +29,8 @@
   import { maxHrUntested } from "$lib/hrProfile";
   import PulseDrill from "$lib/components/PulseDrill.svelte";
   import { cardioDone, cardioUnitLabel, cardioWeekTotals, isoWeekStart, placedWeekdays, sessionTag, sessionsByWeekday } from "@pt/shared";
-  import { weekOptions } from "$lib/format";
+  import { fmtDate, weekOptions } from "$lib/format";
+  import { chainPanel } from "$lib/chainPanel";
   import { localIso } from "$lib/overview";
   import StatusPill from "$lib/components/StatusPill.svelte";
   import SessionCard from "$lib/components/SessionCard.svelte";
@@ -196,7 +197,9 @@
   const catalogList = $derived([...catalogById.values()]);
   const shortDay = (iso: string) =>
     new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" });
-  const maxChainSets = $derived(Math.max(...(chainWeekData?.chains.map((c) => c.sets) ?? [0]), 1));
+  /** This week's chain counts, or last week's while this week has none yet. */
+  const chainView = $derived(chainWeekData ? chainPanel(chainWeekData, sessionLogRows, [...catalogById.values()]) : null);
+  const maxChainSets = $derived(Math.max(...(chainView?.chains.map((c) => c.sets) ?? [0]), 1));
   const heatLevel = (w: WeekMetrics) => (w.plannedOnly ? 0 : Math.max(1, Math.ceil((4 * w.overallVolume) / maxVolume)));
   const pulseSummary = $derived.by(() => {
     if (doneWeeks.length < 2) return "";
@@ -807,19 +810,20 @@
         {#if pulseSummary}<p class="pulse-sub">{pulseSummary}</p>{/if}
       </Panel>
 
-      {#if chainWeekData}
-        <Panel title="Sets touching each chain" count={`week of ${chainWeekData.weekStart}`}>
+      {#if chainView}
+        {@const weekWord = chainView.week === "last" ? "last week" : "this week"}
+        <Panel title="Sets touching each chain" count={`${chainView.week === "last" ? "last week" : "week"} of ${fmtDate(chainView.weekStart)}`}>
           {#snippet act()}
             <Button small variant="ghost" href="/chains">Edit chains</Button>
           {/snippet}
           <div class="chains-list">
-            {#each chainWeekData.chains as c (c.id)}
+            {#each chainView.chains as c (c.id)}
               {@const isZero = c.sets === 0}
               <div class="chain-row" class:muted={isZero}>
                 <div class="chain-info">
                   <span class="chain-name">{c.name}</span>
                   {#if isZero}
-                    <span class="chain-status">no sets this week</span>
+                    <span class="chain-status">no sets {weekWord}</span>
                   {:else}
                     <span class="chain-count">{c.sets} {c.sets === 1 ? "set touching" : "sets touching"}</span>
                   {/if}
@@ -833,7 +837,7 @@
               </div>
             {/each}
           </div>
-          <p class="pulse-sub">A set counts toward every chain its muscle groups overlap. Descriptive only — not a balance score.</p>
+          <p class="pulse-sub">{chainView.week === "last" ? "Nothing logged this week yet, so this is last week. " : ""}A set counts toward every chain its muscle groups overlap. Descriptive only — not a balance score.</p>
         </Panel>
       {/if}
     </div>
