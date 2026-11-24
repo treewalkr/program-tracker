@@ -1,7 +1,7 @@
-import { localDateOf, mainWork, movementPrep, PortalWeek, sessionDateIn, type PortalExercise, type PortalLogEntry, type PortalSession, type PortalSet } from "@pt/shared";
+import { localDateOf, mainWork, movementPrep, PortalWeek, PortalWeekDto, sessionDateIn, type PortalExercise, type PortalLogEntry, type PortalSession, type PortalSet } from "@pt/shared";
 import { cardioFormOf as planForm, cardioFormOfLog, cardioLogOf, readCardioForm, type CardioForm, type CardioFormError } from "$lib/cardioForm";
 import { EMPTY_READINESS, parseFlags, readinessInput, parseReadiness, sessionFlags, type ExerciseFlags, type ReadinessForm } from "$lib/logFlags";
-import { asPrescribed, cellNumber, isBlank, rowsToSave, setSkipReason, skipExercise, toLoggedSet, type Prescription, type SheetRow } from "$lib/logSheet";
+import { asPrescribed, cellNumber, isBlank, rowsToSave, setSkipReason, skipExercise, toLoggedSet, withExtraSet, type Prescription, type SheetRow } from "$lib/logSheet";
 import type { PortalLogInput } from "$lib/api/portalTypes";
 import { asSent, draftLoad, savedLoad, startLoad, type LoadMode } from "$lib/loadMode";
 
@@ -273,8 +273,13 @@ export function portalDraftJson(f: PortalLogForm): string {
   return JSON.stringify({ ...f, savedAt: new Date().toISOString() });
 }
 
-/** A stored draft, if it still fits the session (every prescribed row still there). Junk → null. */
-export function parsePortalDraft(raw: string | null, fresh: PortalRow[], freshCardio?: CardioForm): PortalLogForm | null {
+/**
+ * A stored draft over the session as it is now. Junk → null. When the coach changed the
+ * session since (a set or exercise added or removed, a target changed), what still
+ * matches by row key is kept on the fresh rows, extras on exercises still there come
+ * back, notes, readiness and flags stay, and `merged` says the session moved under it.
+ */
+export function parsePortalDraft(raw: string | null, fresh: PortalRow[], freshCardio?: CardioForm): (PortalLogForm & { merged: boolean }) | null {
   if (!raw) return null;
   let d: Partial<PortalLogForm> & { readiness?: unknown };
   try {
@@ -283,20 +288,57 @@ export function parsePortalDraft(raw: string | null, fresh: PortalRow[], freshCa
     return null;
   }
   if (!d || !Array.isArray(d.rows) || typeof d.notes !== "string" || typeof d.date !== "string" || !d.cardio) return null;
-  const keys = new Set(d.rows.map((r) => r?.key));
-  if (d.rows.filter((r) => !r?.extra).length !== fresh.length || !fresh.every((r) => keys.has(r.key))) return null;
+  const stored = d.rows.filter((row): row is PortalRow => !!row && typeof row.key === "string").map((row) => draftLoad(row, fresh));
+  const { rows, merged } = mergeDraftRows(stored, fresh);
   const r = (d.readiness ?? {}) as Record<string, unknown>;
+  const peIds = new Set(fresh.map((x) => x.programExerciseId));
+  const flags = Object.fromEntries(Object.entries(parseFlags(d.flags)).filter(([pe]) => fresh.length === 0 || peIds.has(pe)));
   return {
-    flags: parseFlags(d.flags),
+    flags,
     startedAt: typeof d.startedAt === "string" && !Number.isNaN(Date.parse(d.startedAt)) ? d.startedAt : null,
-    rows: d.rows.map((row) => draftLoad(row, fresh)),
+    rows,
     // an older build's minutes/zone strings read as the current form
     cardio: readCardioForm(d.cardio, freshCardio),
     notes: d.notes,
     date: d.date,
     readiness: parseReadiness({ energy: r.energy, readiness: r }),
     prepDone: Array.isArray(d.prepDone) ? d.prepDone.filter((x): x is string => typeof x === "string") : [],
+    merged,
   };
+}
+
+/** What a set's prescription looks like to the member: changed here means the coach edited it. */
+const rxSig = (r: PortalRow) => JSON.stringify([r.name, r.type, r.prescribedReps, r.rx, r.planned ?? null, r.timed ?? false, r.group ?? null]);
+
+/** One stored row's entries on the fresh row: a set left as planned takes the coach's new target. */
+function overlay(fresh: PortalRow, was: PortalRow): PortalRow {
+  if (rxSig(fresh) === rxSig(was)) return was;
+  const kept = { exerciseId: was.exerciseId, rpe: was.rpe, skipped: was.skipped, exerciseSkip: was.exerciseSkip, loadPicked: was.loadPicked, load: was.loadPicked ? was.load : fresh.load };
+  const asPlanned = !!was.planned && String(was.weight) === was.planned.weight && String(was.reps) === was.planned.reps;
+  if (asPlanned) return { ...fresh, ...kept };
+  return { ...fresh, ...kept, load: was.load, weight: was.weight, reps: was.reps, copied: was.copied, planned: undefined };
+}
+
+/** Stored rows over fresh ones by key; extras on exercises still there follow their exercise. */
+export function mergeDraftRows(stored: PortalRow[], fresh: PortalRow[]): { rows: PortalRow[]; merged: boolean } {
+  const byKey = new Map(stored.filter((r) => !r.extra).map((r) => [r.key, r]));
+  const base = stored.filter((r) => !r.extra);
+  const sameShape = base.length === fresh.length && fresh.every((r) => byKey.has(r.key));
+  const changed = !sameShape || fresh.some((r) => rxSig(r) !== rxSig(byKey.get(r.key)!));
+  if (!changed) return { rows: stored, merged: false };
+  // a whole-exercise skip covers the coach's new sets on that exercise too
+  const skipOf = new Map(base.filter((r) => r.exerciseSkip).map((r) => [r.programExerciseId, r.exerciseSkip]));
+  let rows = fresh.map((f) => {
+    const was = byKey.get(f.key);
+    const row = was ? overlay(f, was) : f;
+    const skip = skipOf.get(f.programExerciseId);
+    return skip && !row.exerciseSkip ? { ...row, exerciseSkip: skip } : row;
+  });
+  const peIds = new Set(fresh.map((r) => r.programExerciseId));
+  for (const x of stored.filter((r) => r.extra && peIds.has(r.programExerciseId))) {
+    rows = withExtraSet(rows, x.programExerciseId, (n) => ({ ...x, key: `${x.programExerciseId}:x${n}`, setNumber: n }));
+  }
+  return { rows, merged: true };
 }
 
 // ---------------------------------------------------------------------------
@@ -330,6 +372,24 @@ export function touchedExercises(pristine: readonly PortalRow[], rows: readonly 
 export const PORTAL_WEEK_CACHE_KEY = "pt:portal-week";
 
 export const portalWeekCacheJson = (w: PortalWeek): string => JSON.stringify(w);
+
+/** The whole week page as last loaded on this phone, so the home page opens offline too. */
+export const PORTAL_WEEK_DTO_CACHE_KEY = "pt:portal-week-dto";
+
+/** A cached week page whose loggable week is still on; anything else → null. */
+export function cachedWeekDto(raw: string | null, today: string): PortalWeekDto | null {
+  if (!raw) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  const d = PortalWeekDto.safeParse(parsed);
+  if (!d.success) return null;
+  const on = d.data.weeks.find((w) => w.loggable);
+  return on && on.endDate >= today ? d.data : null;
+}
 
 /** The cached week and one of its sessions, while that week is still on; anything else → null. */
 export function cachedSession(raw: string | null, sessionId: string, today: string): { week: PortalWeek; session: PortalSession } | null {
