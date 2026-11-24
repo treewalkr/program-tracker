@@ -16,6 +16,8 @@
   import { onMount, tick } from "svelte";
   import { page } from "$app/state";
   import { replaceState } from "$app/navigation";
+  import { createLeaveGuard } from "$lib/leaveGuard.svelte";
+  import LeaveGuard from "$lib/ui/LeaveGuard.svelte";
   import { api } from "$lib/api";
   import type { ChainWeekDto, ClientDto, ExerciseDto, GenerationDto, HrProfileDto, HrProfileInputDto, AssessmentDto, AssessmentInput, LogReviewInput, ModalityDto, ProgramDto, SessionLogDto, SignalDto } from "$lib/api/types";
   import { isLivePending } from "$lib/generation";
@@ -363,6 +365,18 @@
       saving = false;
     }
   }
+
+  const leaveGuard = createLeaveGuard({
+    dirty: () => profileDirty,
+    prompt: () => ({
+      title: "Save the profile changes?",
+      body: "You have Settings edits that haven't been saved. Leaving drops them.",
+    }),
+    save: async () => {
+      await save();
+      return !profileDirty && !saveProfileError;
+    },
+  });
 
   /** Throw away unsaved Settings edits: back to the stored client. */
   function discard() {
@@ -1054,6 +1068,8 @@
     </div>
   {/if}
 {/if}
+
+<LeaveGuard guard={leaveGuard} />
 
 <style>
   .client-top { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
