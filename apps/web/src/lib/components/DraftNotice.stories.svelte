@@ -40,4 +40,5 @@
 <Story name="Failed" args={{ notices: [failed] }} />
 <Story name="Mixed" args={{ notices: [ready, failed] }} />
 <Story name="Folded (+2 more)" args={{ notices: [week, ready, failed, ...more] }} />
+<!-- Phone: sits below the top bar (menu + search stay tappable); touch gets a 44px ✕. -->
 <Story name="Phone" args={{ notices: [ready, failed] }} globals={{ viewport: { value: 'narrow' } }} />
