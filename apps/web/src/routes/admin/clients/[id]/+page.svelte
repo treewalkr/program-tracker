@@ -5,7 +5,8 @@
   import { EXPERIENCE_LABEL, sessionsByWeekday, sessionTag } from "@pt/shared";
   import { apiMode } from "$lib/api";
   import { adminApi, type AdminClientDetail } from "$lib/api/admin";
-  import { lastSessionLabel, localToday, sampleAdminClientDetail, shortDay } from "$lib/adminClients";
+  import { lastSessionLabel, sampleAdminClientDetail } from "$lib/adminClients";
+  import { localToday, shortDay } from "$lib/dates";
   import SessionCard from "$lib/components/SessionCard.svelte";
   import StatusPill from "$lib/components/StatusPill.svelte";
   import Button from "$lib/ui/Button.svelte";
@@ -35,7 +36,8 @@
     detail = undefined;
     loadError = null;
     if (sample) {
-      detail = sampleAdminClientDetail(clientId, today);
+      const got = await sampleAdminClientDetail(clientId, today);
+      if (clientId === id) detail = got;
       return;
     }
     try {

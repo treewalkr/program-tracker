@@ -1,8 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { bookCell, booksOf, filterClients, lastSessionLabel, programmeLabel, sampleAdminClientDetail, sampleAdminClients, shortDay, trainersOf } from "./adminClients";
+import { bookCell, booksOf, filterClients, lastSessionLabel, programmeLabel, sampleAdminClientDetail, sampleAdminClients, trainersOf } from "./adminClients";
+import { shortDay } from "./dates";
 
 const TODAY = "2026-11-09";
-const rows = sampleAdminClients(TODAY);
+const rows = await sampleAdminClients(TODAY);
 const all = { q: "", trainerId: "", status: "" as const };
 
 describe("filterClients", () => {
@@ -57,9 +58,9 @@ describe("programmes", () => {
 });
 
 describe("sampleAdminClientDetail", () => {
-  test("unknown id → null", () => expect(sampleAdminClientDetail("nope", TODAY)).toBeNull());
-  test("carries the row, basics and this week with exercise names", () => {
-    const d = sampleAdminClientDetail("c-1", TODAY)!;
+  test("unknown id → null", async () => expect(await sampleAdminClientDetail("nope", TODAY)).toBeNull());
+  test("carries the row, basics and this week with exercise names", async () => {
+    const d = (await sampleAdminClientDetail("c-1", TODAY))!;
     expect(d.client).toMatchObject({ id: "c-1", name: "Dana Whitfield", trainer: { id: "t-alex" }, age: 34, trainingDays: [1, 3, 5] });
     expect(d.client).not.toHaveProperty("birthDate");
     expect(d.programme).toMatchObject({ name: "Strength Base A", week: 3, of: 6 });
@@ -69,8 +70,8 @@ describe("sampleAdminClientDetail", () => {
     expect(names).toContain("Back Squat");
     expect(names.every((n) => n && !n.startsWith("ex-"))).toBe(true);
   });
-  test("an active client can have no programme", () => {
-    expect(sampleAdminClientDetail("c-12", TODAY)?.programme).toBeNull();
+  test("an active client can have no programme", async () => {
+    expect((await sampleAdminClientDetail("c-12", TODAY))?.programme).toBeNull();
   });
 });
 

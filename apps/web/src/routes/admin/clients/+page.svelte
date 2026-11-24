@@ -13,14 +13,13 @@
     booksOf,
     filterClients,
     lastSessionLabel,
-    localToday,
     programmeLabel,
     sampleAdminClients,
-    shortDay,
     trainersOf,
     type BookCell,
     type TrainerBook,
   } from "$lib/adminClients";
+  import { localToday, shortDay } from "$lib/dates";
   import StatusPill from "$lib/components/StatusPill.svelte";
   import Avatar from "$lib/ui/Avatar.svelte";
   import Button from "$lib/ui/Button.svelte";
@@ -49,7 +48,8 @@
     rows = null;
     loadError = null;
     if (sample) {
-      rows = sampleAdminClients(today);
+      const got = await sampleAdminClients(today);
+      if (useSample) rows = got;
       return;
     }
     try {

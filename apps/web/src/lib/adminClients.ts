@@ -1,6 +1,9 @@
 import type { ClientStatus, ProgramWeek } from "@pt/shared";
 import type { AdminClient, AdminClientDetail, AdminProgrammeRef } from "./api/admin";
-import { exercises as seedExercises, programs as seedPrograms, trainerExercises, trainerProgram } from "./api/mock/data";
+import { daysBetween, shortDay } from "./dates";
+
+/** The demo seed (~40 KB) only loads for sample data, never with the live roster. */
+const loadSeed = () => import("./api/mock/data");
 
 /** Days without a logged session before a client reads as dormant. */
 export const DORMANT_DAYS = 14;
@@ -83,11 +86,6 @@ export function booksOf(rows: AdminClient[], today: string): TrainerBook[] {
   return [...books.values()];
 }
 
-/** Whole calendar days from a `YYYY-MM-DD` day to `today` (`YYYY-MM-DD`). */
-export function daysBetween(day: string, today: string): number {
-  return Math.round((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${day}T00:00:00Z`)) / 86_400_000);
-}
-
 /** "Today", "Yesterday", "5 days ago", "12 Mar"; tone flags never-logged and dormant clients. */
 export function lastSessionLabel(day: string | null, today: string): { text: string; tone: "none" | "dormant" | "recent" } {
   if (!day) return { text: "Never", tone: "none" };
@@ -99,22 +97,9 @@ export function lastSessionLabel(day: string | null, today: string): { text: str
   return { text: shortDay(day, today), tone };
 }
 
-/** `12 Mar`, or `12 Mar 2025` outside the current year. */
-export function shortDay(day: string, today: string): string {
-  const date = new Date(`${day}T00:00:00Z`);
-  const sameYear = day.slice(0, 4) === today.slice(0, 4);
-  return date.toLocaleDateString("en-GB", { day: "numeric", month: "short", ...(sameYear ? {} : { year: "numeric" }), timeZone: "UTC" });
-}
-
 /** "Wk 3 of 8"; past the plan, "Wk 8 of 8 · over". */
 export function programmeLabel(p: Pick<AdminProgrammeRef, "week" | "of" | "over">): string {
   return `Wk ${p.week} of ${p.of}${p.over ? " · over" : ""}`;
-}
-
-/** Local `YYYY-MM-DD`. */
-export function localToday(now = new Date()): string {
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}`;
 }
 
 /** `today` shifted by `n` days, as `YYYY-MM-DD`. */
@@ -123,24 +108,27 @@ function shift(today: string, n: number): string {
 }
 
 /** Seed programs the sample programmes borrow their name, version and sessions from. */
-const SAMPLE_SOURCES = {
-  strength: seedPrograms.find((p) => p.id === "pg-maya-a")!,
-  hypertrophy: seedPrograms.find((p) => p.id === "pg-jonas-a")!,
-  sarco: trainerProgram,
-} as const;
-type SampleSource = keyof typeof SAMPLE_SOURCES;
-
-/** Sample programme ids encode their source: `sp-<source>-<clientId>`. */
-const sampleProgramme = (clientId: string, source: SampleSource, week: number, of: number, over = false): AdminProgrammeRef => ({
-  id: `sp-${source}-${clientId}`,
-  name: SAMPLE_SOURCES[source].name,
-  week,
-  of,
-  over,
-});
+async function sampleSources() {
+  const { programs, trainerProgram } = await loadSeed();
+  return {
+    strength: programs.find((p) => p.id === "pg-maya-a")!,
+    hypertrophy: programs.find((p) => p.id === "pg-jonas-a")!,
+    sarco: trainerProgram,
+  };
+}
+type SampleSource = keyof Awaited<ReturnType<typeof sampleSources>>;
 
 /** A believable platform for mock mode and `?demo`: three trainers, mixed states. */
-export function sampleAdminClients(today: string): AdminClient[] {
+export async function sampleAdminClients(today: string): Promise<AdminClient[]> {
+  const sources = await sampleSources();
+  /** Sample programme ids encode their source: `sp-<source>-<clientId>`. */
+  const sampleProgramme = (clientId: string, source: SampleSource, week: number, of: number, over = false): AdminProgrammeRef => ({
+    id: `sp-${source}-${clientId}`,
+    name: sources[source].name,
+    week,
+    of,
+    over,
+  });
   const alex = { id: "t-alex", name: "Alex Rivera", access: "active" as const };
   const june = { id: "t-june", name: "June Park", access: "active" as const };
   const sam = { id: "t-sam", name: "Sam Okafor", access: "disabled" as const };
@@ -198,15 +186,15 @@ const SAMPLE_BASICS: Record<string, SampleBasics> = {
   "c-12": { ...UNSET, age: 33, sex: "female" },
 };
 
-const sampleExerciseName = (id: string) =>
-  seedExercises.find((e) => e.id === id)?.name ?? trainerExercises.find((e) => e.id === id)?.name ?? id;
-
 /** One sample client's detail, built from its directory row; null = unknown id. */
-export function sampleAdminClientDetail(id: string, today: string): AdminClientDetail | null {
-  const row = sampleAdminClients(today).find((r) => r.id === id);
+export async function sampleAdminClientDetail(id: string, today: string): Promise<AdminClientDetail | null> {
+  const row = (await sampleAdminClients(today)).find((r) => r.id === id);
   if (!row) return null;
+  const [{ exercises, trainerExercises }, sources] = await Promise.all([loadSeed(), sampleSources()]);
+  const sampleExerciseName = (id: string) =>
+    exercises.find((e) => e.id === id)?.name ?? trainerExercises.find((e) => e.id === id)?.name ?? id;
   const { programme: ref, ...rest } = row;
-  const source = ref ? SAMPLE_SOURCES[ref.id.split("-")[1] as SampleSource] : null;
+  const source = ref ? sources[ref.id.split("-")[1] as SampleSource] : null;
   const week: ProgramWeek | null = source ? (source.weeks.find((w) => w.week === ref!.week) ?? source.weeks[0]) : null;
   return {
     client: { ...rest, ...(SAMPLE_BASICS[id] ?? UNSET) },
