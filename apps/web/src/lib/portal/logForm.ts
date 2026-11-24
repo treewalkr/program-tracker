@@ -296,6 +296,28 @@ export function portalDraftJson(f: PortalLogForm): string {
   return JSON.stringify({ ...f, savedAt: new Date().toISOString() });
 }
 
+/** A stored draft's form, without when it was written: the same form twice is no change. */
+function draftBody(json: string | null): string | null {
+  if (json == null) return null;
+  try {
+    const { savedAt: _at, ...form } = JSON.parse(json) as Record<string, unknown>;
+    return JSON.stringify(form);
+  } catch {
+    return json;
+  }
+}
+
+/**
+ * Compare-and-set for a tab's draft write: `next` is the draft now (null: nothing worth
+ * keeping), `stored` what storage holds, `last` what this tab last wrote or found there.
+ * The same form as last time → skip. Storage changed since → another tab (or a frozen
+ * tab's stale copy is this one): conflict, never overwrite. Else write.
+ */
+export function draftWrite(next: string | null, stored: string | null, last: string | null): "skip" | "conflict" | "write" {
+  if (draftBody(next) === draftBody(last)) return "skip";
+  return stored === last ? "write" : "conflict";
+}
+
 /**
  * A stored draft over the session as it is now. Junk → null. When the coach changed the
  * session since (a set or exercise added or removed, a target changed), what still

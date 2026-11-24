@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { PortalSession } from "@pt/shared";
 import { EMPTY_READINESS, setFlagNote, toggleFlag } from "$lib/logFlags";
 import { setSkipReason, skipExercise } from "$lib/logSheet";
-import { buildPortalLog, cachedSession, cachedWeekDto, cardioFormOf, defaultLogDate, extraRow, formOfSession, parsePortalDraft, portalDraftKey, portalWeekCacheJson, portalWeekDtoCacheJson, portalDraftJson, readPortalDraft, rowsOfSession, sameForm, saveSummary, setLoad, setsMissingKg, touchedExercises, type PortalLogForm, type PortalRow } from "./logForm";
+import { buildPortalLog, cachedSession, cachedWeekDto, cardioFormOf, defaultLogDate, draftWrite, extraRow, formOfSession, parsePortalDraft, portalDraftKey, portalWeekCacheJson, portalWeekDtoCacheJson, portalDraftJson, readPortalDraft, rowsOfSession, sameForm, saveSummary, setLoad, setsMissingKg, touchedExercises, type PortalLogForm, type PortalRow } from "./logForm";
 
 const exerciseSession: PortalSession = {
   id: "ps1", name: "Lower", kind: "exercises", seq: 1, weekday: 1, order: 0, cardio: null, log: null,
@@ -423,6 +423,28 @@ describe("drafts are kept per member", () => {
   test("the member's own key wins over an older build's leftover", () => {
     const store = memory({ "pt:portal-log-draft:ps1": "old", [portalDraftKey("c1", "ps1")]: "new" });
     expect(readPortalDraft(store, "c1", "ps1")).toBe("new");
+  });
+});
+
+describe("draftWrite: compare-and-set on the stored draft", () => {
+  const f = form(exerciseSession, { notes: "a" });
+  const json = (over: Partial<PortalLogForm> = {}, at = "2026-11-24T10:00:00.000Z") => JSON.stringify({ ...f, ...over, savedAt: at });
+
+  test("an unchanged form isn't written again, whatever its savedAt", () => {
+    expect(draftWrite(json({}, "2026-11-24T10:05:00.000Z"), json(), json())).toBe("skip");
+    expect(draftWrite(null, null, null)).toBe("skip");
+  });
+
+  test("a change over what this tab last wrote (or found) is written", () => {
+    expect(draftWrite(json({ notes: "b" }), json(), json())).toBe("write");
+    expect(draftWrite(json(), null, null)).toBe("write");
+    expect(draftWrite(null, json(), json())).toBe("write");
+  });
+
+  test("someone else changed or cleared the stored draft since: never overwritten", () => {
+    expect(draftWrite(json({ notes: "b" }), json({ notes: "other tab" }), json())).toBe("conflict");
+    expect(draftWrite(json({ notes: "b" }), null, json())).toBe("conflict");
+    expect(draftWrite(json({ notes: "b" }), json(), null)).toBe("conflict");
   });
 });
 

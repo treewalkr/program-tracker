@@ -25,6 +25,7 @@
     extraRow,
     formOfSession,
     parsePortalDraft,
+    draftWrite,
     portalDraftJson,
     portalDraftKey,
     portalWeekCacheJson,
@@ -91,6 +92,8 @@
   let ownsDraft = false;
   /** Another tab changed this session's draft: this one stops writing until reloaded. */
   let otherTab = $state(false);
+  /** The draft as this tab last wrote it, or found it on opening the session: the compare in compare-and-set. */
+  let lastDraft: string | null = null;
   /** The last save attempt may have reached the server (a timeout, a 5xx): a 409 on the member's own log is resent as a replace. */
   let lastSaveLost = false;
   /** Opened from this phone's copy of the week: the connection dropped. */
@@ -198,6 +201,7 @@
     merged = false;
     otherTab = false;
     ownsDraft = false;
+    lastDraft = null;
     lastSaveLost = false;
     showRpe = false;
     feelOpen = false;
@@ -229,7 +233,9 @@
       return;
     }
     fresh(s);
-    const draft = parsePortalDraft(storedDraft(id), rows, cardioFormOf(s.cardio));
+    const raw = storedDraft(id);
+    lastDraft = raw;
+    const draft = parsePortalDraft(raw, rows, cardioFormOf(s.cardio));
     if (draft && !sameForm(draft, freshForm(s))) {
       rows = draft.rows;
       cardio = draft.cardio;
@@ -279,16 +285,29 @@
     return sameForm(form, freshForm(session)) ? null : portalDraftJson(form);
   });
 
-  /** Write (or clear) the stored draft now. Never clears one this page didn't restore or write. */
+  /**
+   * Write (or clear) the stored draft now, compare-and-set: nothing when the form hasn't changed
+   * since this tab last wrote it, and never over a draft another tab changed since (a frozen
+   * background tab never missed a storage event's worth of entries). Never clears one this page
+   * didn't restore or write.
+   */
   function writeDraft(json: string | null | undefined) {
-    if (json === undefined || !session || otherTab) return;
-    if (!draftKey) return;
-    const key = draftKey;
+    if (json === undefined || !draftKey || otherTab) return;
     try {
+      const step = draftWrite(json, localStorage.getItem(draftKey), lastDraft);
+      if (step === "skip") return;
+      if (step === "conflict") {
+        otherTab = true;
+        return;
+      }
       if (json) {
-        localStorage.setItem(key, json);
+        localStorage.setItem(draftKey, json);
         ownsDraft = true;
-      } else if (ownsDraft) localStorage.removeItem(key);
+        lastDraft = json;
+      } else if (ownsDraft) {
+        localStorage.removeItem(draftKey);
+        lastDraft = null;
+      }
     } catch {
       // storage full or private mode: the form still works, it just won't survive a reload
     }
@@ -315,6 +334,7 @@
     if (!session) return;
     try {
       if (draftKey) localStorage.removeItem(draftKey);
+      lastDraft = null;
     } catch {
       // private mode: nothing was kept
     }
@@ -458,6 +478,7 @@
     if (!session) return;
     try {
       if (draftKey) localStorage.removeItem(draftKey);
+      lastDraft = null;
     } catch {
       // private mode: nothing was kept
     }
