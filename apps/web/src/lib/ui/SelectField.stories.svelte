@@ -41,6 +41,13 @@
   <div style="max-width: 300px"><SelectField label="Primary goal" options={goals} bind:value={none} placeholder="Choose a goal" invalid /></div>
 </Story>
 
+<Story name="Error with a message" asChild>
+  <div style="max-width: 300px">
+    <SelectField label="Week A" options={goals} value="power" invalid describedby="sf-err" />
+    <p id="sf-err" style="margin: 4px 0 0; font-size: 13px; color: var(--bad)">Pick two different weeks for A and B.</p>
+  </div>
+</Story>
+
 <Story name="Disabled" asChild>
   <div style="max-width: 300px"><SelectField label="Primary goal" options={goals} value="general" disabled /></div>
 </Story>

@@ -19,13 +19,15 @@
 		placeholder?: string;
 		disabled?: boolean;
 		invalid?: boolean;
+		/** Id(s) of the hint or error line under the field, for `aria-describedby`. */
+		describedby?: string;
 		/** Controlled open state (stories, tests). */
 		open?: boolean;
 		/** Widest the field grows; `none` fills a form-grid column. */
 		maxWidth?: string;
 	}
 
-	let { options, value = $bindable(), onchange, label, placeholder = 'Choose…', disabled = false, invalid = false, open = $bindable(false), maxWidth = '300px' }: Props = $props();
+	let { options, value = $bindable(), onchange, label, placeholder = 'Choose…', disabled = false, invalid = false, describedby, open = $bindable(false), maxWidth = '300px' }: Props = $props();
 
 	const uid = $props.id();
 	const chosen = $derived(options.find((o) => o.value === value));
@@ -59,6 +61,7 @@
 				aria-controls="{uid}-list"
 				aria-labelledby="{uid}-l"
 				aria-invalid={invalid || undefined}
+				aria-describedby={describedby}
 				aria-activedescendant={open ? `${uid}-list-${lb.active}` : undefined}
 				{disabled}
 				onclick={lb.toggle}
