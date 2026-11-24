@@ -119,10 +119,15 @@
     }
     const block = (e: Event) => {
       if (isFeedbackUi(e.target as Node)) return;
-      e.preventDefault();
+      // A touch press must keep its default, or the finger can't scroll to what
+      // it wants to pick (and WebKit may drop the tap's click). The app still
+      // never sees it, and only a stationary tap clicks, which `onClick` takes.
+      if (!(e instanceof PointerEvent && e.pointerType === "touch")) e.preventDefault();
       e.stopImmediatePropagation();
     };
     const onMove = (e: PointerEvent) => {
+      // A finger has no hover: a moving touch is a scroll, not a pick.
+      if (e.pointerType === "touch") return;
       const t = e.target as Element | null;
       if (!t || isFeedbackUi(t) || t === document.documentElement || t === document.body) {
         hovered = null;
