@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import { page } from "$app/state";
   import { createLeaveGuard } from "$lib/leaveGuard.svelte";
   import { liftFeedback } from "$lib/feedback/lift";
@@ -64,8 +64,8 @@
   import type { ExerciseDto, ExerciseInput, ProgramDto, ProgramExampleDto, ProgramSessionDto, SessionLogDto, SessionTypeDto, SessionTypeInput } from "$lib/api/types";
   import { cardioLine } from "$lib/cardioLine";
   import { extraSets, logDateLabel, loggedSetLabel, programLogView, setsForExercise, timedIdsOfWeek } from "$lib/programLogs";
-  import { exerciseIssue, validateProgramDoc } from "$lib/programDoc";
-  import { copyNotice, copyTargetLabel, currentWeekIndex as openingWeekIndex, endedNote, forwardNotice, matchNotice, programSubline, snapshot, weekLine, weekRangeLabel, weekTabDates } from "$lib/programEdit";
+  import { exerciseIssue, sessionLabel, validateProgramDoc } from "$lib/programDoc";
+  import { copyNotice, copyTargetLabel, currentWeekIndex as openingWeekIndex, endedNote, forwardNotice, matchNotice, programSubline, sameProgramDoc, snapshot, weekLine, weekRangeLabel, weekTabDates } from "$lib/programEdit";
   import { isDeloaded, toggleDeload, type DeloadUndo } from "$lib/deloadUndo";
   import { clientDeload } from "$lib/draftReview";
   import { patternTitle } from "$lib/exerciseLibrary";
@@ -372,7 +372,8 @@
     setWeek(next);
     const added = next.sessions.at(-1)!;
     openSessionEditor(added.id);
-    selected = added.id;
+    // On a phone the new card lands far below the calendar: bring it (and its editor) on screen.
+    tick().then(() => select(added.id));
   }
 
   function select(sid: string) {
@@ -461,14 +462,29 @@
     if (!program || !validation.ok) return;
     saving = true;
     saveError = null;
+    const saved = () => {
+      baseline = snapshot(program!);
+      savedAt = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    };
     try {
       program = await api.saveProgram(program.id, program.weeks, program.phasing ?? null, program.version);
-      baseline = snapshot(program);
-      savedAt = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      saved();
     } catch (e) {
       // The edits stay on screen either way; a 409 means only a reload can get past it.
       saveError = isTransient(e) ? saveErrorText(e) : `Save failed: ${saveErrorText(e)}`;
       stale = (e as { status?: unknown }).status === 409;
+      if (stale) {
+        // A save whose reply was lost (gym Wi-Fi) already landed: the server holds exactly these edits.
+        const latest = await api.program(program.id).catch(() => null);
+        if (latest && program && sameProgramDoc(latest, program)) {
+          program = latest;
+          saved();
+          saveError = null;
+          stale = false;
+        } else if (latest) {
+          saveError = "This program was saved elsewhere since you opened it. Reload to see the latest.";
+        }
+      }
     } finally {
       saving = false;
     }
@@ -562,7 +578,7 @@
   const DAY_NAMES = ["Any day", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 </script>
 
-<svelte:head><title>{program?.name ?? "Program"} · Program Tracker</title></svelte:head>
+<svelte:head><title>{program?.name ?? "Program"}{clientName ? ` · ${clientName.split(" ")[0]}` : ""} · Program Tracker</title></svelte:head>
 
 {#if program === null}
   <!-- Loading: the loaded layout's shape — head, week tabs, toolbars, calendar, session cards. -->
@@ -601,6 +617,8 @@
     <div>
       <h1>{program.name} <StatusPill status={program.status} /></h1>
       <p class="sub">
+        <!-- Phones and the installed app swap the crumb trail for Back: say whose program this is. -->
+        {#if clientName}<span class="for-member">For <strong>{clientName}</strong> · </span>{/if}
         {programSubline(program, savedAt, weekLine(weekDates))}
         {#if program.status === "active"}<button type="button" class="edit-link sub-link" onclick={() => (startDialog = "change")}>Change</button>{/if}
       </p>
@@ -853,7 +871,7 @@
                       onlink={ei < s.exercises.length - 1 && blockOf(s.exercises[ei + 1]) === blockOf(e) ? () => setExercises(si, linkWithNext(s.exercises, ei)) : undefined}
                       onunlink={() => setExercises(si, unlink(s.exercises, ei))}
                       onclose={closeEditors}
-                      oninvalid={(m) => (editorIssue = m && `Week ${currentWeek.week} · ${sessionTag(s)} (${s.name}): ${exerciseIssue(e.exerciseName ?? "Exercise", m)}`)}
+                      oninvalid={(m) => (editorIssue = m && `Week ${currentWeek.week} · ${sessionLabel(s)}: ${exerciseIssue(e.exerciseName ?? "Exercise", m)}`)}
                     />
                   {:else}
                     {@const patterns = patternsOf(e.exerciseId)}
@@ -990,7 +1008,8 @@
           {#if stale}
             <ConfirmButton label="Reload latest" confirmLabel="Drop my edits and reload?" variant="primary" armedVariant="danger" small onconfirm={reloadLatest} />
           {:else}
-            <button class="btn ghost small" onclick={discard} disabled={saving}>Discard</button>
+            <!-- Two taps (a whole editing session goes) and kept apart from Save changes for thumbs. -->
+            <ConfirmButton label="Discard" confirmLabel="Discard all edits?" variant="ghost" armedVariant="danger" small class="discard" disabled={saving} onconfirm={discard} />
             <button class="btn primary small" onclick={save} disabled={saving || !validation.ok}>{saving ? "Saving…" : "Save changes"}</button>
           {/if}
         </div>
@@ -1026,6 +1045,9 @@
   .mark-actions .hint { margin: 0; }
   @media (max-width: 980px) { .mark-form { grid-template-columns: 1fr; } }
   .readonly-note { margin: 0; }
+  .for-member { display: none; }
+  .for-member strong { color: var(--ink); font-weight: 600; }
+  @media (max-width: 860px), (display-mode: standalone) { .for-member { display: inline; } }
   .hint { color: var(--muted); margin: -8px 0 16px; max-width: 640px; }
 
   .tab-dates { margin-left: 4px; font-weight: 500; }
@@ -1053,6 +1075,14 @@
     gap: 8px;
   }
   .dock > :global(.savebar) { position: static; margin-top: 0; }
+  /* 16 px from Save changes with the bar's 8 px gap. */
+  .savebar :global(.discard) { margin-right: 8px; }
+  /* Phones: the message takes its own line, so the armed "Discard all edits?" never squeezes it. */
+  @media (max-width: 560px) {
+    .dock .savebar { flex-wrap: wrap; }
+    .dock .savemsg { flex-basis: 100%; }
+    .savebar :global(.discard) { margin-left: auto; }
+  }
   @media (max-width: 700px) { .dock { bottom: 60px; } }
   /* Same look as the draft edit dock's toast. */
   .copy-toast {
@@ -1204,5 +1234,16 @@
 
   @media (max-width: 980px) {
     .sessions-grid { grid-template-columns: minmax(0, 1fr); }
+  }
+
+  /* Touch: 44 px targets. Week tabs grow; the text links keep their look and get an invisible hit area. */
+  @media (pointer: coarse) {
+    .tab-btn { min-height: 44px; }
+    .edit-link, .add-link, .exname { position: relative; }
+    .edit-link::after, .add-link::after, .exname::after {
+      content: "";
+      position: absolute;
+      inset: -14px -6px;
+    }
   }
 </style>

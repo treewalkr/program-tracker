@@ -526,7 +526,7 @@
   });
 </script>
 
-<svelte:head><title>Generate program · Program Tracker</title></svelte:head>
+<svelte:head><title>Generate program{client ? ` · ${client.name}` : ""} · Program Tracker</title></svelte:head>
 
 {#if loadError}
   <ClientLoadError error={loadError} />
@@ -585,12 +585,12 @@
       : weekMode ? `Draft week ${weekMode} with AI` : "Draft next block with AI"}
     sub={fillTarget
       ? fillWrites.length
-        ? `Writes ${weekRangeLabel(fillWrites)} in full from your ${weekRangeLabel(fillKept)}, following the block plan. ${weekRangeLabel(fillKept)} stay${fillKept.length === 1 ? "s" : ""} exactly as ${fillKept.length === 1 ? "it is" : "they are"}.`
+        ? `Writes ${client.name.split(" ")[0]}'s ${weekRangeLabel(fillWrites)} in full from your ${weekRangeLabel(fillKept)}, following the block plan. ${weekRangeLabel(fillKept)} stay${fillKept.length === 1 ? "s" : ""} exactly as ${fillKept.length === 1 ? "it is" : "they are"}.`
         : "Every week is yours or logged — nothing left to fill."
       : phase === "form"
       ? generateSubtitle({ firstName: client.name.split(" ")[0], current, weekMode, plannedWeeks, recentLogs })
       : weekMode
-      ? `Re-drafts week ${weekMode} of ${plannedWeeks} from this week's logs — the pre-drafted week ${weekMode} is replaced on approval.`
+      ? `Re-drafts ${client.name.split(" ")[0]}'s week ${weekMode} of ${plannedWeeks} from this week's logs — the pre-drafted week ${weekMode} is replaced on approval.`
       : `Reads ${client.name.split(" ")[0]}'s profile, ${current ? `“${current.name}”` : "no program yet"}, and 8 weeks of logged sets.`}
     crumbs={[{ href: `/clients/${id}`, label: client.name }, { label: fillTarget ? "Fill with AI" : weekMode ? `Draft week ${weekMode}` : "Generate" }]}
   />
