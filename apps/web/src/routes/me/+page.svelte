@@ -385,6 +385,7 @@
   .earlier { margin-bottom: 20px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
   .earlier summary {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 8px;
     min-height: 48px;
@@ -398,9 +399,9 @@
   .earlier[open] summary :global(svg) { transform: rotate(180deg); }
   .earlier-days { display: grid; gap: 16px; padding: 4px 16px 16px; border-top: 1px solid var(--line-soft); }
   .earlier-days .day { padding-top: 12px; }
-  h3 { display: flex; align-items: center; gap: 8px; margin: 0; font: 600 14px/1.3 var(--font-ui); }
+  h3 { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; font: 600 14px/1.3 var(--font-ui); }
 
-  .days { display: grid; gap: 24px; padding-top: 16px; }
+  .days { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; padding-top: 16px; }
   .preview { margin: 0; font-size: 14px; color: var(--muted); }
   .week-label { margin: 10px 0 0; padding: 10px 12px; font-size: 14px; color: var(--ink); background: var(--well); border-radius: var(--radius); text-wrap: pretty; }
   .days > .week-label { margin: 0; }
@@ -410,9 +411,10 @@
   .cardio .second { font-size: 13px; }
   .cbar { height: 6px; border-radius: 99px; background: var(--well-2); overflow: hidden; }
   .cbar span { display: block; height: 100%; border-radius: 99px; background: var(--good); }
-  .day { display: grid; gap: 10px; }
+  .day { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
   h2 {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 8px;
     margin: 0;
@@ -427,7 +429,7 @@
     color: var(--ink);
   }
   .today-pill { margin-left: auto; color: var(--blue); border-color: var(--blue-line); background: var(--surface); }
-  .cards { display: grid; gap: 10px; }
+  .cards { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
 
   .loading { display: grid; gap: 16px; }
   .slow { margin: 0; font-size: 14px; color: var(--muted); }
