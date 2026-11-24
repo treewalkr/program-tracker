@@ -14,6 +14,8 @@ import { POLL_INTERVAL_MS } from "./generation";
  *   hidden, and not at all when nothing is.
  * - A row that leaves the pending list is read once and becomes a notice:
  *   ready (validated) or failed. Cancelled, approved or vanished rows are quiet.
+ * - One held request per page: a newer one from the same page supersedes it,
+ *   and the older caller never hears back (a cancelled draft's late reply).
  * - No in-app notice while the trainer is on that client's generate or chat
  *   page (it moves to review on its own); a browser notification still fires
  *   when the tab is hidden.
@@ -102,6 +104,8 @@ export function createGenerationWatch(deps: WatchDeps) {
   let started = false;
   let timer: unknown = null;
   let polling: Promise<void> | null = null;
+  /** The newest held request per page (client + href); older ones never answer. */
+  const latest = new Map<string, object>();
 
   const active = () => started && (watching.size > 0 || inFlight > 0);
 
@@ -209,9 +213,17 @@ export function createGenerationWatch(deps: WatchDeps) {
     /**
      * Track a held generate/fill/build request. Resolves to the same row (or
      * null) so the caller can keep awaiting it; rejections pass through.
+     *
+     * One draft per page at a time: when the same page (same client and
+     * `href`) starts another request before this one answers — Cancel, then
+     * Generate again — this one is superseded: its promise never settles, and
+     * only the latest request's caller hears back. A cancelled draft's late
+     * reply can't put the page back on the form while the new draft runs.
+     * (The row itself is still reported as usual — a cancelled one is quiet.)
      */
     watch<T extends GenerationDto | null>(request: Promise<T>, info: WatchInfo): Promise<T> {
       const since = now();
+      const key = info.href ?? `/clients/${info.clientId}/generate`;
       inFlight++;
       // The row is written a moment after the request starts; look for it soon.
       schedule(1_000);
@@ -230,7 +242,14 @@ export function createGenerationWatch(deps: WatchDeps) {
           schedule();
         }
       );
-      return request;
+      const token = {};
+      latest.set(key, token);
+      /** Superseded by a newer request from the same page: stay silent — that one's caller decides. */
+      const stale = () => latest.get(key) !== token;
+      return request.then(
+        (row) => (stale() ? new Promise<T>(() => {}) : row),
+        (err) => (stale() ? new Promise<T>(() => {}) : Promise.reject(err))
+      );
     },
 
     /** The tab came back: check now, then at the visible pace. */

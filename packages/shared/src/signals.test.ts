@@ -305,23 +305,58 @@ describe("week-ending signal", () => {
     expect(computeSignals(inactiveProgram, [], () => "Bench", null, now)).toHaveLength(0);
   });
 
-  test("deload-week describes the shared deload rule (F12)", () => {
+  /** baseProgram with its deload moved to `week` (the rest stays as planned). */
+  const deloadAt = (week: number): SignalProgram["phasing"] => ({
+    ...baseProgram.phasing!,
+    weeks: baseProgram.phasing!.weeks!.map((w) => ({ week: w.week, directive: w.week === week ? "deload" : "base" })),
+  });
+
+  test("mid-block deload-week describes the shared deload rule and offers no next-block brief (F12, B-03)", () => {
     const now = new Date("2026-10-20T00:00:00.000Z").getTime();
-    const program: SignalProgram = { ...baseProgram, activatedAt: new Date(now - 23 * 86400_000).toISOString() };
+    // 9 days in → week 2 of 4, the deload.
+    const program: SignalProgram = { ...baseProgram, phasing: deloadAt(2), activatedAt: new Date(now - 9 * 86400_000).toISOString() };
     const sig = computeSignals(program, [], () => "Bench", null, now).find((s) => s.kind === "deload-week");
     expect(sig).toBeDefined();
     expect(sig!.evidence).toContain(DELOAD_RULES);
-    expect(sig!.prefillNote).toContain(DELOAD_RULES);
-    expect(`${sig!.evidence} ${sig!.prefillNote}`).not.toContain("60%");
+    expect(sig!.evidence).not.toContain("60%");
+    expect(sig!.prefillNote).toBeUndefined();
   });
 
   test("deload-week uses the client's own rule text when given", () => {
     const now = new Date("2026-10-20T00:00:00.000Z").getTime();
-    const program: SignalProgram = { ...baseProgram, activatedAt: new Date(now - 23 * 86400_000).toISOString() };
+    const program: SignalProgram = { ...baseProgram, phasing: deloadAt(2), activatedAt: new Date(now - 9 * 86400_000).toISOString() };
     const sig = computeSignals(program, [], () => "Bench", null, now, "all sets kept, loads −20 % from week 1, no RPE cap, AMRAP sets kept").find((s) => s.kind === "deload-week");
     expect(sig!.evidence).toContain("loads −20 % from week 1");
-    expect(sig!.prefillNote).toContain("AMRAP sets kept");
     expect(sig!.evidence).not.toContain(DELOAD_RULES);
+  });
+
+  test("a deload in the block's last week says the block ends and briefs the next block (B-03)", () => {
+    const now = new Date("2026-10-20T00:00:00.000Z").getTime();
+    // 23 days in → week 4 of 4, the deload.
+    const program: SignalProgram = { ...baseProgram, activatedAt: new Date(now - 23 * 86400_000).toISOString() };
+    const signals = computeSignals(program, [], () => "Bench", null, now);
+    expect(signals.find((s) => s.kind === "deload-week")).toBeUndefined();
+    const sig = signals.find((s) => s.kind === "block-ending");
+    expect(sig).toBeDefined();
+    expect(sig!.title).toMatch(/ends this week/);
+    expect(sig!.evidence).toContain("deload");
+    expect(sig!.evidence).toContain(DELOAD_RULES);
+    // The brief is for the next block: no deload instructions for it.
+    expect(sig!.prefillNote).toContain("Draft the");
+    expect(sig!.prefillNote).not.toContain(DELOAD_RULES);
+    expect(sig!.prefillNote).not.toMatch(/RPE|deload the week/i);
+    expect(sig!.templateHint).toBe("tpl-block-structure");
+  });
+
+  test("a deload in the second-to-last week still warns the block ends after next week (B-03)", () => {
+    const now = new Date("2026-10-20T00:00:00.000Z").getTime();
+    // 16 days in → week 3 of 4, the deload.
+    const program: SignalProgram = { ...baseProgram, phasing: deloadAt(3), activatedAt: new Date(now - 16 * 86400_000).toISOString() };
+    const signals = computeSignals(program, [], () => "Bench", null, now);
+    expect(signals.find((s) => s.kind === "deload-week")?.prefillNote).toBeUndefined();
+    const ending = signals.find((s) => s.kind === "block-ending");
+    expect(ending?.title).toMatch(/ends after next week/);
+    expect(ending?.prefillNote).not.toContain(DELOAD_RULES);
   });
 });
 
