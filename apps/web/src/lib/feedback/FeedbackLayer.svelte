@@ -125,7 +125,10 @@
       // A touch press must keep its default, or the finger can't scroll to what
       // it wants to pick (and WebKit may drop the tap's click). The app still
       // never sees it, and only a stationary tap clicks, which `onClick` takes.
-      if (!(e instanceof PointerEvent && e.pointerType === "touch")) e.preventDefault();
+      // Only the press itself: Chromium's click is a touch PointerEvent too.
+      const touchPress =
+        e instanceof PointerEvent && e.pointerType === "touch" && (e.type === "pointerdown" || e.type === "pointerup");
+      if (!touchPress) e.preventDefault();
       e.stopImmediatePropagation();
     };
     const onMove = (e: PointerEvent) => {
