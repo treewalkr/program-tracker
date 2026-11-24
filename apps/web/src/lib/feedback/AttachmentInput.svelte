@@ -318,6 +318,25 @@
       opacity: 1;
     }
   }
+  /* A 24px dot a finger can hit: the tap area reaches 40px around it. */
+  @media (pointer: coarse) {
+    .remove {
+      width: 24px;
+      height: 24px;
+    }
+    .remove::before {
+      content: "";
+      position: absolute;
+      inset: -8px;
+    }
+    .remove :global(svg) {
+      width: 14px;
+      height: 14px;
+    }
+    .pick {
+      height: 40px;
+    }
+  }
   .remove:hover {
     color: var(--bad);
   }
