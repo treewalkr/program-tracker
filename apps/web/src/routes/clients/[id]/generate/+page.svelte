@@ -4,7 +4,7 @@
   import { api } from "$lib/api";
   import { DEFAULT_PROVIDER_ID, INSTRUCTION_PRESETS, MAX_AI_BLOCK_WEEKS, MIN_BLOCK_WEEKS, NOTE_MAX, fillLockedWeeks, localDateOf, loggedWeeks, mentionsAlternating, profileOn, selectExamples, weekRangeLabel, type HrZone, type SignalProgram, type WeeksChoice } from "@pt/shared";
   import type { ClientDto, DraftEditResultDto, ExerciseDto, GenerationDto, InstructionTemplateDto, ProgramDto, ProgramExampleDto, ProgramPhasingDto, ProviderDto, SessionLogDto } from "$lib/api/types";
-  import { generationPhase, isLivePending, POLL_INTERVAL_MS } from "$lib/generation";
+  import { generationPhase, isLivePending } from "$lib/generation";
   import { blockPulse, pulseSummary } from "$lib/metrics";
   import { weekOf } from "$lib/signals";
   import { effectivePreferences } from "$lib/preferences";
@@ -20,6 +20,7 @@
     instructionsPreview,
     ledgerRows,
     pendingProgram,
+    approvedDraftVersion,
     recentLogCount,
     starterMode,
     STARTERS,
@@ -44,6 +45,7 @@
   import GeneratingState from "$lib/ui/GeneratingState.svelte";
   import StartDateDialog from "$lib/components/StartDateDialog.svelte";
   import { askNotifyPermission, generationWatch } from "$lib/draftWatch";
+  import { shortReason } from "$lib/generationWatch.svelte";
 
   const id = $derived(page.params.id ?? "");
   /** Arrived from "Watch progress": a generation is running, so the skeleton takes its shape. */
@@ -116,39 +118,35 @@
   let approving = $state(false);
   let rejecting = $state(false);
   let startedAtIso = $state("");
-  let pollTimer: ReturnType<typeof setInterval> | null = null;
+  /** The running draft this page waits on (follow); a newer start or a cancel drops it. */
+  let followed: string | null = null;
 
   function stopPolling() {
-    if (pollTimer !== null) {
-      clearInterval(pollTimer);
-      pollTimer = null;
-    }
+    followed = null;
   }
 
-  function startPolling(genId: string) {
-    stopPolling();
-    pollTimer = setInterval(async () => {
-      try {
-        const row = await api.generation(genId);
-        gen = row;
-        allGens = allGens.map((g) => (g.id === row.id ? row : g));
-        if (row.status === "cancelled") {
-          onGenerationCancelled(row);
-          return;
-        }
-        const nextPhase = generationPhase(row);
-        if (nextPhase !== "generating") {
-          stopPolling();
-          await restLoaded; // the review needs the catalog and examples
-          if (nextPhase === "failed") {
-            failReason = row.error ?? null;
-          }
-          phase = nextPhase;
-        }
-      } catch {
-        // a failed poll request keeps waiting (next tick)
-      }
-    }, POLL_INTERVAL_MS);
+  /** Wait for a draft this page didn't start (refresh, Watch progress) on the app watcher's poll — one poller, slowed while hidden. */
+  async function startPolling(genId: string) {
+    followed = genId;
+    const row = await generationWatch.follow(genId, { clientId: id, clientName: client?.name ?? "" });
+    if (followed !== genId) return;
+    followed = null;
+    if (!row) {
+      reset();
+      return;
+    }
+    gen = row;
+    allGens = allGens.map((g) => (g.id === row.id ? row : g));
+    if (row.status === "cancelled") {
+      onGenerationCancelled(row);
+      return;
+    }
+    const nextPhase = generationPhase(row);
+    if (nextPhase === "generating") return;
+    await restLoaded.catch(() => {}); // the review needs the catalog and examples (a load error shows on its own)
+    if (followed !== null || gen?.id !== row.id) return; // a new draft started meanwhile
+    if (nextPhase === "failed") failReason = row.error ?? null;
+    phase = nextPhase;
   }
 
   function onGenerationCancelled(row: GenerationDto) {
@@ -214,6 +212,10 @@
 
   const plannedWeeks = $derived(current?.phasing?.plannedWeeks ?? current?.weeks.length ?? 4);
   async function start() {
+    // A new draft: drop the cancelled/failed row so its age and model don't show on this one.
+    stopPolling();
+    gen = null;
+    failReason = null;
     activated = null;
     activateError = null;
     startedAtIso = new Date().toISOString();
@@ -295,18 +297,24 @@
   /** A note applied as a revision: the new version becomes the one under review. */
   function showRevision(child: GenerationDto) {
     allGens = [child, ...allGens.filter((g) => g.id !== child.id)];
+    // Approved while the revision ran: the program came from the version on screen, so stay on it.
+    if (newProgram) return;
     gen = child;
   }
 
   async function approve() {
     if (!gen) return;
+    // The version the trainer approved — a revision landing meanwhile must not take its place.
+    const target = gen;
     approving = true;
     approveError = null;
     try {
-      newProgram = await api.approveGeneration(gen.id);
-      gen = { ...gen, status: "approved" }; // backend flips it; keep the pill in sync
+      newProgram = await api.approveGeneration(target.id);
+      const approved: GenerationDto = { ...target, status: "approved", approvedProgramId: newProgram.id }; // backend flips it; keep the pill in sync
+      allGens = allGens.map((g) => (g.id === target.id ? approved : g));
+      gen = approved;
     } catch (err) {
-      approveError = { id: gen.id, message: (err as Error).message || "Could not apply this draft" };
+      approveError = { id: target.id, message: (err as Error).message || "Could not apply this draft" };
     } finally {
       approving = false;
     }
@@ -548,7 +556,7 @@
         <div class="skel-summary"><span class="t">AI reads</span><Skeleton shape="line" h="11px" w="min(260px, 50%)" /><span class="more">Details</span></div>
       </div>
       <div class="starters">
-        {#each [372, 230, 189] as w, i (i)}<Skeleton shape="round" h="31px" w={`min(${w}px, 100%)`} />{/each}
+        {#each [372, 230, 189] as w, i (i)}<Skeleton shape="round" h="var(--starter-h, 31px)" w={`min(${w}px, 100%)`} />{/each}
       </div>
       <div class="box">
         <div class="skel-text"></div>
@@ -601,20 +609,21 @@
       {@const p = activated}
       <div class="gf-banner done" role="status">
         <span class="lamp green" aria-hidden="true"></span>
-        <div class="gf-banner-text"><strong>v{p.version} is live.</strong><span>{firstName} can see it now. New drafts build on it.</span></div>
+        <div class="gf-banner-text"><strong>“{p.name}” is live.</strong><span>{firstName} can see it now. New drafts build on it.</span></div>
       </div>
     {:else if pending}
       {@const p = pending}
+      {@const dv = approvedDraftVersion(allGens, p.id)}
       <div class="gf-banner" role="status">
         <span class="lamp amber" aria-hidden="true"></span>
         <div class="gf-banner-text">
-          <strong>v{p.version} is approved but not active.</strong>
-          <span>“{p.name}” — {firstName} can't see it yet, and new drafts can't build on it until you activate it.</span>
+          <strong>“{p.name}” is approved but not active.</strong>
+          <span>{dv ? `Made from draft v${dv}. ` : ""}{firstName} can't see it yet, and new drafts can't build on it until you activate it.</span>
         </div>
         <div class="gf-banner-act">
           <Button small href="/programs/{p.id}">Open program</Button>
           <Button small type="button" onclick={() => (startDialogOpen = true)} disabled={activating}>
-            {activating ? "Activating…" : `Activate v${p.version}`}
+            {activating ? "Activating…" : "Activate"}
           </Button>
         </div>
       </div>
@@ -833,7 +842,7 @@
   {:else}
     <section class="panel narrow">
       <div class="panel-body stack">
-        <p class="err">Generation failed. {failReason ?? "Provider error or the draft failed validation."}</p>
+        <p class="err">Generation failed. {shortReason(failReason) ?? "Provider error or the draft failed validation."}</p>
         {#if gen?.parentGenerationId}
           <Button
             variant="ghost"
@@ -849,6 +858,12 @@
           >
             Back to previous draft
           </Button>
+        {:else if startedAtIso}
+          <!-- Failed in this visit: the brief and settings are still in the form, so re-run them as they are. -->
+          <div class="retry">
+            <Button variant="primary" onclick={start}>Try again</Button>
+            <Button variant="ghost" onclick={() => (phase = "form")}>Change settings</Button>
+          </div>
         {:else}
           <Button variant="ghost" onclick={() => (phase = "form")}>Back to settings</Button>
         {/if}
@@ -903,6 +918,7 @@
 
   .narrow { max-width: var(--measure-form); }
   .stack { display: flex; flex-direction: column; gap: 14px; }
+  .retry { display: flex; flex-wrap: wrap; gap: 8px; }
   :global(.flash) { margin: 0 0 16px; }
 
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
@@ -953,6 +969,11 @@
     border-radius: 99px; padding: 6px 12px; cursor: pointer; color: var(--ink); text-align: left;
   }
   .starter:hover { border-color: var(--line-strong); background: var(--well); }
+  /* the same touch size as the rule chips (.tchip) */
+  @media (max-width: 720px), (pointer: coarse) {
+    .starter { min-height: 44px; padding: 6px 14px; font-size: 14px; }
+    .starters { --starter-h: 44px; }
+  }
 
   .box { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
   .box:focus-within { border-color: var(--blue); box-shadow: 0 0 0 3px var(--focus-ring); }
