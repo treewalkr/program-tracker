@@ -94,6 +94,8 @@
   let rejectOpen = $state(false);
   let rejectReason = $state("");
   let editing = $state(false);
+  /** A note is being applied as the next version: approving now would approve the old one. */
+  let revising = $state(false);
   let planSaving = $state(false);
   let planError = $state<string | null>(null);
   let week = $state(1);
@@ -132,7 +134,7 @@
   const isWeek = $derived(gen.kind === "week");
   const decided = $derived(newProgram !== null || gen.status === "rejected" || gen.status === "approved");
   // Week and fill drafts follow the program's plan: no plan editing here.
-  const canEdit = $derived(gen.status === "validated" && !newProgram && !isWeek && gen.kind !== "fill");
+  const canEdit = $derived(gen.status === "validated" && !newProgram && !approving && !isWeek && gen.kind !== "fill");
 
   /** Noted slots per session (0 = the session itself), for the row marks. */
   const notedByDay = $derived(
@@ -162,7 +164,7 @@
     };
   }
 
-  const canApply = $derived(gen.status === "validated" && !newProgram && !!onrevised);
+  const canApply = $derived(gen.status === "validated" && !newProgram && !approving && !rejecting && !!onrevised);
   /** Fill: the weeks Apply rewrites, and the trainer's weeks it keeps. */
   const isFill = $derived(gen.kind === "fill");
   const fillWrites = $derived(isFill ? draft.weeks.filter((w) => !w.locked).map((w) => w.week) : []);
@@ -213,10 +215,49 @@
   const planEdit = $derived(gen.manualEdit && gen.revisionMessage === "Block plan edited by you");
 
   async function applyNote(note: LlmNoteDto) {
-    const child = await api.applyNote(note.id);
-    if (child.status !== "validated") throw new Error(child.error ?? `Revision ${child.status}`);
-    await onrevised?.(child);
+    revising = true;
+    try {
+      const child = await api.applyNote(note.id);
+      if (child.status !== "validated") throw new Error(child.error ?? `Revision ${child.status}`);
+      // Decided meanwhile (another tab): don't swap the decided version for the new one.
+      if (newProgram || gen.status !== "validated") throw new Error(`v${version} was already decided — the revision wasn't applied.`);
+      await onrevised?.(child);
+    } finally {
+      revising = false;
+    }
   }
+
+  /** Why Approve/Reject wait: a version is still being made (plan edit, note revision, hand edit). */
+  const holdReason = $derived(
+    editing
+      ? "Finish editing the plan first."
+      : revising
+        ? `Revising v${version + 1}…`
+        : editor.busy
+          ? "Saving your edit…"
+          : null
+  );
+
+  /** Scroll `el` to the middle of the screen unless it is already fully in view above the phone bar. */
+  function bringIntoView(el: HTMLElement) {
+    const r = el.getBoundingClientRect();
+    if (r.top >= 0 && r.bottom <= window.innerHeight - mbarHeight) return;
+    el.scrollIntoView({ block: "center" });
+  }
+
+  /** Reject… opens its reason box near the top: on a phone the bar's button is far below it. */
+  let rejectBox = $state<HTMLElement | null>(null);
+  $effect(() => {
+    if (!rejectBox) return;
+    bringIntoView(rejectBox);
+    rejectBox.querySelector<HTMLTextAreaElement>("textarea")?.focus({ preventScroll: true });
+  });
+
+  /** Approved or rejected: the outcome and its next step, on screen. */
+  let outcomeEl = $state<HTMLElement | null>(null);
+  $effect(() => {
+    if (outcomeEl) bringIntoView(outcomeEl);
+  });
   /** Every change since the previous version; plan changes are listed from planDelta (they carry the week). */
   const slotChanges = $derived(prev?.draft ? diffDrafts(prev.draft, draft).filter((c) => c.kind !== "plan") : []);
   /** The same change made in several weeks reads once, with its weeks ("W1, W3"). */
@@ -337,13 +378,13 @@
     </div>
   {:else}
     <div class="row">
-      <Button variant="danger" disabled={editing} onclick={() => (rejectOpen = !rejectOpen)}>Reject…</Button>
-      <Button variant="primary" disabled={editing || approving} onclick={onapprove}>
+      <Button variant="danger" disabled={!!holdReason || approving} onclick={() => (rejectOpen = !rejectOpen)}>Reject…</Button>
+      <Button variant="primary" disabled={!!holdReason || approving || rejecting} onclick={onapprove}>
         {#snippet icon()}<Icon name="check" />{/snippet}{approveLabel}
       </Button>
     </div>
-    {#if editing}
-      <span class="paused">Finish editing the plan first.</span>
+    {#if holdReason}
+      <span class="paused" role="status">{holdReason}</span>
     {:else}
       {#if isFill}
         <span class="lock"><Icon name="lock" />Rewrites {weekRangeLabel(fillWrites)} of the program. {weekRangeLabel(fillKeeps)} stay{fillKeeps.length === 1 ? "s" : ""} as you wrote {fillKeeps.length === 1 ? "it" : "them"}; a week logged before you apply is skipped.</span>
@@ -388,6 +429,8 @@
 
 {#if revisionCancelled}<Note tone="warn" role="status">Revision cancelled — the previous draft is untouched.</Note>{/if}
 {#if approveError && !newProgram}<Note tone="bad" role="alert">{approveError}</Note>{/if}
+{#if newProgram || gen.status === "rejected"}
+<div class="outcome" bind:this={outcomeEl}>
 {#if newProgram}
   <Note tone="ok" class="flash" role="status">
     {isFill
@@ -396,12 +439,16 @@
       ? `Week ${gen.targetWeek} replaced in “${newProgram.name}” (v${newProgram.version}) — the rest of the block is untouched.`
       : `Approved. “${newProgram.name}” is now a draft program — edit it, then activate when ready.`}
   </Note>
-{:else if gen.status === "rejected"}
+{:else}
   <Note tone="bad" class="flash" role="status">Discarded — this draft won't be used.</Note>
+{/if}
+  <!-- Phones hide the header's actions (the bottom bar held them until now): the next step goes here. -->
+  <div class="outcome-actions">{@render actions()}</div>
+</div>
 {/if}
 
 {#if rejectOpen && !decided}
-  <div class="reject-box">
+  <div class="reject-box" bind:this={rejectBox}>
     <InputNote
       label="Why reject v{version}?"
       id="rv-reject"
@@ -413,7 +460,7 @@
       bind:value={rejectReason}
     />
     <div class="row">
-      <Button variant="danger" disabled={rejecting} onclick={() => onreject(rejectReason.trim())}>{rejecting ? "Rejecting…" : "Reject draft"}</Button>
+      <Button variant="danger" disabled={rejecting || !!holdReason} onclick={() => onreject(rejectReason.trim())}>{rejecting ? "Rejecting…" : "Reject draft"}</Button>
       <Button variant="ghost" onclick={() => (rejectOpen = false)}>Keep reviewing</Button>
     </div>
   </div>
@@ -661,7 +708,7 @@
     <div class="md prose">{@html renderMarkdown(why.general.join("\n\n"))}</div>
   </details>
   <details class="client">
-    <summary>What {firstName} will read <span class="subtle">editable after approval</span></summary>
+    <summary>Summary for {firstName} <span class="subtle">AI-written · {firstName} doesn't see this</span></summary>
     <div class="md prose">{@html renderMarkdown(draft.clientSummary)}</div>
   </details>
 </div>
@@ -685,7 +732,9 @@
   .mt6 { margin-top: 6px; }
   .mt10 { margin-top: 10px; }
 
-  .reject-box { border: 1px solid var(--bad-line); background: var(--bad-bg); border-radius: 6px; padding: 12px; display: grid; gap: 8px; margin-bottom: 16px; }
+  .outcome { margin-bottom: 16px; scroll-margin: 72px; }
+  .outcome-actions { display: none; }
+  .reject-box { scroll-margin: 72px; border: 1px solid var(--bad-line); background: var(--bad-bg); border-radius: 6px; padding: 12px; display: grid; gap: 8px; margin-bottom: 16px; }
 
   .band { display: grid; grid-template-columns: 1.15fr 1fr 1fr; }
   .band > section { padding: 14px 16px; min-width: 0; }
@@ -790,6 +839,8 @@
   }
   @media (max-width: 700px) {
     .rv-actions { display: none; }
+    .outcome-actions { display: block; margin-top: 10px; }
+    .outcome-actions .row :global(.btn) { flex: 1; justify-content: center; min-height: 44px; }
     .mbar { display: block; position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; background: var(--surface); border-top: 1px solid var(--line); padding: 10px 16px 12px; box-shadow: var(--shadow-overlay-up); }
     .mbar .row :global(.btn) { flex: 1; justify-content: center; min-height: 36px; }
     .mbar .lock, .mbar .paused { margin-top: 6px; }

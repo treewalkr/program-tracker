@@ -202,39 +202,55 @@ export function computeSignals(
     const pulse = blockPulse(program, programLogs, now);
     const summary = pulseSummary(pulse);
     const isDeloadWeek = directive === "deload";
-    if (isDeloadWeek && week <= ph.plannedWeeks) {
-      signals.push({
-        ...owner,
-        id: `deload-week:${program.id}`,
-        kind: "deload-week",
-        severity: "info",
-        title: `Deload week — week ${week} of ${ph.plannedWeeks}`,
-        evidence: `Planned light week for “${program.name}”. Deload: ${deloadRules}.`,
-        prefillNote: `This week is a planned deload (week ${week}/${ph.plannedWeeks}). Deload the week: ${deloadRules}.`,
-        templateHint: "tpl-block-structure",
-      });
-    } else if (week >= ph.plannedWeeks) {
-      signals.push({
-        ...owner,
-        id: `block-ending:${program.id}`,
-        kind: "block-ending",
-        severity: "urgent",
-        title: `Block complete — plan ${ph.nextPhase ?? "next block"}`,
-        evidence: `“${program.name}” (${ph.phase}) ran its ${ph.plannedWeeks} planned weeks.${summary ? ` Block delivered: ${summary}.` : ""}`,
-        prefillNote: `The ${ph.phase} block (${ph.plannedWeeks} weeks) is complete. Draft the ${ph.nextPhase ?? "next"} block, progressing loads from the final week's logged numbers.`,
-        templateHint: "tpl-block-structure",
-      });
-    } else if (!hasTransition && week >= ph.plannedWeeks - 1) {
+    const next = ph.nextPhase ?? "next";
+    if (isDeloadWeek && week >= ph.plannedWeeks) {
+      // The block's last week is its deload: the block ends — the card says so and
+      // briefs the NEXT block (the deload is already planned; it isn't the brief).
       signals.push({
         ...owner,
         id: `block-ending:${program.id}`,
         kind: "block-ending",
         severity: "attention",
-        title: `${ph.phase} block ends after next week`,
-        evidence: `Week ${week} of ${ph.plannedWeeks} on “${program.name}”. Next: ${ph.nextPhase ?? "new block"}.${summary ? ` So far: ${summary}.` : ""}`,
-        prefillNote: `The ${ph.phase} block reaches its ${ph.plannedWeeks}-week limit after next week. Draft the ${ph.nextPhase ?? "next"} block now, progressing loads from the most recent logged numbers.`,
+        title: `${ph.phase} block ends this week — deload, then ${ph.nextPhase ?? "the next block"}`,
+        evidence: `Week ${week} of ${ph.plannedWeeks} on “${program.name}” is the planned deload (${deloadRules}). Next: ${ph.nextPhase ?? "new block"}.${summary ? ` Block so far: ${summary}.` : ""}`,
+        prefillNote: `The ${ph.phase} block (${ph.plannedWeeks} weeks) ends with this week's deload. Draft the ${next} block, progressing loads from the last full training week's logged numbers.`,
         templateHint: "tpl-block-structure",
       });
+    } else {
+      if (isDeloadWeek) {
+        // A mid-block deload is already in the plan: a heads-up, no draft to start.
+        signals.push({
+          ...owner,
+          id: `deload-week:${program.id}`,
+          kind: "deload-week",
+          severity: "info",
+          title: `Deload week — week ${week} of ${ph.plannedWeeks}`,
+          evidence: `Planned light week for “${program.name}”. Deload: ${deloadRules}.`,
+        });
+      }
+      if (!isDeloadWeek && week >= ph.plannedWeeks) {
+        signals.push({
+          ...owner,
+          id: `block-ending:${program.id}`,
+          kind: "block-ending",
+          severity: "urgent",
+          title: `Block complete — plan ${ph.nextPhase ?? "next block"}`,
+          evidence: `“${program.name}” (${ph.phase}) ran its ${ph.plannedWeeks} planned weeks.${summary ? ` Block delivered: ${summary}.` : ""}`,
+          prefillNote: `The ${ph.phase} block (${ph.plannedWeeks} weeks) is complete. Draft the ${next} block, progressing loads from the final week's logged numbers.`,
+          templateHint: "tpl-block-structure",
+        });
+      } else if (!hasTransition && week >= ph.plannedWeeks - 1) {
+        signals.push({
+          ...owner,
+          id: `block-ending:${program.id}`,
+          kind: "block-ending",
+          severity: "attention",
+          title: `${ph.phase} block ends after next week`,
+          evidence: `Week ${week} of ${ph.plannedWeeks} on “${program.name}”. Next: ${ph.nextPhase ?? "new block"}.${summary ? ` So far: ${summary}.` : ""}`,
+          prefillNote: `The ${ph.phase} block reaches its ${ph.plannedWeeks}-week limit after next week. Draft the ${next} block now, progressing loads from the most recent logged numbers.`,
+          templateHint: "tpl-block-structure",
+        });
+      }
     }
 
     // Scheme-aware rules: the plan says what each week SHOULD do — compare with reality.
