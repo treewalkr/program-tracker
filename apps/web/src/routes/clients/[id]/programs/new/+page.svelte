@@ -4,7 +4,7 @@
   import { clearDraft, readDraft, writeDraft } from "$lib/localDraft";
   import { onMount, tick } from "svelte";
   import { page } from "$app/state";
-  import { goto } from "$app/navigation";
+  import { beforeNavigate, goto } from "$app/navigation";
   import { api } from "$lib/api";
   import type {
     ClientDto,
@@ -39,7 +39,7 @@
   import { weekPlanLabel } from "$lib/format";
   import { rowsToWeekPlans } from "$lib/phasing";
   import WeekPlanRows from "$lib/components/WeekPlanRows.svelte";
-  import { cloneSessionRows, exercisesForSave, type CustomWeekRow, type DraftForm, type SessionRow } from "$lib/programForm";
+  import { cloneSessionRows, exercisesForSave, pendingWrite, type CustomWeekRow, type DraftForm, type SessionRow } from "$lib/programForm";
   import ExerciseEditor from "$lib/components/ExerciseEditor.svelte";
   import ExerciseGroup from "$lib/components/ExerciseGroup.svelte";
   import SessionTypePicker from "$lib/components/SessionTypePicker.svelte";
@@ -245,14 +245,16 @@
     }
   }
 
-  let persistTimer: ReturnType<typeof setTimeout> | undefined;
+  const keep = pendingWrite(persist, 400);
   $effect(() => {
     if (!autosave) return;
     JSON.stringify(formSnapshot()); // track every field, deeply
-    clearTimeout(persistTimer);
-    persistTimer = setTimeout(persist, 400);
-    return () => clearTimeout(persistTimer);
+    keep.schedule();
+    return () => keep.cancel();
   });
+  // an in-app link fires no pagehide, and tearing the page down cancels the
+  // timer: write a change made in the last 400 ms before it goes
+  beforeNavigate(() => keep.flush());
 
   /** Throw the kept draft away and go back to a blank program. */
   function startOver() {
@@ -488,7 +490,7 @@
           : null,
       });
       autosave = false;
-      clearTimeout(persistTimer);
+      keep.cancel();
       clearDraft(draftKey);
       await goto(fill ? `/clients/${id}/generate?fill=${program.id}` : `/programs/${program.id}`);
     } catch (err) {
@@ -551,9 +553,9 @@
 
 <svelte:head><title>New program · Program Tracker</title></svelte:head>
 <svelte:window
-  onpagehide={persist}
+  onpagehide={keep.flush}
   onvisibilitychange={() => {
-    if (document.visibilityState === "hidden") persist();
+    if (document.visibilityState === "hidden") keep.flush();
   }}
 />
 
@@ -806,13 +808,9 @@
         <section class="panel" aria-label={weekB ? `Week ${editing} · ${labelOf(s, si)}` : labelOf(s, si)}>
           <div class="panel-head sess-head">
             <span class="track" class:cardio={s.kind === "cardio"}>{tag}</span>
-            <input
-              class="sess-name"
-              bind:value={s.name}
-              placeholder="Add a name"
-              maxlength="60"
-              aria-label="{tag} name"
-            />
+            <div class="sess-name">
+              <InputField label="{tag} name" hideLabel placeholder="Add a name" maxlength={60} bind:value={s.name} />
+            </div>
             <SessionTypePicker
               small
               value={s.typeId}
@@ -972,20 +970,12 @@
   .sess-head { flex-wrap: nowrap; }
   .track { font: 500 12px/1 var(--font-mono); color: var(--muted); white-space: nowrap; }
   .track.cardio { color: var(--good); }
-  .sess-name {
-    flex: 1;
-    min-width: 0;
-    font: 600 14px/1.3 var(--font-ui);
-    color: var(--ink);
-    background: transparent;
-    border: 1px solid transparent;
-    border-radius: var(--radius);
-    padding: 3px 8px;
-    margin-left: -4px;
+  .sess-name { flex: 1; min-width: 0; }
+  /* phone: the name keeps a usable row (with its tag); type and Remove wrap under it */
+  @media (max-width: 640px) {
+    .sess-head { flex-wrap: wrap; }
+    .sess-name { flex: 1 1 160px; }
   }
-  .sess-name::placeholder { color: var(--muted); font-weight: 400; }
-  .sess-name:hover { border-color: var(--line); }
-  .sess-name:focus { background: var(--surface); border-color: var(--blue); outline: none; box-shadow: 0 0 0 3px var(--focus-ring); }
 
   .sess-body { display: flex; flex-direction: column; gap: 14px; }
   .cardio { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; }
