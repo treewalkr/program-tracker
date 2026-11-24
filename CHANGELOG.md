@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.1.51 — 2026-11-24
+
 ### New
 - **Progression schemes show their shape.** Each scheme draws its weeks as a small bar chart, coloured by what each week pushes (volume, intensity or deload), with a week-by-week table under it, so schemes are easy to tell apart. A new scheme starts from a preset under "Start from", and the week editor lists one week per line.
   - th: หน้า Progression schemes ดูรูปทรงของแต่ละ scheme ได้ในแวบเดียว ทุก scheme มีกราฟแท่งเล็ก ๆ หนึ่งแท่งต่อสัปดาห์ สีบอกว่าสัปดาห์นั้นเน้นอะไร (volume, intensity หรือ deload) และมีตารางรายสัปดาห์อยู่ข้างใต้ ตอนสร้าง scheme ใหม่ เลือก preset ใน "Start from" แล้วค่อยปรับต่อได้เลย ส่วนตัวแก้สัปดาห์ก็เรียงหนึ่งสัปดาห์ต่อหนึ่งบรรทัดแล้ว
