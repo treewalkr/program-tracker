@@ -169,7 +169,6 @@
 <style>
   .filt { flex: none; width: 200px; }
   :global(.note.sample-note) { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; }
-  :global(.list-toolbar) .select { width: auto; }
   .who { display: flex; align-items: center; gap: 10px; }
   .who :global(.avatar) { width: 24px; height: 24px; font-size: 10px; flex: none; }
   .name { font-weight: 600; color: var(--ink); white-space: nowrap; }
@@ -190,7 +189,6 @@
   /* Sized to the room beside the sidebar, not the window: the six columns
      need ~700px, which the sidebar takes away long before a phone width. */
   @container main (max-width: 760px) {
-    :global(.list-toolbar) .select { flex: 1; }
     .roster thead { display: none; }
     .roster, .roster tbody, .roster tr, .roster td { display: block; width: 100%; }
     .roster tr { padding: 10px 12px; border-bottom: 1px solid var(--line); }
