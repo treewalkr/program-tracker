@@ -362,7 +362,7 @@
         <p class="err" role="alert">{error}</p>
       {/if}
       <div class="pin-actions">
-        <span class="hint">⌘↵ to send · Esc to cancel</span>
+        <span class="hint"><span class="mouse">⌘↵ to send · Esc to cancel</span></span>
         <button type="button" class="btn small" onclick={close}>Cancel</button>
         <button
           type="submit"
@@ -392,9 +392,9 @@
         {#if toast}
           <strong>{toast}</strong>
         {:else if feedbackMode.browsing || onReviewPage}
-          Clicks work normally
+          <span class="mouse">Clicks work normally</span><span class="touch">Taps work normally</span>
         {:else}
-          Click anything to comment
+          <span class="mouse">Click anything to comment</span><span class="touch">Tap anything to comment</span>
         {/if}
       </span>
       {#if feedbackMode.sent}
@@ -426,7 +426,8 @@
       <button type="button" class="x" onclick={exit} aria-label="Leave feedback mode">
         <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" /></svg>
       </button>
-    {:else}
+    {:else if !onReviewPage}
+      <!-- The review page is the feedback tool itself: no launcher there. -->
       <button type="button" class="start" onclick={() => feedbackMode.set(true)}>
         <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z" /></svg>
         Feedback
@@ -634,6 +635,7 @@
   .seg button {
     background: none;
     border: 0;
+    white-space: nowrap;
     color: color-mix(in srgb, var(--on-ink) 75%, transparent);
     font: 500 12px/1 var(--font-ui);
     padding: 5px 10px;
@@ -645,7 +647,17 @@
   }
   .status {
     color: color-mix(in srgb, var(--on-ink) 75%, transparent);
-    min-width: 150px;
+  }
+  .touch {
+    display: none;
+  }
+  @media (hover: none) {
+    .mouse {
+      display: none;
+    }
+    .touch {
+      display: inline;
+    }
   }
   .status strong {
     color: var(--on-ink);
@@ -671,7 +683,7 @@
     position: absolute;
     right: 0;
     bottom: calc(100% + 8px);
-    width: 320px;
+    width: min(320px, calc(100vw - 16px));
     max-height: 50vh;
     overflow: auto;
     margin: 0;
@@ -717,6 +729,44 @@
   }
   .x:hover {
     background: color-mix(in srgb, var(--on-ink) 24%, transparent);
+  }
+  @media (pointer: coarse) {
+    .x {
+      width: 40px;
+      height: 40px;
+    }
+    .seg button {
+      padding: 10px 12px;
+    }
+    .start {
+      min-height: 40px;
+      padding: 0 14px;
+    }
+  }
+  /* A phone: the bar spans the screen and the status takes a second row. */
+  @media (max-width: 640px) {
+    .bar.on {
+      left: 8px;
+      right: 8px;
+      max-width: calc(100vw - 16px);
+      box-sizing: border-box;
+      flex-wrap: wrap;
+      row-gap: 6px;
+      border-radius: 20px;
+      padding: 6px 6px 8px 14px;
+    }
+    .bar.on .x {
+      margin-left: auto;
+    }
+    .bar.on .status {
+      order: 1;
+      flex: 1 0 100%;
+      font-size: 12px;
+      line-height: 1.3;
+    }
+    .unplaced {
+      right: -6px;
+    }
   }
   button:focus-visible,
   a:focus-visible {
