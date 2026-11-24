@@ -41,6 +41,7 @@
   import RestTimer, { restActive } from "$lib/portal/RestTimer.svelte";
   import { restOf } from "$lib/portal/restTimer";
   import { PortalTimeoutError, SAVE_TIMEOUT_MS, withTimeout } from "$lib/portal/timeout";
+  import { duplicateAction, mayHaveLanded } from "$lib/portal/saveRetry";
   import Button from "$lib/ui/Button.svelte";
   import Icon from "$lib/ui/Icon.svelte";
   import BackButton from "$lib/ui/BackButton.svelte";
@@ -87,7 +88,7 @@
   let ownsDraft = false;
   /** Another tab changed this session's draft: this one stops writing until reloaded. */
   let otherTab = $state(false);
-  /** The last save attempt never got an answer: a 409 "by you" now most likely is that save. */
+  /** The last save attempt may have reached the server (a timeout, a 5xx): a 409 on the member's own log is resent as a replace. */
   let lastSaveLost = false;
   /** Opened from this phone's copy of the week: the connection dropped. */
   let offline = $state(false);
@@ -400,36 +401,46 @@
     // the draft is on the phone before the request leaves: a 401 redirect or a closed tab keeps every entry
     flushDraft();
     saving = true;
+    let input = built.input;
     try {
-      const log = await withTimeout((signal) => portalApi.log(built.input, { signal }), SAVE_TIMEOUT_MS);
-      done(log, built);
-    } catch (e) {
-      if (e instanceof PortalDuplicateError) {
-        if (lastSaveLost && !byYou && e.existing.loggedBy === "client" && e.existing.date === built.input.date) {
-          // the earlier attempt landed, only its answer was lost: that is this save
-          done({ id: e.existing.id, programSessionId: session.id, date: e.existing.date, loggedBy: "client" }, built);
+      for (;;) {
+        try {
+          const log = await withTimeout((signal) => portalApi.log(input, { signal }), SAVE_TIMEOUT_MS);
+          done(log, built, input.onDuplicate === "replace");
+          return;
+        } catch (e) {
+          // the earlier attempt may have landed: its log is the member's own, and what's on screen wins
+          if (e instanceof PortalDuplicateError && duplicateAction(e.existing, { lastSaveLost, replacing: input.onDuplicate === "replace" }) === "replace") {
+            input = { ...input, onDuplicate: "replace" };
+            continue;
+          }
+          saveFailed(e);
           return;
         }
-        // someone logged it meanwhile: show who, from fresh data
-        error = e.existing.loggedBy === "trainer" ? t("log.byCoach") : t("log.byYou", { date: fmtShortDate(e.existing.date) });
-        if (session) session = { ...session, log: { id: e.existing.id, loggedBy: e.existing.loggedBy, date: e.existing.date } };
-      } else if (e instanceof PortalTimeoutError) {
-        lastSaveLost = true;
-        error = t("log.timeout");
-      } else {
-        const status = (e as { status?: unknown }).status;
-        // no answer at all (Eden's failed fetch): the server may still have it
-        if (typeof status !== "number" || status >= 500) lastSaveLost = true;
-        // the server's schema refused a value: say so, never "check your connection"
-        error = status === 422 ? (/invalid log/.test((e as Error).message) ? t("log.invalid") : t("log.notThisWeek")) : t("log.error");
       }
     } finally {
       saving = false;
     }
   }
 
+  function saveFailed(e: unknown) {
+    // only a save that could have reached the server counts as maybe landed; offline it never left
+    if (mayHaveLanded(e, navigator.onLine !== false)) lastSaveLost = true;
+    if (e instanceof PortalDuplicateError) {
+      // someone logged it meanwhile: show who, from fresh data
+      error = e.existing.loggedBy === "trainer" ? t("log.byCoach") : t("log.byYou", { date: fmtShortDate(e.existing.date) });
+      if (session) session = { ...session, log: { id: e.existing.id, loggedBy: e.existing.loggedBy, date: e.existing.date } };
+    } else if (e instanceof PortalTimeoutError) {
+      error = t("log.timeout");
+    } else {
+      const status = (e as { status?: unknown }).status;
+      // the server's schema refused a value: say so, never "check your connection"
+      error = status === 422 ? (/invalid log/.test((e as Error).message) ? t("log.invalid") : t("log.notThisWeek")) : t("log.error");
+    }
+  }
+
   /** The save landed: the draft goes, the recap shows. */
-  function done(log: PortalSavedLog, built: { sets: number; input: PortalLogInput }) {
+  function done(log: PortalSavedLog, built: { sets: number; input: PortalLogInput }, replaced: boolean) {
     if (!session) return;
     try {
       localStorage.removeItem(portalDraftKey(session.id));
@@ -437,7 +448,7 @@
       // private mode: nothing was kept
     }
     lastSaveLost = false;
-    saved = { log, sets: built.sets, prep: summary?.prep ?? null, replaced: byYou, skipped: !!built.input.cardio?.skipped, pain: !!built.input.cardio?.pain?.reported || built.input.cardio?.skipped?.reason === "pain" };
+    saved = { log, sets: built.sets, prep: summary?.prep ?? null, replaced, skipped: !!built.input.cardio?.skipped, pain: !!built.input.cardio?.pain?.reported || built.input.cardio?.skipped?.reason === "pain" };
     undone = false;
     window.scrollTo({ top: 0 });
     void focusRecap();

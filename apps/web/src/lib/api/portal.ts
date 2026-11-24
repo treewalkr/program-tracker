@@ -5,6 +5,7 @@ import { client } from "./treaty";
 import { mockPortalApi } from "./mock/portal";
 import { portalWire } from "./portalWire";
 import { splitLang, withLang } from "../portal/lang";
+import { networkFailure } from "../portal/saveRetry";
 import {
   PORTAL_LOGIN,
   PortalDuplicateError,
@@ -41,6 +42,8 @@ async function unwrap<T>(p: Promise<{ data: unknown; error: { value: unknown; st
     if (code === 409 && typeof value === "object" && value?.existing) {
       throw new PortalDuplicateError(portalWire(value.existing) as PortalDuplicateError["existing"]);
     }
+    // Eden's failed fetch: a 503 whose value is the fetch's own Error, the request never got an answer
+    if (value instanceof Error) throw networkFailure();
     const message = typeof value === "string" ? value : value?.error;
     throw Object.assign(new Error(message ?? `request failed: ${code}`), { status: code });
   }

@@ -36,6 +36,7 @@ import { mockExerciseName, mockLogPrescription, mockPrepDone, mockState } from "
 import { exercises } from "./data";
 import { nokClient, trainerClient } from "./data";
 import { withKindAlias } from "./kindAlias";
+import { networkFailure } from "../../portal/saveRetry";
 import { PortalDuplicateError, type PortalApi, type PortalLogInput, type PortalSavedLog } from "../portalTypes";
 
 /**
@@ -319,4 +320,23 @@ const rawMockPortalApi: PortalApi = {
   googleHref: (returnTo) => returnTo,
 };
 
-export const mockPortalApi: PortalApi = withKindAlias(rawMockPortalApi);
+/** Like the live API with no signal: every call fails as Eden's failed fetch does, so offline is testable in mock mode. */
+function offlineLikeLive(api: PortalApi): PortalApi {
+  const offline = () => typeof navigator !== "undefined" && navigator.onLine === false;
+  return Object.fromEntries(
+    Object.entries(api).map(([k, fn]) => [
+      k,
+      typeof fn === "function" && k !== "googleHref"
+        ? async (...args: unknown[]) => {
+            if (offline()) {
+              await delay(100);
+              throw networkFailure();
+            }
+            return (fn as (...a: unknown[]) => unknown)(...args);
+          }
+        : fn,
+    ]),
+  ) as unknown as PortalApi;
+}
+
+export const mockPortalApi: PortalApi = offlineLikeLive(withKindAlias(rawMockPortalApi));
