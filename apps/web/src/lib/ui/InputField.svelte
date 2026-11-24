@@ -25,6 +25,8 @@
 		inputmode?: HTMLInputAttributes['inputmode'];
 		/** Off for paths and codes, so they don't get underlined as typos. */
 		spellcheck?: boolean;
+		/** The input element, for focus and select. */
+		input?: HTMLInputElement;
 		oninput?: (value: string) => void;
 		onchange?: (value: string) => void;
 	}
@@ -45,6 +47,7 @@
 		name,
 		inputmode,
 		spellcheck,
+		input = $bindable(),
 		oninput,
 		onchange,
 	}: Props = $props();
@@ -58,6 +61,7 @@
 		{#if maxlength !== undefined && left <= 10}<span class:full={left <= 0}>{value.length} / {maxlength}</span>{/if}
 	{/snippet}
 	<input
+		bind:this={input}
 		{id}
 		class="in"
 		{type}

@@ -22,6 +22,7 @@
   let blank = $state('');
   let program = $state('Off-season strength block');
   let phone = $state('');
+  let focusMe = $state<HTMLInputElement>();
 </script>
 
 <Story name="Default" asChild>
@@ -54,4 +55,11 @@
 
 <Story name="Path, no spellcheck" asChild>
   <div style="max-width: 320px"><InputField label="Page" optional placeholder="/clients" autocomplete="off" spellcheck={false} /></div>
+</Story>
+
+<Story name="Focused from outside" asChild>
+  <div style="max-width: 320px; display: grid; gap: 8px">
+    <InputField label="Exercise name" value="Goblet squat" bind:input={focusMe} />
+    <button type="button" class="btn small" onclick={() => (focusMe?.focus(), focusMe?.select())}>Rename</button>
+  </div>
 </Story>
