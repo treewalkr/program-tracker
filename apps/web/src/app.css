@@ -576,11 +576,24 @@ code,
 .btn.ghost.danger { background: transparent; border-color: transparent; box-shadow: none; }
 .btn.ghost.danger:hover { background: var(--bad-bg); border-color: var(--bad-line); }
 
+/* Touch type: every field reads these with its desktop size as the fallback,
+   e.g. `font-size: var(--field-font, 14px)`, `min-height: var(--field-h, 32px)`.
+   16px stops iOS Safari zooming on focus. Keyed on the pointer as well as the
+   width so landscape phones, iPads and split panes over 720px get it too;
+   a desktop with a mouse never matches and keeps its own sizes. */
+@media (max-width: 720px), (pointer: coarse) {
+  :root {
+    --field-font: 16px; /* field text */
+    --field-lh: 22px; /* multi-line field line height */
+    --field-h: 40px; /* field / select control height */
+  }
+}
+
 .input,
 .select,
 .textarea {
   width: 100%;
-  font: 400 14px var(--font-ui);
+  font: 400 var(--field-font, 14px) var(--font-ui);
   color: var(--ink);
   background: var(--well);
   border: 1px solid var(--line);
@@ -1127,10 +1140,6 @@ a.rowlink-name:focus-visible { outline: 2px solid var(--focus); outline-offset: 
 
 /* Sectioned profile forms (new client, client settings): a stack of Primer Boxes (ProfileSection). */
 .pf { display: flex; flex-direction: column; gap: 16px; max-width: var(--measure-form); }
-.pf .input, .pf .select { min-height: 32px; }
+.pf .input, .pf .select { min-height: var(--field-h, 32px); }
 
-@media (max-width: 700px) {
-  /* 16px stops iOS Safari zooming on focus. */
-  .input, .select, .textarea { font-size: 16px; }
-  .pf .input, .pf .select { min-height: 40px; }
-}
+

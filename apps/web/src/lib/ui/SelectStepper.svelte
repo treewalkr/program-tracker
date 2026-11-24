@@ -139,7 +139,7 @@
 </Dropdown>
 
 <style>
-	.sel { display: inline-flex; align-items: stretch; min-height: 32px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--well); overflow: hidden; }
+	.sel { display: inline-flex; align-items: stretch; min-height: var(--field-h, 32px); border: 1px solid var(--line); border-radius: var(--radius); background: var(--well); overflow: hidden; }
 	.sel:focus-within { border-color: var(--blue); box-shadow: 0 0 0 3px var(--focus-ring); }
 	.sel.off { opacity: 0.55; }
 	.v {
@@ -151,7 +151,7 @@
 		border: 0;
 		background: transparent;
 		color: var(--ink);
-		font: 600 14px var(--font-mono);
+		font: 600 var(--field-font, 14px) var(--font-mono);
 		font-variant-numeric: tabular-nums;
 		cursor: pointer;
 		text-align: left;
@@ -176,7 +176,6 @@
 	.ft { padding: 8px 12px; border-top: 1px solid var(--line-soft); background: var(--well); font-size: 12px; color: var(--muted); }
 	.sel.block { display: flex; width: 100%; }
 	.sel.block .v { flex: 1; }
-	@media (max-width: 720px) { .sel { min-height: 40px; } .v { font-size: 16px; } }
 	/* touch: the step buttons and the grid figures are 44px targets */
 	@media (max-width: 720px), (pointer: coarse) {
 		.sel { min-height: 44px; }

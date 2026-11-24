@@ -75,7 +75,8 @@
 		padding: 1px 6px 1px 10px;
 		border-radius: 99px;
 		border: 1px solid var(--line);
-		font: 500 12px/20px var(--font-ui);
+		min-height: var(--field-h, auto);
+		font: 500 var(--field-font, 12px)/20px var(--font-ui);
 		cursor: pointer;
 	}
 	.sel.good { color: var(--good); background: var(--good-bg); border-color: var(--good-line); }
@@ -86,5 +87,4 @@
 	.sel:focus-visible, .sel[aria-expanded='true'] { outline: none; box-shadow: 0 0 0 3px var(--focus-ring); }
 	.sel:disabled { opacity: 0.55; cursor: not-allowed; }
 	.ft { padding: 8px 12px; border-top: 1px solid var(--line-soft); background: var(--well); font-size: 12px; color: var(--muted); }
-	@media (max-width: 720px) { .sel { min-height: 40px; font-size: 16px; } }
 </style>

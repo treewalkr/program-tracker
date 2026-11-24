@@ -118,7 +118,7 @@
 	.box {
 		display: flex;
 		align-items: stretch;
-		min-height: 32px;
+		min-height: var(--field-h, 32px);
 		background: var(--well);
 		border: 1px solid var(--line);
 		border-radius: var(--radius);
@@ -135,7 +135,7 @@
 		border: 0;
 		background: transparent;
 		color: var(--ink);
-		font: 400 13px var(--font-mono);
+		font: 400 var(--field-font, 13px) var(--font-mono);
 		font-variant-numeric: tabular-nums;
 		text-align: right;
 		caret-color: var(--blue);
@@ -154,5 +154,4 @@
 	}
 	.cap:first-child { border-right: 1px solid var(--line); }
 	.cap:last-child { border-left: 1px solid var(--line); }
-	@media (max-width: 720px) { .box { min-height: 40px; } .in { font-size: 16px; } }
 </style>

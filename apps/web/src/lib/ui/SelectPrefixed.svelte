@@ -68,13 +68,13 @@
 		display: flex;
 		align-items: stretch;
 		width: 100%;
-		min-height: 32px;
+		min-height: var(--field-h, 32px);
 		padding: 0;
 		background: var(--well);
 		border: 1px solid var(--line);
 		border-radius: var(--radius);
 		overflow: hidden;
-		font: 400 14px var(--font-ui);
+		font: 400 var(--field-font, 14px) var(--font-ui);
 		color: var(--ink);
 		text-align: left;
 		cursor: pointer;
@@ -95,5 +95,4 @@
 	/* A long value in a narrow slot ends in … instead of being cut. */
 	.t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 	.v :global(svg) { width: 14px; height: 14px; flex: none; color: var(--muted); }
-	@media (max-width: 720px) { .sel { min-height: 40px; font-size: 16px; } }
 </style>

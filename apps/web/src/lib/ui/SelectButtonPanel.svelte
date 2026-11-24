@@ -79,13 +79,13 @@
 		display: inline-flex;
 		align-items: center;
 		gap: 6px;
-		min-height: 32px;
+		min-height: var(--field-h, 32px);
 		padding: 3px 12px;
 		background: var(--well);
 		border: 1px solid var(--line);
 		border-radius: var(--radius);
 		box-shadow: var(--btn-lip);
-		font: 500 14px var(--font-ui);
+		font: 500 var(--field-font, 14px) var(--font-ui);
 		color: var(--ink);
 		cursor: pointer;
 	}
@@ -99,5 +99,4 @@
 	.hd { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid var(--line-soft); font: 600 12px var(--font-ui); }
 	.hd span { color: var(--muted); font-weight: 400; }
 	.ft { padding: 8px 12px; border-top: 1px solid var(--line-soft); background: var(--well); font-size: 12px; color: var(--muted); }
-	@media (max-width: 720px) { .sel { min-height: 40px; font-size: 16px; } }
 </style>

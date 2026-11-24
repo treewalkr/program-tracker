@@ -70,7 +70,7 @@
 		display: flex;
 		align-items: center;
 		gap: 8px;
-		min-height: 32px;
+		min-height: var(--field-h, 32px);
 		padding: 0 6px 0 10px;
 		background: var(--well);
 		border: 1px solid var(--line);
@@ -86,7 +86,7 @@
 		border: 0;
 		background: transparent;
 		color: var(--ink);
-		font: 400 14px var(--font-ui);
+		font: 400 var(--field-font, 14px) var(--font-ui);
 		caret-color: var(--blue);
 	}
 	.in::placeholder { color: var(--muted); }
@@ -122,5 +122,5 @@
 	.clr:hover:not(:disabled) { background: var(--well-2); color: var(--ink); }
 	.clr:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
 	.clr :global(svg) { width: 12px; height: 12px; }
-	@media (max-width: 720px) { .box { min-height: 40px; } .in { font-size: 16px; } .clr { width: 28px; height: 28px; } }
+	@media (max-width: 720px), (pointer: coarse) { .clr { width: 28px; height: 28px; } }
 </style>

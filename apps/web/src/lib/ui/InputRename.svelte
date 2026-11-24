@@ -150,14 +150,15 @@
 		box-shadow: 0 0 0 3px var(--focus-ring);
 		caret-color: var(--blue);
 	}
+	/* a row-size rename is a field on touch: 16px so iOS doesn't zoom */
+	.row .in { font-size: var(--field-font, var(--fs)); }
 	.in:focus { outline: none; }
 	.in[aria-invalid='true'] { border-color: var(--bad); }
 	.btn { flex: none; }
 	.err { margin-top: 4px; }
 	@media (hover: none) { .pen { opacity: 1; } }
 	@media (prefers-reduced-motion: reduce) { .pen { transition: none; } }
-	@media (max-width: 720px) {
-		.row .in { font-size: 16px; }
+	@media (max-width: 720px), (pointer: coarse) {
 		.pen { width: 32px; height: 32px; }
 	}
 </style>
