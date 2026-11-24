@@ -1,6 +1,8 @@
 <script lang="ts">
   import type { ImportAb, ImportResult } from "@pt/shared";
   import { abWeekOptions, blockLabel, weekName } from "$lib/pasteImport";
+  import SelectField from "$lib/ui/SelectField.svelte";
+  import type { SelectOption } from "$lib/ui/select/options";
 
   /**
    * Paste notes review: which week(s) "Use this" drafts — one block, or two
@@ -32,6 +34,7 @@
   } = $props();
 
   const options = $derived(abWeekOptions(result));
+  const weekOptions = $derived<SelectOption[]>(options.map((wi) => ({ value: String(wi), label: weekName(result, wi) })));
   const abOffered = $derived(!result.ab && options.length >= 2);
   const shown = $derived(result.blocks.length > 1 || abOffered);
   const current = $derived<ImportAb>(pick ?? { a: options[0] ?? 0, b: options[1] ?? 0, source: "picked" });
@@ -65,19 +68,15 @@
           <div class="ab-pick">
             {#each ["a", "b"] as const as side (side)}
               <div class="ab-field">
-                <label class="ab-letter" for="pi-ab-{side}">Week {side.toUpperCase()}</label>
-                <select
-                  id="pi-ab-{side}"
-                  class="select"
+                <SelectField
+                  label="Week {side.toUpperCase()}"
+                  maxWidth="none"
+                  options={weekOptions}
                   value={String(current[side])}
-                  aria-invalid={error ? true : undefined}
-                  aria-describedby={error ? "pi-ab-error" : "pi-ab-hint"}
-                  onchange={(e) => setWeek(side, e.currentTarget.value)}
-                >
-                  {#each options as wi (wi)}
-                    <option value={String(wi)}>{weekName(result, wi)}</option>
-                  {/each}
-                </select>
+                  invalid={!!error}
+                  describedby={error ? "pi-ab-error" : "pi-ab-hint"}
+                  onchange={(v) => setWeek(side, v)}
+                />
               </div>
             {/each}
             <p class="subtle fine" id="pi-ab-hint">Odd weeks run A, even weeks B.</p>
@@ -102,8 +101,6 @@
   .opt-title { font-weight: 600; }
   .ab-pick { display: flex; flex-wrap: wrap; align-items: end; gap: 8px 16px; padding-left: 24px; }
   .ab-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1 1 220px; }
-  .ab-field .select { width: 100%; min-width: 0; }
-  .ab-letter { font: 600 12px var(--font-mono); color: var(--ink); }
   .ab-pick .fine { flex-basis: 100%; }
   .fine { font-size: 12px; margin: 0; }
   .blocker { flex-basis: 100%; margin: 0; font-size: 13px; color: var(--warn-ink); background: var(--warn-bg); border: 1px solid var(--warn-line); border-radius: var(--radius); padding: 6px 10px; }
