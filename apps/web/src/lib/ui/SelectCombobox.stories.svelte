@@ -28,6 +28,8 @@
     { value: 'ohp', label: 'Overhead press', tag: 'Library' },
   ]);
   let value = $state<string | undefined>();
+  const clients = ['Ann Rattanakul', 'Mali Srisuk', 'Pim Chaiyo', 'Krit Wong', 'Nok Somchai'].map((name, i) => ({ value: `c${i}`, label: name }));
+  let client = $state<string | undefined>();
 
   function create(name: string) {
     const v = name.toLowerCase().replace(/\W+/g, '-');
@@ -45,5 +47,11 @@
 <Story name="Without create" asChild>
   <div style="max-width: 340px; min-height: 300px">
     <SelectCombobox label="Exercise" placeholder="Search exercises…" {options} bind:value />
+  </div>
+</Story>
+
+<Story name="Clients, own empty text" asChild>
+  <div style="max-width: 340px; min-height: 300px">
+    <SelectCombobox label="Client" placeholder="Choose a client…" options={clients} bind:value={client} emptyText="No clients match" />
   </div>
 </Story>

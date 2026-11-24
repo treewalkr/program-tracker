@@ -21,6 +21,8 @@
 		oncreate?: (query: string) => void;
 		/** Label for the create row: "Add “sq” as a custom exercise". */
 		createLabel?: (query: string) => string;
+		/** Shown when nothing matches the typed text. */
+		emptyText?: string;
 		disabled?: boolean;
 		open?: boolean;
 	}
@@ -33,6 +35,7 @@
 		placeholder = 'Search…',
 		oncreate,
 		createLabel = (q) => `Add “${q}”`,
+		emptyText = 'No exercises match',
 		disabled = false,
 		open = $bindable(false),
 	}: Props = $props();
@@ -109,7 +112,7 @@
 			/>
 		</div>
 	{/snippet}
-	<OptionList id="{uid}-list" {label} options={shown} selected={value === undefined ? [] : [value]} active={lb.active} query={typing ? query : ''} onpick={pick} onhover={(i) => (lb.active = i)} emptyText="No exercises match" />
+	<OptionList id="{uid}-list" {label} options={shown} selected={value === undefined ? [] : [value]} active={lb.active} query={typing ? query : ''} onpick={pick} onhover={(i) => (lb.active = i)} {emptyText} />
 </Dropdown>
 
 <style>
