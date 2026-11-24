@@ -27,6 +27,7 @@
     summaryLine,
   } from "$lib/generateForm";
   import DraftReview from "$lib/components/DraftReview.svelte";
+  import DraftBanner from "$lib/components/DraftBanner.svelte";
   import ToggleChip from "$lib/ui/ToggleChip.svelte";
   import Segmented from "$lib/ui/Segmented.svelte";
   import Note from "$lib/ui/Note.svelte";
@@ -647,33 +648,26 @@
   {#if phase === "form"}
     {@const firstName = client.name.split(" ")[0]}
     {#if activated}
-      {@const p = activated}
-      <div class="gf-banner done" role="status">
-        <span class="lamp green" aria-hidden="true"></span>
-        <div class="gf-banner-text"><strong>“{p.name}” is live.</strong><span>{firstName} can see it now. New drafts build on it.</span></div>
-      </div>
+      <DraftBanner class="gf-state" tone="done" title={`“${activated.name}” is live`} text={`${firstName} can see it now. New drafts build on it.`} />
     {:else if pending}
       {@const p = pending}
+      <!-- the version of the draft it was approved from; the new program's own version is always 1 -->
       {@const dv = approvedDraftVersion(allGens, p.id)}
-      <div class="gf-banner" role="status">
-        <span class="lamp amber" aria-hidden="true"></span>
-        <div class="gf-banner-text">
-          <strong>“{p.name}” is approved but not active.</strong>
-          <span>{dv ? `Made from draft v${dv}. ` : ""}{firstName} can't see it yet, and new drafts can't build on it until you activate it.</span>
-        </div>
-        <div class="gf-banner-act">
+      <DraftBanner
+        class="gf-state"
+        title={dv ? `v${dv} approved, not active` : "Approved, not active"}
+        text={`“${p.name}” — ${firstName} can't see it yet, and new drafts can't build on it until you activate it.`}
+      >
+        {#snippet actions()}
           <Button small href="/programs/{p.id}">Open program</Button>
           <Button small type="button" onclick={() => (startDialogOpen = true)} disabled={activating}>
             {activating ? "Activating…" : "Activate"}
           </Button>
-        </div>
-      </div>
+        {/snippet}
+      </DraftBanner>
       {#if activateError}<Note tone="bad" role="status">{activateError}</Note>{/if}
     {:else if cancelledNote === "block"}
-      <div class="gf-banner warn" role="status">
-        <span class="lamp gray" aria-hidden="true"></span>
-        <div class="gf-banner-text"><strong>Generation cancelled.</strong><span>Nothing was drafted — your brief is kept below.</span></div>
-      </div>
+      <DraftBanner class="gf-state" tone="quiet" title="Generation cancelled" text="Nothing was drafted — your brief is kept below." />
     {/if}
 
     <div class="gf-grid">
@@ -969,17 +963,8 @@
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .lamp { display: inline-block; width: 8px; height: 8px; border-radius: 99px; flex: none; }
 
-  /* banner: approved-but-inactive / live / cancelled */
-  .gf-banner {
-    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-    border: 1px solid var(--warn-line); background: var(--warn-bg);
-    border-radius: 6px; padding: 12px 14px; margin-bottom: 20px;
-  }
-  .gf-banner.warn { background: var(--well); border-color: var(--line); }
-  .gf-banner.done { background: var(--good-bg); border-color: var(--good-line); }
-  .gf-banner-text { flex: 1; min-width: 240px; display: flex; flex-direction: column; gap: 2px; }
-  .gf-banner-text span { color: var(--muted); font-size: 13px; }
-  .gf-banner-act { display: flex; gap: 8px; }
+  /* DraftBanner: approved-but-inactive / live / cancelled */
+  :global(.gf-state) { margin-bottom: 20px; }
 
   /* layout: composer + sticky "What the AI reads" column */
   .gf-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 24px; align-items: start; }
