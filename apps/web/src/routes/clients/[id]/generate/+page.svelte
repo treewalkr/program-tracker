@@ -45,6 +45,7 @@
   import GeneratingState from "$lib/ui/GeneratingState.svelte";
   import StartDateDialog from "$lib/components/StartDateDialog.svelte";
   import { askNotifyPermission, generationWatch } from "$lib/draftWatch";
+  import { shortReason } from "$lib/generationWatch.svelte";
 
   const id = $derived(page.params.id ?? "");
   /** Arrived from "Watch progress": a generation is running, so the skeleton takes its shape. */
@@ -845,7 +846,7 @@
   {:else}
     <section class="panel narrow">
       <div class="panel-body stack">
-        <p class="err">Generation failed. {failReason ?? "Provider error or the draft failed validation."}</p>
+        <p class="err">Generation failed. {shortReason(failReason) ?? "Provider error or the draft failed validation."}</p>
         {#if gen?.parentGenerationId}
           <Button
             variant="ghost"
@@ -861,6 +862,12 @@
           >
             Back to previous draft
           </Button>
+        {:else if startedAtIso}
+          <!-- Failed in this visit: the brief and settings are still in the form, so re-run them as they are. -->
+          <div class="retry">
+            <Button variant="primary" onclick={start}>Try again</Button>
+            <Button variant="ghost" onclick={() => (phase = "form")}>Change settings</Button>
+          </div>
         {:else}
           <Button variant="ghost" onclick={() => (phase = "form")}>Back to settings</Button>
         {/if}
@@ -915,6 +922,7 @@
 
   .narrow { max-width: var(--measure-form); }
   .stack { display: flex; flex-direction: column; gap: 14px; }
+  .retry { display: flex; flex-wrap: wrap; gap: 8px; }
   :global(.flash) { margin: 0 0 16px; }
 
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
