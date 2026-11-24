@@ -11,6 +11,7 @@ import {
   instructionsPreview,
   ledgerRows,
   pendingProgram,
+  approvedDraftVersion,
   recentLogCount,
   starterMode,
   STARTERS,
@@ -89,6 +90,20 @@ const ledgerBase = {
   learned: null,
   matchedExamples: [] as string[],
 };
+
+describe("approvedDraftVersion", () => {
+  test("is the version of the draft the program was made from, not the program's", () => {
+    const gens = [
+      mkGen({ id: "v2", parentGenerationId: "v1", approvedProgramId: "pa", createdAt: "2026-11-02T00:00:00Z" }),
+      mkGen({ id: "v1", status: "validated", createdAt: "2026-11-01T00:00:00Z" }),
+    ];
+    expect(approvedDraftVersion(gens, "pa")).toBe(2);
+  });
+
+  test("is null when no draft made the program", () => {
+    expect(approvedDraftVersion([mkGen({ id: "g", approvedProgramId: "pb" })], "pa")).toBeNull();
+  });
+});
 
 describe("pendingProgram", () => {
   test("pendingProgram returns the draft of the newest approved block gen", () => {

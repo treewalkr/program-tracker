@@ -20,6 +20,7 @@
     instructionsPreview,
     ledgerRows,
     pendingProgram,
+    approvedDraftVersion,
     recentLogCount,
     starterMode,
     STARTERS,
@@ -611,20 +612,21 @@
       {@const p = activated}
       <div class="gf-banner done" role="status">
         <span class="lamp green" aria-hidden="true"></span>
-        <div class="gf-banner-text"><strong>v{p.version} is live.</strong><span>{firstName} can see it now. New drafts build on it.</span></div>
+        <div class="gf-banner-text"><strong>“{p.name}” is live.</strong><span>{firstName} can see it now. New drafts build on it.</span></div>
       </div>
     {:else if pending}
       {@const p = pending}
+      {@const dv = approvedDraftVersion(allGens, p.id)}
       <div class="gf-banner" role="status">
         <span class="lamp amber" aria-hidden="true"></span>
         <div class="gf-banner-text">
-          <strong>v{p.version} is approved but not active.</strong>
-          <span>“{p.name}” — {firstName} can't see it yet, and new drafts can't build on it until you activate it.</span>
+          <strong>“{p.name}” is approved but not active.</strong>
+          <span>{dv ? `Made from draft v${dv}. ` : ""}{firstName} can't see it yet, and new drafts can't build on it until you activate it.</span>
         </div>
         <div class="gf-banner-act">
           <Button small href="/programs/{p.id}">Open program</Button>
           <Button small type="button" onclick={() => (startDialogOpen = true)} disabled={activating}>
-            {activating ? "Activating…" : `Activate v${p.version}`}
+            {activating ? "Activating…" : "Activate"}
           </Button>
         </div>
       </div>

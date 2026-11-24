@@ -1,5 +1,6 @@
 import { INSTRUCTIONS_MAX, MAX_AI_BLOCK_WEEKS, MIN_BLOCK_WEEKS, isAlternating, typicalGenerationSeconds, type WeeksChoice } from "@pt/shared";
 import { localIso } from "./overview";
+import { revisionChain } from "./generation";
 import type { ClientDto, GenerationDto, InstructionTemplateDto, ProgramDto, SessionLogDto } from "./api/types";
 
 /** Pure derivations for the generate form: titles, the "What the AI reads" ledger, and the request body. */
@@ -54,6 +55,12 @@ export function pendingProgram(gens: GenerationDto[], programs: ProgramDto[]): P
   }
   if (!newest) return null;
   return programs.find((p) => p.id === newest.approvedProgramId && p.status === "draft") ?? null;
+}
+
+/** The draft version (v1, v2…) a program was approved from — the program's own version is always 1 for a new block. */
+export function approvedDraftVersion(gens: GenerationDto[], programId: string): number | null {
+  const g = gens.find((x) => x.approvedProgramId === programId);
+  return g ? revisionChain(gens, g.id).length : null;
 }
 
 export function recentLogCount(logs: SessionLogDto[], now: Date = new Date()): number {
