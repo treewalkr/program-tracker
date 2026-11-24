@@ -11,7 +11,7 @@
       docs: {
         description: {
           component:
-            "One set's load on the member's log: the external weight held or added. **BW** means none (a quiet Bodyweight box, nothing to fill in); **kg** is the log stepper. The switch is a text link on the label's line, top-right in both modes, so the cell is as tall as the reps cell beside it and focus stays put. On a bodyweight move kg reads **Added kg** (a vest, a belt). Shown beside a reps cell at phone width, as on the page; the switches work. **Compact** is the trainer's log sheet at desk width: one 28px line, the switch a chip left of the number, the column head as label; under 680px it reads like the member's cell. A tap on a filled number selects it, so typing replaces it (a filled-down 35 + typed 40 is 40, not 3540); Enter moves to the next field and never submits the form.",
+            "One set's load on the member's log: the external weight held or added. **BW** means none (a quiet Bodyweight box, nothing to fill in); **kg** is the log stepper. The switch is a text link on the label's line, top-right in both modes, so the cell is as tall as the reps cell beside it and focus stays put. On a bodyweight move kg reads **Added kg** (a vest, a belt). Shown beside a reps cell at phone width, as on the page; the switches work. **Compact** is the trainer's log sheet at desk width: one 28px line, the switch a chip left of the number, the column head as label; under 680px it reads like the member's cell. A tap on a filled number selects it, so typing replaces it (a filled-down 35 + typed 40 is 40, not 3540); Enter moves to the next field and never submits the form. In a cell too narrow for the steppers and a five-character load (a 320px phone), the field takes its own line above them.",
         },
       },
     },
@@ -37,6 +37,7 @@
   let pullUp = $state<Demo>({ mode: 'kg', kg: 10, reps: 6 });
   let catCamel = $state<Demo>({ mode: 'bw', kg: '', reps: 8 });
   let blank = $state<Demo>({ mode: 'kg', kg: '', reps: 15 });
+  let heavy = $state<Demo>({ mode: 'kg', kg: 302.5, reps: 3 });
   let desk = $state<(Demo & { name: string; added?: boolean })[]>([
     { name: 'Step-up', mode: 'bw', kg: '', reps: 10 },
     { name: 'Wall Ball', mode: 'kg', kg: 9, reps: 15 },
@@ -45,9 +46,9 @@
   ]);
 </script>
 
-{#snippet sheet(name: string, d: Demo, opts: { added?: boolean; error?: string } = {})}
+{#snippet sheet(name: string, d: Demo, opts: { added?: boolean; error?: string; width?: number } = {})}
   <!-- the log page's narrow sheet: LogStepper and LoadCell key their 44px rows off this container -->
-  <div style="container: logform / inline-size; width: 358px; padding: 12px; background: var(--surface);">
+  <div style="container: logform / inline-size; width: {opts.width ?? 358}px; padding: 12px; background: var(--surface);">
     <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: end; gap: 10px 12px;">
       <LoadCell
         bind:value={d.kg}
@@ -85,6 +86,11 @@
 
 <Story name="kg left blank after Save" asChild>
   {@render sheet('Wall Ball', blank, { error: 'Add the weight, or tap BW' })}
+</Story>
+
+<Story name="Heavy load on a 320px phone" asChild>
+  <!-- half of an iPhone SE's sheet is too narrow for − 302.5 +: the field takes its own line, the steppers the next -->
+  {@render sheet('Squat', heavy, { width: 266 })}
 </Story>
 
 <Story name="Compact (trainer's sheet)" asChild>

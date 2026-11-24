@@ -178,6 +178,20 @@
     .lstep-input::placeholder { opacity: 0.8; }
     .lstep-copied { left: 52px; font-size: 13px; }
     .lstep-err { text-align: left; font-size: 12px; }
+    /* Its own width decides whether "302.5" fits between the steppers. */
+    .lstep { container: lstep / inline-size; }
+  }
+
+  /* Too narrow for −, "302.5" and + on one line (a 320px phone's half-width
+     cell): the field takes the whole first line, the steppers share the second,
+     still 44px tall. */
+  @container lstep (max-width: 149px) {
+    .lstep-row { flex-wrap: wrap; }
+    .lstep-input { order: -1; flex: 1 0 100%; border-radius: 6px 6px 0 0; }
+    .lstep-btn { flex: 1 1 0; border-top: 0; }
+    .lstep-btn:first-child { border-radius: 0 0 0 6px; border-right: 1px solid var(--line); }
+    .lstep-btn:last-child { border-radius: 0 0 6px 0; border-left: 0; }
+    .lstep-copied { left: 8px; top: 22px; }
   }
 
   @media (prefers-reduced-motion: reduce) {
