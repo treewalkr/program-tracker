@@ -12,6 +12,7 @@
   import { captureScale, compressImage, dataUrlToBlob, visibleSlice } from "./images";
   import { ImageTray } from "./tray.svelte";
   import { placePin } from "./layout";
+  import { watchBottomBars } from "./lift";
   import InputNote from "$lib/ui/InputNote.svelte";
   import {
     cleanReport,
@@ -50,6 +51,8 @@
   let pinH = $state(0);
   let barEl = $state<HTMLElement>();
   let barTop = $state<number | null>(null);
+  /** How far a fixed or sticky bar under the pill lifts it (see lift.ts). */
+  let autoLift = $state(0);
   /** Existing-item pins: which popover is open, which items could not be placed. */
   let pinOpen = $state<string | null>(null);
   let unplaced = $state<FeedbackItem[]>([]);
@@ -395,7 +398,15 @@
     </form>
   {/if}
 
-  <div class="bar" bind:this={barEl} class:on={feedbackMode.on} role="toolbar" aria-label="Feedback mode">
+  <div
+    class="bar"
+    bind:this={barEl}
+    class:on={feedbackMode.on}
+    style:--feedback-auto-lift="{autoLift}px"
+    {@attach (el) => watchBottomBars(el, (px) => (autoLift = px))}
+    role="toolbar"
+    aria-label="Feedback mode"
+  >
     {#if feedbackMode.on}
       <span class="live" aria-hidden="true"></span>
       <span class="title">Feedback</span>
@@ -593,8 +604,8 @@
   .bar {
     position: fixed;
     right: 16px;
-    /* A page with a sticky bottom bar (the log sheet's Save) sets the lift. */
-    bottom: calc(16px + var(--feedback-lift, 0px));
+    /* Rides above a bar docked to the bottom: found by watchBottomBars, or set by the page (lift.ts). */
+    bottom: calc(16px + max(var(--feedback-lift, 0px), var(--feedback-auto-lift, 0px)));
     z-index: 9999;
     display: flex;
     align-items: center;

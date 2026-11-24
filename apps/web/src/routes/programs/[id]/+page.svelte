@@ -2,7 +2,6 @@
   import { onMount } from "svelte";
   import { page } from "$app/state";
   import { createLeaveGuard } from "$lib/leaveGuard.svelte";
-  import { liftFeedback } from "$lib/feedback/lift";
   import LeaveGuard from "$lib/ui/LeaveGuard.svelte";
   import { api } from "$lib/api";
   import {
@@ -950,7 +949,7 @@
   {/if}
 
   {#if copyToast || dirty}
-    <div class="dock" {@attach liftFeedback}>
+    <div class="dock">
       {#if copyToast}
         <div class="copy-toast" role="status">
           <Icon name="layers" />
