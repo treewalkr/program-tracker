@@ -606,10 +606,11 @@
   /* The layout's own Back (pages without crumbs): phones and the home-screen
      app only, on the toggle's line like crumbs, and never beside a crumbs Back. */
   .history-back { display: none; margin: -2px 0 0; }
-  .history-back + :global(*) { clear: left; }
+  /* Only a shown Back clears what follows: a hidden one must not push the
+     crumbs Back (or a desktop title) off the toggle's line. */
   @media (max-width: 860px), (display-mode: standalone) {
-    .history-back { display: flex; }
-    .main:has(:global(.crumbs.compact)) > .history-back { display: none; }
+    .main:not(:has(:global(.crumbs.compact))) > .history-back { display: flex; }
+    .main:not(:has(:global(.crumbs.compact))) > .history-back + :global(*) { clear: left; }
   }
   .side-toggle {
     display: grid;
