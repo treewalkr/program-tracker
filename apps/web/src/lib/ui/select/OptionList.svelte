@@ -88,7 +88,7 @@
 </div>
 
 <style>
-	.list { padding: 4px 0; max-height: 280px; overflow-y: auto; }
+	.list { padding: 4px 0; max-height: min(280px, var(--pop-max, 280px)); overflow-y: auto; }
 	.opt {
 		display: flex;
 		align-items: center;

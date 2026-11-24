@@ -63,3 +63,10 @@
     <SelectCombobox label="Primary muscle" placeholder="Search muscles…" options={muscles} bind:value={muscle} emptyText="No muscles match" />
   </div>
 </Story>
+
+<Story name="Near the bottom of the screen" asChild>
+  <!-- The list opens upward when there's no room below, and re-fits when the on-screen keyboard shrinks the screen. -->
+  <div style="max-width: 340px; height: calc(100vh - 32px); display: flex; flex-direction: column; justify-content: flex-end">
+    <SelectCombobox label="Primary muscle" placeholder="Search muscles…" options={muscles} bind:value={muscle} emptyText="No muscles match" />
+  </div>
+</Story>

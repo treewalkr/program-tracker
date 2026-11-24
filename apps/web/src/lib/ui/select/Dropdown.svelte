@@ -1,9 +1,11 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
+	import { placePanel } from './place';
 
 	/**
 	 * The one open-list panel every select shares: a relative anchor, the trigger,
-	 * and a hairline popover underneath. Closes on outside press and Esc.
+	 * and a hairline popover underneath — or above it when there's no room below
+	 * (the on-screen keyboard counts). Closes on outside press and Esc.
 	 */
 	interface Props {
 		open?: boolean;
@@ -20,6 +22,38 @@
 	let { open = $bindable(false), trigger, children, inline = false, maxWidth = '300px', panelWidth }: Props = $props();
 
 	let root = $state<HTMLDivElement>();
+	let pop = $state<HTMLDivElement>();
+	let up = $state(false);
+
+	/** Rows never drop below about two, whatever the panel's other chrome takes. */
+	const MIN_LIST = 80;
+
+	function place() {
+		if (!root || !pop) return;
+		// Measure at natural height, then cap the list to the room on the chosen side.
+		pop.style.removeProperty('--pop-max');
+		const h = pop.offsetHeight;
+		const list = pop.querySelector<HTMLElement>('[role="listbox"]');
+		const chrome = list ? h - list.offsetHeight : 0;
+		const vv = window.visualViewport;
+		const p = placePanel(root.getBoundingClientRect(), h, vv ? { height: vv.height, offsetTop: vv.offsetTop } : { height: window.innerHeight, offsetTop: 0 });
+		up = p.side === 'above';
+		pop.style.setProperty('--pop-max', `${Math.max(MIN_LIST, p.maxHeight - chrome)}px`);
+	}
+
+	$effect(() => {
+		if (!open || !pop || !root) return;
+		place();
+		const vv = window.visualViewport;
+		vv?.addEventListener('resize', place);
+		vv?.addEventListener('scroll', place);
+		window.addEventListener('resize', place);
+		return () => {
+			vv?.removeEventListener('resize', place);
+			vv?.removeEventListener('scroll', place);
+			window.removeEventListener('resize', place);
+		};
+	});
 
 	function outside(e: PointerEvent) {
 		if (open && root && !root.contains(e.target as Node)) open = false;
@@ -39,7 +73,7 @@
 <div class="dd" class:inline bind:this={root} style:max-width={inline ? undefined : maxWidth} {onkeydown}>
 	{@render trigger()}
 	{#if open}
-		<div class="pop" style:width={panelWidth}>{@render children()}</div>
+		<div class="pop" class:up style:width={panelWidth} bind:this={pop}>{@render children()}</div>
 	{/if}
 </div>
 
@@ -61,4 +95,5 @@
 		box-shadow: var(--shadow-overlay);
 		overflow: hidden;
 	}
+	.pop.up { top: auto; bottom: 100%; margin: 0 0 4px; }
 </style>
