@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import { page } from "$app/state";
   import { createLeaveGuard } from "$lib/leaveGuard.svelte";
   import { liftFeedback } from "$lib/feedback/lift";
@@ -63,7 +63,7 @@
   import type { ExerciseDto, ExerciseInput, ProgramDto, ProgramExampleDto, ProgramSessionDto, SessionLogDto, SessionTypeDto, SessionTypeInput } from "$lib/api/types";
   import { cardioLine } from "$lib/cardioLine";
   import { extraSets, logDateLabel, loggedSetLabel, programLogView, setsForExercise, timedIdsOfWeek } from "$lib/programLogs";
-  import { exerciseIssue, validateProgramDoc } from "$lib/programDoc";
+  import { exerciseIssue, sessionLabel, validateProgramDoc } from "$lib/programDoc";
   import { copyNotice, copyTargetLabel, currentWeekIndex as openingWeekIndex, endedNote, forwardNotice, matchNotice, programSubline, sameProgramDoc, snapshot, weekLine, weekRangeLabel, weekTabDates } from "$lib/programEdit";
   import { isDeloaded, toggleDeload, type DeloadUndo } from "$lib/deloadUndo";
   import { clientDeload } from "$lib/draftReview";
@@ -371,7 +371,8 @@
     setWeek(next);
     const added = next.sessions.at(-1)!;
     openSessionEditor(added.id);
-    selected = added.id;
+    // On a phone the new card lands far below the calendar: bring it (and its editor) on screen.
+    tick().then(() => select(added.id));
   }
 
   function select(sid: string) {
@@ -869,7 +870,7 @@
                       onlink={ei < s.exercises.length - 1 && blockOf(s.exercises[ei + 1]) === blockOf(e) ? () => setExercises(si, linkWithNext(s.exercises, ei)) : undefined}
                       onunlink={() => setExercises(si, unlink(s.exercises, ei))}
                       onclose={closeEditors}
-                      oninvalid={(m) => (editorIssue = m && `Week ${currentWeek.week} · ${sessionTag(s)} (${s.name}): ${exerciseIssue(e.exerciseName ?? "Exercise", m)}`)}
+                      oninvalid={(m) => (editorIssue = m && `Week ${currentWeek.week} · ${sessionLabel(s)}: ${exerciseIssue(e.exerciseName ?? "Exercise", m)}`)}
                     />
                   {:else}
                     {@const patterns = patternsOf(e.exerciseId)}

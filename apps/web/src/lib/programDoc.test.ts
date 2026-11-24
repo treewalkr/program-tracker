@@ -74,24 +74,31 @@ describe("validateProgramDoc", () => {
       expect(sessNotesRes.message).toContain("2000");
     }
 
-    // Empty exercise session -> ok: false + contains "exercise session requires at least one exercise"
+    // Empty exercise session -> ok: false, asks for an exercise
     const emptyExercises: ProgramWeekDto[] = JSON.parse(JSON.stringify(validWeeks));
     emptyExercises[0].sessions[0].exercises = [];
     const emptyRes = validateProgramDoc(emptyExercises);
     expect(emptyRes.ok).toBe(false);
     if (!emptyRes.ok) {
-      expect(emptyRes.message).toContain("exercise session requires at least one exercise");
+      expect(emptyRes.message).toBe("Week 1 · Session 1: add an exercise");
     }
+  });
+
+  test("names a renamed session after its tag", () => {
+    const named: ProgramWeekDto[] = JSON.parse(JSON.stringify(validWeeks));
+    named[0].sessions[0].name = "Lower A";
+    named[0].sessions[0].exercises = [];
+    expect(validateProgramDoc(named)).toEqual({ ok: false, message: "Week 1 · Session 1 (Lower A): add an exercise" });
   });
 
   test("names a bad set field in plain words", () => {
     const negRest: ProgramWeekDto[] = JSON.parse(JSON.stringify(validWeeks));
     negRest[0].sessions[0].exercises[0].prescribedSets[0].restSeconds = -30;
-    expect(validateProgramDoc(negRest)).toEqual({ ok: false, message: "Week 1 · Session 1 (Session 1): Squat — rest can't be negative" });
+    expect(validateProgramDoc(negRest)).toEqual({ ok: false, message: "Week 1 · Session 1: Squat — rest can't be negative" });
 
     const highRpe: ProgramWeekDto[] = JSON.parse(JSON.stringify(validWeeks));
     const sets = highRpe[0].sessions[1].exercises[0].prescribedSets;
     sets.push({ ...sets[0], setNumber: 2, targetRpe: 12 });
-    expect(validateProgramDoc(highRpe)).toEqual({ ok: false, message: "Week 1 · Session 2 (Session 2): Bench — set 2: RPE must be 1–10" });
+    expect(validateProgramDoc(highRpe)).toEqual({ ok: false, message: "Week 1 · Session 2: Bench — set 2: RPE must be 1–10" });
   });
 });

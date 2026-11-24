@@ -24,12 +24,19 @@ export function validateProgramDoc(
   if (week && key === "sessions" && typeof si === "number" && week.sessions[si]) {
     const s = week.sessions[si];
     const field = rest.filter((p) => typeof p === "string").at(-1);
-    const what = setIssue(s, rest) ?? ((field && FIELD[String(field)]) || first.message);
-    return { ok: false, message: `Week ${week.week} · ${sessionTag(s)} (${s.name}): ${what}` };
+    const empty = field === "exercises" && s.kind === "exercises" && s.exercises.length === 0;
+    const what = empty ? "add an exercise" : (setIssue(s, rest) ?? ((field && FIELD[String(field)]) || first.message));
+    return { ok: false, message: `Week ${week.week} · ${sessionLabel(s)}: ${what}` };
   }
   if (week) return { ok: false, message: `Week ${week.week}: ${first.message}` };
   const prefix = first.path.length > 0 ? `${first.path.join(".")}: ` : "";
   return { ok: false, message: `${prefix}${first.message}` };
+}
+
+/** "Session 1 (Lower A)"; a session still called "Session 5" is named once. */
+export function sessionLabel(s: { kind: ProgramWeekDto["sessions"][number]["kind"]; seq: number; name: string }): string {
+  const tag = sessionTag(s);
+  return s.name.trim() === tag ? tag : `${tag} (${s.name})`;
 }
 
 /** A bad set field, in plain words with its exercise: "Back Squat — rest can't be negative". */
