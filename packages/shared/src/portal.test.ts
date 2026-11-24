@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { localDateOf } from "./metrics";
-import { lastComparable, lastSetsOf, nowOfDate, portalCardio, portalToday, portalWeekLabel, lastWeightsOf, portalLogEntry, PortalLogEntry, portalCardioRx, latestLogBySession, portalSessions, sessionDateIn } from "./portal";
+import { lastComparable, lastSetsOf, nowOfDate, portalCardio, portalToday, portalWeekLabel, lastWeightsOf, portalLogEntry, portalCoachLogEntry, PortalLogEntry, portalCardioRx, latestLogBySession, portalSessions, sessionDateIn } from "./portal";
 import { computeHrZones, profileOn } from "./hr";
 
 describe("lastWeightsOf", () => {
@@ -44,6 +44,41 @@ describe("portalLogEntry", () => {
 
   test("carries the ticked movement prep", () => {
     expect(portalLogEntry({ prepDone: ["pe1"] }, []).prepDone).toEqual(["pe1"]);
+  });
+});
+
+describe("portalCoachLogEntry", () => {
+  const EX = "6f1c2c1e-6b1a-4c55-9a51-0d6f1f5c9a10";
+  test("a coach's log shows its figures and feedback; the coach's own notes stay with the coach", () => {
+    const entry = portalCoachLogEntry(
+      {
+        notes: "private: watch her left knee",
+        perceivedEnergy: 4,
+        readiness: { sleep: 1 },
+        flags: [{ programExerciseId: null, exerciseId: EX, kind: "skipped", reason: "pain", note: "coach's aside" }],
+        prepDone: ["pe0"],
+        trainerFeedback: "Solid squats.",
+        reviewedAt: new Date("2026-11-24T09:00:00.000Z"),
+      },
+      [{ programExerciseId: "pe1", exerciseId: EX, setNumber: 1, type: "working", weightKg: "80.00", reps: 5, rpe: "8", asPlanned: false }],
+    );
+    expect(entry).toEqual({
+      sets: [{ programExerciseId: "pe1", exerciseId: EX, setNumber: 1, type: "working", weightKg: 80, reps: 5, rpe: 8, asPlanned: false }],
+      cardio: null,
+      notes: null,
+      perceivedEnergy: null,
+      readiness: null,
+      flags: [{ programExerciseId: null, exerciseId: EX, kind: "skipped", reason: "pain" }],
+      prepDone: [],
+      trainerFeedback: "Solid squats.",
+      reviewedAt: "2026-11-24T09:00:00.000Z",
+    });
+    expect(PortalLogEntry.parse(entry)).toEqual(entry);
+  });
+
+  test("cardio keeps its figures, not the pain note", () => {
+    const entry = portalCoachLogEntry({ cardio: { modality: "Run", durationSec: 1800, rpe: 6, pain: { reported: true, note: "calf" } } }, []);
+    expect(entry.cardio).toEqual({ modality: "Run", durationSec: 1800, rpe: 6, pain: { reported: true } });
   });
 });
 

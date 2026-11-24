@@ -467,15 +467,21 @@ describe.skipIf(!dbUp)("portal week and logs", () => {
 
     const [trainerLog] = await db
       .insert(sessionLogs)
-      .values({ clientId, programId, programSessionId: s2, date: today, kind: "exercises" })
+      .values({ clientId, programId, programSessionId: s2, date: today, kind: "exercises", notes: "coach only: watch the knee", perceivedEnergy: 3, trainerFeedback: "Strong bar path." })
       .returning();
+    await db.insert(setLogs).values({ sessionLogId: trainerLog.id, programExerciseId: slot1, exerciseId: squatId, setNumber: 1, weightKg: "90", reps: 6 });
     const blocked = await call("POST", "/v1/portal/logs", { token, body: logBody(s2, { onDuplicate: "replace" }) });
     expect(blocked.status).toBe(409);
     expect(blocked.body.existing).toMatchObject({ id: trainerLog.id, loggedBy: "trainer" });
     const week = await call("GET", "/v1/portal/week", { token });
     expect(week.body.weeks[0].sessions.find((s: any) => s.id === s2).log).toMatchObject({ loggedBy: "trainer" });
-    // a coach's log never carries an entry
-    expect(week.body.weeks[0].sessions.find((s: any) => s.id === s2).log.entry).toBeUndefined();
+    // a coach's log reads back as a summary: the figures and the feedback, not the coach's own notes
+    expect(week.body.weeks[0].sessions.find((s: any) => s.id === s2).log.entry).toMatchObject({
+      sets: [{ programExerciseId: slot1, exerciseId: squatId, setNumber: 1, weightKg: 90, reps: 6 }],
+      notes: null,
+      perceivedEnergy: null,
+      trainerFeedback: "Strong bar path.",
+    });
     // and the client can't delete it either
     expect((await call("DELETE", `/v1/portal/logs/${trainerLog.id}`, { token })).status).toBe(404);
   });
