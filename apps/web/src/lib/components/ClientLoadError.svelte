@@ -2,6 +2,7 @@
   import Crumbs from "$lib/ui/Crumbs.svelte";
   import Button from "$lib/ui/Button.svelte";
   import EmptyState from "$lib/ui/EmptyState.svelte";
+  import { errorText } from "$lib/api/errors";
 
   /**
    * What a client page shows when its first load fails, instead of a skeleton
@@ -20,7 +21,7 @@
       <strong>Client not found.</strong> It may have been deleted, or it belongs to another trainer.
     {:else}
       <strong>Couldn't load this client.</strong>
-      {error instanceof Error ? error.message : "Something went wrong."}
+      {errorText(error)}
     {/if}
     {#snippet actions()}
       <Button href="/clients" variant={missing ? "primary" : "default"}>Back to Clients</Button>

@@ -94,8 +94,12 @@ export async function settleRequestLogs(): Promise<void> {
   while (inFlight.size) await Promise.all([...inFlight]);
 }
 
-/** Error text from a returned `status(4xx, { error })`, or what onError saw. */
-function errorOf(responseValue: unknown, thrown: string | undefined): string | null {
+/**
+ * Error text from a returned `status(4xx, { error })`, or what onError saw. On a 5xx
+ * the thrown error wins: the browser got a generic sentence, the log keeps the real one.
+ */
+export function errorOf(responseValue: unknown, thrown: string | undefined, status = 0): string | null {
+  if (status >= 500 && thrown) return thrown;
   const v = responseValue as { response?: unknown } | null | undefined;
   const body = v && typeof v === "object" && "response" in v ? v.response : null;
   if (body && typeof body === "object" && typeof (body as { error?: unknown }).error === "string") {
@@ -144,7 +148,7 @@ export const requestLog = new Elysia({ name: "request-log" })
       durationMs,
       trainerId: typeof trainerId === "string" ? trainerId : null,
       actorId: typeof actorId === "string" ? actorId : null,
-      error: status >= 400 ? requestErrorText(errorOf((ctx as { responseValue?: unknown }).responseValue, m.error)) : null,
+      error: status >= 400 ? requestErrorText(errorOf((ctx as { responseValue?: unknown }).responseValue, m.error, status)) : null,
     }).finally(() => inFlight.delete(p));
     inFlight.add(p);
   });

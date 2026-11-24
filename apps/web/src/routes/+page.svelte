@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { api, apiMode } from "$lib/api";
+  import { reasonText } from "$lib/api/errors";
   import type { ClientDto, ProviderDto, SignalDto } from "$lib/api/types";
   import {
     buildClientStrip,
@@ -108,7 +109,7 @@
       rowsReady = true;
     } catch (err) {
       console.error(err);
-      loadError = err instanceof Error ? err.message : "the server didn't answer";
+      loadError = reasonText(err);
     }
   }
 
@@ -121,7 +122,7 @@
     // Keep what did snooze hidden; a merged row stays while any of its signals failed.
     hidden = [...hidden, ...ids.filter((_, i) => results[i].status === "fulfilled")];
     const failed = results.find((r): r is PromiseRejectedResult => r.status === "rejected");
-    if (failed) hideErrors[key] = (failed.reason as Error)?.message || "try again";
+    if (failed) hideErrors[key] = reasonText(failed.reason);
     hiding = null;
   }
 

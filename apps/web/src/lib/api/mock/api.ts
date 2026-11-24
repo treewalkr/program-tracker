@@ -2322,7 +2322,7 @@ const rawMockApi: TrainerApi = {
       }
     }
 
-    if (signals.length === 0) throw new Error("no feedback signals to distill");
+    if (signals.length === 0) throw Object.assign(new Error("no feedback signals to distill"), { status: 422 });
 
     const document = mockDistillPreferences(signals);
     const existing = state.preferences.find((p) =>

@@ -1,8 +1,8 @@
 import { DEFAULT_LOGIN_THEME, type LoginTheme } from "@pt/shared";
 import { client } from "./treaty";
+import { apiErrorText } from "./errors";
 
-const message = (error: { status: unknown; value: unknown }) =>
-  (error.value as { error?: string } | null)?.error ?? `request failed (${String(error.status)})`;
+const message = (error: { status: unknown; value: unknown }) => apiErrorText(error);
 
 /** The login page's look over Eden — live API only (demo mode always shows the default). */
 export const loginThemeApi = {

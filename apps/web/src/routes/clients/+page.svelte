@@ -2,6 +2,7 @@
   import { untrack } from "svelte";
   import { goto } from "$app/navigation";
   import { api } from "$lib/api";
+  import { reasonText } from "$lib/api/errors";
   import type { RosterPageDto, RosterQuery, RosterRowDto } from "$lib/api/types";
   import { listUrlState } from "$lib/list/urlState.svelte";
   import { daysBetween, localToday, shortDay } from "$lib/adminClients";
@@ -57,7 +58,7 @@
       // A page past the end came back clamped — make the URL say so.
       if (q.page !== undefined && res.page !== q.page) list.setPage(res.page);
     } catch (err) {
-      if (id === seq) loadError = (err as Error).message;
+      if (id === seq) loadError = reasonText(err);
     } finally {
       if (id === seq) loading = false;
     }

@@ -1,5 +1,6 @@
 import type { ClientExperience, ClientSex, ClientStatus, ProgramWeek } from "@pt/shared";
 import { client } from "./treaty";
+import { apiErrorText } from "./errors";
 
 export interface TrainerAccount {
   id: string;
@@ -132,8 +133,7 @@ export interface AccessLogEntry {
 const calendarDay = (d: string | Date): string => (d instanceof Date ? d.toISOString() : String(d)).slice(0, 10);
 
 /** The API's `{ error }` message, or a fallback. */
-const message = (error: { status: unknown; value: unknown }) =>
-  (error.value as { error?: string } | null)?.error ?? `request failed (${String(error.status)})`;
+const message = (error: { status: unknown; value: unknown }) => apiErrorText(error);
 
 /** Platform admin console over Eden — live API only. */
 export const adminApi = {

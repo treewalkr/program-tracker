@@ -3,6 +3,7 @@
   import { page } from "$app/state";
   import { apiMode } from "$lib/api";
   import { adminApi, type TrainerAccount } from "$lib/api/admin";
+  import { reasonText } from "$lib/api/errors";
   import PageHead from "$lib/ui/PageHead.svelte";
   import Panel from "$lib/ui/Panel.svelte";
   import Button from "$lib/ui/Button.svelte";
@@ -139,7 +140,7 @@
     try {
       trainers = await adminApi.trainers();
     } catch (err) {
-      loadError = (err as Error).message;
+      loadError = reasonText(err);
     }
   }
 

@@ -48,20 +48,21 @@ import { browser } from "$app/environment";
 import { toLogin } from "./auth";
 import { client } from "./treaty";
 import { trainerWire } from "./wire";
+import { apiFailure } from "./errors";
 
 /**
- * Eden result → thrown Error, preserving the API's `error` message envelope.
+ * Eden result → thrown Error, preserving the API's `error` message envelope
+ * (4xx); a 5xx or no answer at all gets plain words (`apiFailure`).
  * `data` is `unknown` and each call site names its wire type; trainerWire
  * turns revived Dates back into ISO strings and reads session kinds through
  * the alias.
  */
 async function unwrap<T>(
-  p: Promise<{ data: unknown; error: { value: unknown; status?: unknown } | null }>
+  p: Promise<{ data: unknown; error: { value: unknown; status?: unknown } | null; headers?: unknown }>
 ): Promise<T> {
-  const { data, error } = await p;
+  const { data, error, headers } = await p;
   if (error) {
     const value = error.value as { error?: string; issues?: unknown } | string | null;
-    const message = typeof value === "string" ? value : value?.error;
     const code = typeof error.status === "number" ? error.status : "unknown";
     // session expired mid-use — back to sign-in, then here again
     if (code === 401 && browser) window.location.assign(toLogin(new URL(window.location.href)));
@@ -69,7 +70,8 @@ async function unwrap<T>(
     const issues = typeof value === "object" && value ? value.issues : undefined;
     // a 409 duplicate log names the log it collides with
     const existing = typeof value === "object" && value && "existing" in value ? trainerWire(value.existing) : undefined;
-    throw Object.assign(new Error(message ?? `request failed: ${code}`), { status: code, issues, existing });
+    // a 5xx or a dropped connection reads in plain words, never its raw body
+    throw Object.assign(apiFailure(error, headers as HeadersInit | undefined), { issues, existing });
   }
   return trainerWire(data) as T;
 }
