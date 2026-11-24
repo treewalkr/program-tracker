@@ -94,6 +94,8 @@
   let rejectOpen = $state(false);
   let rejectReason = $state("");
   let editing = $state(false);
+  /** A note is being applied as the next version: approving now would approve the old one. */
+  let revising = $state(false);
   let planSaving = $state(false);
   let planError = $state<string | null>(null);
   let week = $state(1);
@@ -132,7 +134,7 @@
   const isWeek = $derived(gen.kind === "week");
   const decided = $derived(newProgram !== null || gen.status === "rejected" || gen.status === "approved");
   // Week and fill drafts follow the program's plan: no plan editing here.
-  const canEdit = $derived(gen.status === "validated" && !newProgram && !isWeek && gen.kind !== "fill");
+  const canEdit = $derived(gen.status === "validated" && !newProgram && !approving && !isWeek && gen.kind !== "fill");
 
   /** Noted slots per session (0 = the session itself), for the row marks. */
   const notedByDay = $derived(
@@ -162,7 +164,7 @@
     };
   }
 
-  const canApply = $derived(gen.status === "validated" && !newProgram && !!onrevised);
+  const canApply = $derived(gen.status === "validated" && !newProgram && !approving && !rejecting && !!onrevised);
   /** Fill: the weeks Apply rewrites, and the trainer's weeks it keeps. */
   const isFill = $derived(gen.kind === "fill");
   const fillWrites = $derived(isFill ? draft.weeks.filter((w) => !w.locked).map((w) => w.week) : []);
@@ -213,10 +215,29 @@
   const planEdit = $derived(gen.manualEdit && gen.revisionMessage === "Block plan edited by you");
 
   async function applyNote(note: LlmNoteDto) {
-    const child = await api.applyNote(note.id);
-    if (child.status !== "validated") throw new Error(child.error ?? `Revision ${child.status}`);
-    await onrevised?.(child);
+    revising = true;
+    try {
+      const child = await api.applyNote(note.id);
+      if (child.status !== "validated") throw new Error(child.error ?? `Revision ${child.status}`);
+      // Decided meanwhile (another tab): don't swap the decided version for the new one.
+      if (newProgram || gen.status !== "validated") throw new Error(`v${version} was already decided — the revision wasn't applied.`);
+      await onrevised?.(child);
+    } finally {
+      revising = false;
+    }
   }
+
+  /** Why Approve/Reject wait: a version is still being made (plan edit, note revision, hand edit). */
+  const holdReason = $derived(
+    editing
+      ? "Finish editing the plan first."
+      : revising
+        ? `Revising v${version + 1}…`
+        : editor.busy
+          ? "Saving your edit…"
+          : null
+  );
+
   /** Every change since the previous version; plan changes are listed from planDelta (they carry the week). */
   const slotChanges = $derived(prev?.draft ? diffDrafts(prev.draft, draft).filter((c) => c.kind !== "plan") : []);
   /** The same change made in several weeks reads once, with its weeks ("W1, W3"). */
@@ -337,13 +358,13 @@
     </div>
   {:else}
     <div class="row">
-      <Button variant="danger" disabled={editing} onclick={() => (rejectOpen = !rejectOpen)}>Reject…</Button>
-      <Button variant="primary" disabled={editing || approving} onclick={onapprove}>
+      <Button variant="danger" disabled={!!holdReason || approving} onclick={() => (rejectOpen = !rejectOpen)}>Reject…</Button>
+      <Button variant="primary" disabled={!!holdReason || approving || rejecting} onclick={onapprove}>
         {#snippet icon()}<Icon name="check" />{/snippet}{approveLabel}
       </Button>
     </div>
-    {#if editing}
-      <span class="paused">Finish editing the plan first.</span>
+    {#if holdReason}
+      <span class="paused" role="status">{holdReason}</span>
     {:else}
       {#if isFill}
         <span class="lock"><Icon name="lock" />Rewrites {weekRangeLabel(fillWrites)} of the program. {weekRangeLabel(fillKeeps)} stay{fillKeeps.length === 1 ? "s" : ""} as you wrote {fillKeeps.length === 1 ? "it" : "them"}; a week logged before you apply is skipped.</span>
@@ -413,7 +434,7 @@
       bind:value={rejectReason}
     />
     <div class="row">
-      <Button variant="danger" disabled={rejecting} onclick={() => onreject(rejectReason.trim())}>{rejecting ? "Rejecting…" : "Reject draft"}</Button>
+      <Button variant="danger" disabled={rejecting || !!holdReason} onclick={() => onreject(rejectReason.trim())}>{rejecting ? "Rejecting…" : "Reject draft"}</Button>
       <Button variant="ghost" onclick={() => (rejectOpen = false)}>Keep reviewing</Button>
     </div>
   </div>
