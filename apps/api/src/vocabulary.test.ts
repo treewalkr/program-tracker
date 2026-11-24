@@ -109,6 +109,31 @@ describe.skipIf(!dbUp)("/v1/vocabulary aliases and glossary", () => {
     }
   });
 
+  test("aliases: Thai marks are kept; a re-save replaces the legacy mark-stripped row", async () => {
+    const tag = uniq("zz");
+    const alias = `วิดพื้น ${tag}`;
+    // stored the old way ("วิดพื้น" → "ว ดพ น") before 2026-11-24 — delete with legacyNormalizeAlias
+    const [legacy] = await db
+      .insert(exerciseAliases)
+      .values({ trainerId, alias: `ว ดพ น ${tag}`, exerciseId: squatId, source: "manual" })
+      .returning();
+    const [theirs] = await db
+      .insert(exerciseAliases)
+      .values({ trainerId: otherTrainerId, alias: `ว ดพ น ${tag}`, exerciseId: otherExerciseId, source: "manual" })
+      .returning();
+    try {
+      expect((await call("POST", "/v1/vocabulary/aliases", { items: [{ alias, exerciseId: benchId, source: "manual" }] })).status).toBe(201);
+      const mine = ((await call("GET", "/v1/vocabulary/aliases")).body as any[]).filter((a) => a.alias.endsWith(tag));
+      expect(mine.map((a) => [a.alias, a.exerciseName])).toEqual([[alias, "Bench Press"]]);
+      expect(mine[0].id).not.toBe(legacy.id);
+      // another trainer's legacy row is untouched
+      expect(await db.select().from(exerciseAliases).where(eq(exerciseAliases.id, theirs.id))).toHaveLength(1);
+    } finally {
+      await db.delete(exerciseAliases).where(and(eq(exerciseAliases.trainerId, trainerId), eq(exerciseAliases.alias, alias)));
+      await db.delete(exerciseAliases).where(eq(exerciseAliases.id, theirs.id));
+    }
+  });
+
   test("aliases: another trainer's reads as not found", async () => {
     const [theirs] = await db
       .insert(exerciseAliases)

@@ -29,8 +29,28 @@ export const IMPORT_ABBREVIATIONS: AbbreviationMap = {
   ext: "extension",
 };
 
-/** Alias key: lowercase, trimmed, punctuation removed, single spaces. */
+/**
+ * Alias key: NFC, lowercase, trimmed, punctuation removed, single spaces.
+ * Combining marks stay (Thai vowels and tone marks: "วิดพื้น"); a mark with
+ * no letter before it (an emoji's variation selector, a keycap) is dropped.
+ */
 export function normalizeAlias(s: string): string {
+  return s
+    .normalize("NFC")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{M}\p{N}\s]/gu, " ")
+    .replace(/(?<![\p{L}\p{M}])\p{M}+/gu, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * The alias key before 2026-11-24, which turned every combining mark into a
+ * space ("วิดพื้น" → "ว ดพ น"). Stored aliases still in that form only match
+ * through it; a re-save rewrites them. TODO: delete once trainers have
+ * re-saved their Thai aliases (no stored alias equals its legacy form).
+ */
+export function legacyNormalizeAlias(s: string): string {
   return s
     .toLowerCase()
     .replace(/[^\p{L}\p{N}\s]/gu, " ")
@@ -127,8 +147,11 @@ export function matchExercise(
 ): ImportMatch {
   const byId = new Map(catalog.map((c) => [c.id, c]));
   const key = normalizeAlias(ex.sourceName);
-  const aliasHit = (personal: boolean) =>
-    aliases.find((a) => a.alias === key && (a.trainerId !== null) === personal && byId.has(a.exerciseId));
+  // an alias saved before 2026-11-24 is stored in the legacy form; an intact one wins
+  const legacyKey = legacyNormalizeAlias(ex.sourceName);
+  const aliasWith = (k: string, personal: boolean) =>
+    aliases.find((a) => a.alias === k && (a.trainerId !== null) === personal && byId.has(a.exerciseId));
+  const aliasHit = (personal: boolean) => aliasWith(key, personal) ?? (legacyKey ? aliasWith(legacyKey, personal) : undefined);
   const viaAlias = (a: MatchAlias): ImportMatch => ({ kind: "alias", exerciseId: a.exerciseId, exerciseName: byId.get(a.exerciseId)!.name });
 
   // 1. the trainer's own alias

@@ -1,7 +1,7 @@
 import { Elysia, t } from "elysia";
 import { and, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { db, exerciseAliases, exercises, glossaryTerms } from "@pt/db";
-import { normalizeAlias, type GlossaryTerm } from "@pt/shared";
+import { legacyNormalizeAlias, normalizeAlias, type GlossaryTerm } from "@pt/shared";
 import { trainerContext } from "../lib/trainer-context";
 import { loadAliases, loadGlossary } from "../lib/vocabulary";
 import { VocabularyModel } from "../models/vocabulary";
@@ -62,6 +62,10 @@ export const vocabularyRoutes = new Elysia({ prefix: "/v1/vocabulary", tags: ["v
     async ({ body, status, trainerId }) => {
       const items = body.items.map((i) => ({ ...i, alias: normalizeAlias(i.alias) }));
       if (items.some((i) => i.alias === "")) return status(422, { error: "alias is empty" });
+      // the same words saved before 2026-11-24 sit in the legacy mark-stripped form; a re-save replaces them
+      const legacy = [
+        ...new Set(body.items.map((i) => legacyNormalizeAlias(i.alias)).filter((l) => l && !items.some((i) => i.alias === l))),
+      ];
 
       // a personal alias may only point into the trainer's catalog (library or their own)
       const ids = [...new Set(items.map((i) => i.exerciseId))];
@@ -74,6 +78,8 @@ export const vocabularyRoutes = new Elysia({ prefix: "/v1/vocabulary", tags: ["v
       // last one wins when the same alias appears twice in one request
       const byAlias = new Map(items.map((i) => [i.alias, i]));
       const now = new Date();
+      if (legacy.length)
+        await db.delete(exerciseAliases).where(and(eq(exerciseAliases.trainerId, trainerId), inArray(exerciseAliases.alias, legacy)));
       const rows = await db
         .insert(exerciseAliases)
         .values([...byAlias.values()].map((i) => ({ trainerId, alias: i.alias, exerciseId: i.exerciseId, source: i.source })))
