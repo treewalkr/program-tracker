@@ -480,6 +480,31 @@ describe.skipIf(!dbUp)("portal week and logs", () => {
     expect((await call("DELETE", `/v1/portal/logs/${trainerLog.id}`, { token })).status).toBe(404);
   });
 
+  test("editing a log the coach reviewed keeps the coach's note; the reviewed mark clears (D5)", async () => {
+    const ofS1 = () => db.select().from(sessionLogs).where(and(eq(sessionLogs.clientId, clientId), eq(sessionLogs.programSessionId, s1)));
+    const [reviewed] = await ofS1();
+    const reviewedAt = new Date("2026-11-20T08:00:00.000Z");
+    await db.update(sessionLogs).set({ reviewedAt, reviewedBy: trainerId, trainerFeedback: "Good depth. Keep HR under 150." }).where(eq(sessionLogs.id, reviewed.id));
+
+    // a forged restore field is not the member's to send: it's dropped
+    const edited = await call("POST", "/v1/portal/logs", {
+      token,
+      body: logBody(s1, { onDuplicate: "replace", perceivedEnergy: 9, review: { reviewedAt: reviewedAt.toISOString(), trainerFeedback: "forged" } }),
+    });
+    expect(edited.status).toBe(201);
+    const [row] = await ofS1();
+    expect(row.id).toBe(edited.body.id);
+    expect(row).toMatchObject({ perceivedEnergy: 9, trainerFeedback: "Good depth. Keep HR under 150.", reviewedAt: null, reviewedBy: null });
+    const week = await call("GET", "/v1/portal/week", { token });
+    expect(week.body.weeks[0].sessions.find((s: any) => s.id === s1).log.entry).toMatchObject({ trainerFeedback: "Good depth. Keep HR under 150.", reviewedAt: null });
+
+    // no feedback, no review: a replace stays unreviewed with no note
+    await db.update(sessionLogs).set({ trainerFeedback: null }).where(eq(sessionLogs.id, row.id));
+    const plain = await call("POST", "/v1/portal/logs", { token, body: logBody(s1, { onDuplicate: "replace" }) });
+    expect(plain.status).toBe(201);
+    expect((await ofS1())[0]).toMatchObject({ id: plain.body.id, trainerFeedback: null, reviewedAt: null, reviewedBy: null });
+  });
+
   test("another client can't delete my log; I can (Undo)", async () => {
     const week = await call("GET", "/v1/portal/week", { token });
     const mine = week.body.weeks[0].sessions.find((s: any) => s.id === s1).log.id;

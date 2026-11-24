@@ -135,6 +135,25 @@ describe("mockApi session log readiness and flags", () => {
     const { id: _b, ...was } = before;
     expect(restored).toEqual(was);
   });
+
+  test("a trainer replace keeps the coach's review; Undo puts it back on the original, once", async () => {
+    const input = await base();
+    const original = await mockApi.logSession({ ...input, notes: "first" });
+    await mockApi.reviewSessionLog(original.id, { reviewed: true, feedback: "Bar speed looked good" });
+    const [before] = await mine(input);
+
+    const replacing = await mockApi.logSession({ ...input, notes: "fixed", onDuplicate: "replace" });
+    expect(replacing).toMatchObject({ trainerFeedback: "Bar speed looked good", reviewedAt: before.reviewedAt, reviewedBy: "me" });
+    expect(replacing.replaced).toEqual([before]);
+
+    await mockApi.logSession(logToInput(replacing.replaced[0]));
+    await mockApi.deleteSessionLog(replacing.id);
+    const after = await mine(input);
+    expect(after).toHaveLength(1);
+    const { id: _a, ...restored } = after[0];
+    const { id: _b, ...was } = before;
+    expect(restored).toEqual(was);
+  });
 });
 
 describe("mockApi movement prep on a log (same rule as the API)", () => {

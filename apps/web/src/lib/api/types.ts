@@ -46,6 +46,7 @@ import type {
   HrProfileInput,
   LogPrescription,
   Vo2Protocol,
+  LogReviewRestore,
 } from "@pt/shared";
 import type { Treaty } from "@elysiajs/eden";
 import type { client } from "./treaty";
@@ -409,6 +410,8 @@ export interface SessionLogInput {
   /** This program session is already logged: throw DuplicateLogError (default),
    *  swap the old log for this one, or keep both. */
   onDuplicate?: "reject" | "replace" | "add";
+  /** Undo after Replace: the coach's review as the removed log had it (see logToInput). */
+  review?: LogReviewRestore;
   sets: LogSetInput[];
 }
 

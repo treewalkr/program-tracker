@@ -1,4 +1,4 @@
-import { DeloadSettings as DeloadSettingsSchema, normalizeKind, orderPatterns, primaryPattern, schemePreset, DEFAULT_PAGE_LIMIT, PAGE_LIMITS, isPageLimit, pageOf, weekOf, PENDING_GENERATIONS_LIMIT, STALE_PENDING_MS, startsOnIssue, localDateOf } from "@pt/shared";
+import { carriedReview, DeloadSettings as DeloadSettingsSchema, normalizeKind, orderPatterns, primaryPattern, schemePreset, DEFAULT_PAGE_LIMIT, PAGE_LIMITS, isPageLimit, pageOf, weekOf, PENDING_GENERATIONS_LIMIT, STALE_PENDING_MS, startsOnIssue, localDateOf } from "@pt/shared";
 import { asRelease1, withKindAlias } from "./kindAlias";
 import {
   AiProgramDraft as AiProgramDraftSchema,
@@ -1198,6 +1198,10 @@ const rawMockApi: TrainerApi = {
       flags: input.flags?.length ? input.flags.map((f) => ({ ...f })) : null,
       notes: input.notes,
       prepDone,
+      // Same as the API: a replace keeps the coach's review; an Undo write-back restores it as it was.
+      ...(input.review
+        ? { trainerFeedback: input.review.trainerFeedback, reviewedAt: input.review.reviewedAt, reviewedBy: input.review.reviewedAt ? "me" : null }
+        : carriedReview(replaced, "trainer")),
       sets: input.sets.map((s) => ({
         programExerciseId: s.programExerciseId ?? null,
         exerciseId: s.exerciseId,

@@ -29,6 +29,7 @@ import {
   type PortalWeekDto,
   type ProgramSession,
   normalizeKind,
+  carriedReview,
 } from "@pt/shared";
 import { uuid } from "$lib/uuid";
 import { mockExerciseName, mockLogPrescription, mockPrepDone, mockState } from "./api";
@@ -271,6 +272,8 @@ const rawMockPortalApi: PortalApi = {
       throw new PortalDuplicateError({ id: latest.sessionLogId, date: latest.date, loggedBy: latest.loggedBy ?? "trainer" });
     }
     if (dupes.length > 0) mockState.logs = mockState.logs.filter((l) => !dupes.includes(l));
+    // Same as the API: the coach's note survives the edit; the reviewed mark follows D5.
+    const review = carriedReview([...dupes].sort((a, b) => b.date.localeCompare(a.date)), "client");
     const id = uuid();
     mockState.logs.push({
       sessionLogId: id,
@@ -289,6 +292,7 @@ const rawMockPortalApi: PortalApi = {
       notes: input.notes,
       durationMin: input.durationMin ?? null,
       prepDone,
+      ...review,
       sets: input.sets.map((s) => ({ ...s, type: s.type ?? "working" })),
     });
     return { id, programSessionId: alias, date: input.date, loggedBy: "client" };

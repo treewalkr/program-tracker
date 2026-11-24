@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { localDateOf } from "@pt/shared";
+import { localDateOf, MEMBER_EDIT_CLEARS_REVIEW } from "@pt/shared";
 import { mockApi } from "./api";
 import { EXPIRED_TOKEN, SIGNED_IN_TOKEN, mockPortalApi, mockPortalProgress, mockPortalWeek } from "./portal";
 import { PortalDuplicateError } from "../portalTypes";
@@ -41,6 +41,27 @@ describe("mock portal (the demo client over the trainer mock)", () => {
 
     await mockPortalApi.deleteLog(saved.id);
     expect(mockPortalWeek().weeks[0].sessions.find((s) => s.id === session.id)!.log).toBeNull();
+  });
+
+  test("editing a log the coach reviewed keeps the coach's note on both sides; the mark follows D5", async () => {
+    const session = mockPortalWeek().weeks[0].sessions.find((s) => s.kind === "exercises" && !s.log)!;
+    const ex = session.exercises[0];
+    const body = (reps: number) => ({
+      programSessionId: session.id,
+      date: localDateOf(Date.now()),
+      sets: [{ programExerciseId: ex.id, exerciseId: ex.exerciseId, setNumber: 1, type: "working" as const, reps }],
+    });
+    const first = await mockPortalApi.log(body(8));
+    await mockApi.reviewSessionLog(first.id, { reviewed: true, feedback: "Good depth" });
+
+    const edited = await mockPortalApi.log({ ...body(9), onDuplicate: "replace" });
+    const entry = mockPortalWeek().weeks[0].sessions.find((s) => s.id === session.id)!.log!.entry!;
+    expect(entry.trainerFeedback).toBe("Good depth");
+    expect(entry.reviewedAt === null).toBe(MEMBER_EDIT_CLEARS_REVIEW);
+    const trainerSees = (await mockApi.sessionLogs("cl-nat")).find((l) => l.id === edited.id)!;
+    expect(trainerSees.trainerFeedback).toBe("Good depth");
+    expect(trainerSees.reviewedBy === null).toBe(MEMBER_EDIT_CLEARS_REVIEW);
+    await mockPortalApi.deleteLog(edited.id);
   });
 
   test("a client's low readiness and note show on the coach's Overview feed", async () => {
