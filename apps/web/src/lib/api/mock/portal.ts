@@ -52,13 +52,16 @@ const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
  * kept for the tab: `empty` (no program yet), `midweek` (the block week
  * started 3 days ago, so earlier days are open), `cardio` (Nok, the cardio
  * member: intervals with bpm targets, coach feedback, VO₂max tests), `off`
- * clears it. Link token `expired` (`/me/link/expired`) is always the dead-link page.
+ * clears it. Link token `expired` (`/me/link/expired`) is always the dead-link page;
+ * `again` is a link this browser already opened (straight to the week). Any other
+ * token shows "Open my program", as in a browser that isn't signed in yet.
  */
 export type MockPortalScenario = "empty" | "midweek" | "cardio" | null;
 const SCENARIOS = ["empty", "midweek", "cardio"] as const;
 const isScenario = (v: string | null): v is Exclude<MockPortalScenario, null> => (SCENARIOS as readonly (string | null)[]).includes(v);
 const SCENARIO_KEY = "pt.mock.portal";
 export const EXPIRED_TOKEN = "expired";
+export const SIGNED_IN_TOKEN = "again";
 
 export function mockScenario(): MockPortalScenario {
   if (typeof location === "undefined") return null;
@@ -306,7 +309,7 @@ const rawMockPortalApi: PortalApi = {
   async linkInfo(token) {
     await delay(150);
     if (token === EXPIRED_TOKEN) return null;
-    return { clientFirstName: demoClient().name.split(/\s+/)[0], trainerName: MOCK_TRAINER_NAME };
+    return { clientFirstName: demoClient().name.split(/\s+/)[0], trainerName: MOCK_TRAINER_NAME, signedIn: token === SIGNED_IN_TOKEN };
   },
   async openLink() {
     await delay(200);

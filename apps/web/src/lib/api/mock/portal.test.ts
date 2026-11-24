@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { localDateOf } from "@pt/shared";
 import { mockApi } from "./api";
-import { EXPIRED_TOKEN, mockPortalApi, mockPortalProgress, mockPortalWeek } from "./portal";
+import { EXPIRED_TOKEN, SIGNED_IN_TOKEN, mockPortalApi, mockPortalProgress, mockPortalWeek } from "./portal";
 import { PortalDuplicateError } from "../portalTypes";
 
 describe("mock portal (the demo client over the trainer mock)", () => {
@@ -80,7 +80,8 @@ describe("mock portal (the demo client over the trainer mock)", () => {
     const mid = mockPortalWeek(Date.now(), "midweek").weeks[0];
     expect(mid.startDate < today).toBe(true);
     expect(await mockPortalApi.linkInfo(EXPIRED_TOKEN)).toBeNull();
-    expect(await mockPortalApi.linkInfo("demo-nattapong")).toMatchObject({ trainerName: "Coach Ploy" });
+    expect(await mockPortalApi.linkInfo("demo-nattapong")).toMatchObject({ trainerName: "Coach Ploy", signedIn: false });
+    expect(await mockPortalApi.linkInfo(SIGNED_IN_TOKEN)).toMatchObject({ signedIn: true });
   });
 
   test("cardio demo: Nok's intervals with bpm from her HR zones, nothing of the profile itself", () => {

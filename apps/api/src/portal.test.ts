@@ -65,7 +65,7 @@ describe.skipIf(!dbUp)("portal sign-in by access link", () => {
   test("GET on the link only names who it's for — no session, no cookie", async () => {
     const r = await call("GET", `/v1/portal/link/${token}`);
     expect(r.status).toBe(200);
-    expect(r.body).toEqual({ clientFirstName: "Nok", trainerName: "Coach Ploy" });
+    expect(r.body).toEqual({ clientFirstName: "Nok", trainerName: "Coach Ploy", signedIn: false });
     expect(r.setCookie).toBeNull();
     expect(await db.select().from(clientSessions).where(eq(clientSessions.clientId, clientId))).toHaveLength(0);
     expect((await call("GET", "/v1/portal/link/nope")).status).toBe(404);
@@ -636,6 +636,9 @@ describe.skipIf(!dbUp)("trainer portal controls", () => {
     const session = /pt_client=([^;]+)/.exec(signIn.setCookie ?? "")![1];
     expect((await call("GET", "/v1/portal/me", { token: session })).status).toBe(200);
     expect((await asTrainer("GET", `/v1/clients/${clientId}/portal`)).body.lastSeenAt).not.toBeNull();
+    // the same browser tapping the link again is already in; another browser isn't
+    expect((await call("GET", `/v1/portal/link/${linkToken}`, { token: session })).body.signedIn).toBe(true);
+    expect((await call("GET", `/v1/portal/link/${linkToken}`)).body.signedIn).toBe(false);
 
     const reset = await asTrainer("POST", `/v1/clients/${clientId}/portal/reset`);
     expect(reset.body.link).not.toBe(on.body.link);

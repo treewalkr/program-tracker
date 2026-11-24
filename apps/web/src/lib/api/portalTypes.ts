@@ -14,6 +14,8 @@ export type PortalSession = { kind: "signedIn"; me: PortalMeDto } | { kind: "sig
 export interface PortalLinkInfo {
   clientFirstName: string;
   trainerName: string;
+  /** This browser is already signed in as this client: skip "Open my program". */
+  signedIn: boolean;
 }
 
 /** A portal log: the trainer's log shape minus who and which program — the session says. */
