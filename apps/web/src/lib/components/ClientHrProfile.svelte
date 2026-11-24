@@ -78,14 +78,6 @@
       busy = false;
     }
   }
-
-  /** bpm is a whole number: the zone cells ask for the digits-only keypad (InputCell's figure mode asks for the decimal one). */
-  const wholeNumberPad = (node: HTMLElement) => {
-    for (const input of node.querySelectorAll("input")) {
-      input.inputMode = "numeric";
-      input.pattern = "[0-9]*";
-    }
-  };
   const zoneRows = $derived<readonly HrZone[] | null>(editing ? ("zones" in preview ? preview.zones : draft.method === "custom" ? draft.zones : null) : (current?.zones ?? null));
 </script>
 
@@ -174,10 +166,10 @@
           {@const z = zones?.find((x) => x.zone === n)}
           <td class="r num">
             {#if editable && z}
-              <span class="pair" {@attach wholeNumberPad}>
-                <InputCell label="Zone {n} min bpm" figure width={4} placeholder="min" bind:value={() => (z.min ? String(z.min) : ""), (v) => setZone(z, "min", v)} />
+              <span class="pair">
+                <InputCell label="Zone {n} min bpm" figure numeric width={4} placeholder="min" bind:value={() => (z.min ? String(z.min) : ""), (v) => setZone(z, "min", v)} />
                 <span class="dash">–</span>
-                <InputCell label="Zone {n} max bpm" figure width={4} placeholder="max" bind:value={() => (z.max ? String(z.max) : ""), (v) => setZone(z, "max", v)} />
+                <InputCell label="Zone {n} max bpm" figure numeric width={4} placeholder="max" bind:value={() => (z.max ? String(z.max) : ""), (v) => setZone(z, "max", v)} />
               </span>
             {:else if z}
               {z.min}–{z.max}

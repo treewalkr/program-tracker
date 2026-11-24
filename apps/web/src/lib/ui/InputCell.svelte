@@ -29,10 +29,12 @@
 		max?: number;
 		/** With `figure`: the value can be negative, so phones get a keyboard with a minus key (iOS's decimal pad has none). */
 		signed?: boolean;
+		/** With `figure`: a whole number (bpm, reps), so phones get the digits-only keypad. */
+		numeric?: boolean;
 		oncommit?: (value: string) => void;
 	}
 
-	let { label, value = $bindable(''), placeholder, figure = false, width, disabled = false, maxlength, invalid = false, step, min, max, signed = false, oncommit }: Props = $props();
+	let { label, value = $bindable(''), placeholder, figure = false, width, disabled = false, maxlength, invalid = false, step, min, max, signed = false, numeric = false, oncommit }: Props = $props();
 
 	let start = '';
 	let el = $state<HTMLInputElement>();
@@ -61,7 +63,8 @@
 	class="cell"
 	class:fig={figure}
 	type="text"
-	inputmode={figure && !signed ? 'decimal' : undefined}
+	inputmode={figure && !signed ? (numeric ? 'numeric' : 'decimal') : undefined}
+	pattern={figure && numeric && !signed ? '[0-9]*' : undefined}
 	aria-label={label}
 	{placeholder}
 	{disabled}

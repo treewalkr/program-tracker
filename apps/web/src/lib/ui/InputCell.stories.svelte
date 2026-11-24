@@ -11,7 +11,7 @@
       docs: {
         description: {
           component:
-            'Edit text or a figure inside a dense table or week row. Plain text at rest, aligned with the column; the field appears on hover and takes the full focus ring on focus — the same rhythm as Select 04, so the two share a row. `figure` makes it mono, tabular and right-aligned, and a tap selects the figure so typing replaces it; with `step` (and `min`/`max`) ↑/↓ step it, Shift ×10. `maxlength` caps the text; `invalid` marks a value that cannot be saved. Enter (Done on a phone keyboard) commits, Esc reverts to the value it had on focus; `oncommit` fires only when the value changed. On a touch screen or a narrow window it reads app.css `--field-font`/`--field-h`: 16px type (no iOS focus zoom) and a 40px row.',
+            'Edit text or a figure inside a dense table or week row. Plain text at rest, aligned with the column; the field appears on hover and takes the full focus ring on focus — the same rhythm as Select 04, so the two share a row. `figure` makes it mono, tabular and right-aligned, and a tap selects the figure so typing replaces it; with `step` (and `min`/`max`) ↑/↓ step it, Shift ×10. `signed` gives a keyboard with a minus key and `numeric` the digits-only keypad (bpm, reps). `maxlength` caps the text; `invalid` marks a value that cannot be saved. Enter (Done on a phone keyboard) commits, Esc reverts to the value it had on focus; `oncommit` fires only when the value changed. On a touch screen or a narrow window it reads app.css `--field-font`/`--field-h`: 16px type (no iOS focus zoom) and a 40px row.',
         },
       },
     },
@@ -59,6 +59,10 @@
 
 <Story name="Signed figure" asChild>
   <div style="padding: 0 6px"><InputCell label="Target change, percent" value="-5" figure signed width={5} step={1} min={-100} max={200} placeholder="±%" /></div>
+</Story>
+
+<Story name="Whole-number figure" asChild>
+  <div style="padding: 0 6px"><InputCell label="Zone 2 min bpm" value="128" figure numeric width={4} placeholder="min" /></div>
 </Story>
 
 <Story name="Capped length" asChild>
