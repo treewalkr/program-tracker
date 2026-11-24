@@ -20,6 +20,9 @@
   import Pill from "$lib/ui/Pill.svelte";
   import Note from "$lib/ui/Note.svelte";
   import Icon from "$lib/ui/Icon.svelte";
+  import LeaveGuard from "$lib/ui/LeaveGuard.svelte";
+  import { createLibraryGuard } from "$lib/libraryGuard.svelte";
+  import { editChanged } from "$lib/libraryDraft";
 
   let examples = $state<ProgramExampleDto[]>([]);
   let clients = $state<ClientDto[]>([]);
@@ -72,7 +75,25 @@
     loaded = true;
   }
 
-  function startEdit(e: ProgramExampleDto) {
+  const editing = $derived(editingId ? (examples.find((x) => x.id === editingId) ?? null) : null);
+  const editDirty = $derived(
+    editChanged(
+      { goal: editGoal, level: editLevel, daysPerWeek: editDays, note: editNote },
+      editing && { goal: editing.goal, level: editing.level, daysPerWeek: editing.daysPerWeek, note: editing.note }
+    )
+  );
+  const guard = createLibraryGuard({
+    dirty: () => editDirty,
+    what: () => `Your edit to ${editing?.program.name ?? "this example"}`,
+  });
+  /** Cancel, or Edit on another example: asks first when the open edit changed. */
+  async function closeEdit() {
+    if (!editDirty || (await guard.discard())) editingId = null;
+    return editingId === null;
+  }
+
+  async function startEdit(e: ProgramExampleDto) {
+    if (!(await closeEdit())) return;
     editingId = e.id;
     editGoal = e.goal;
     editLevel = e.level;
@@ -224,7 +245,7 @@
                   <Button variant="primary" small type="submit" disabled={savingEdit || !editGoal.trim()}>
                     {savingEdit ? "Saving…" : "Save"}
                   </Button>
-                  <Button variant="ghost" small type="button" onclick={() => (editingId = null)}>Cancel</Button>
+                  <Button variant="ghost" small type="button" onclick={closeEdit}>Cancel</Button>
                 </div>
               </form>
             {:else}
@@ -283,6 +304,8 @@
     </Panel>
   </div>
 {/if}
+
+<LeaveGuard guard={guard.asker} />
 
 <style>
   .cols { display: grid; grid-template-columns: minmax(240px, 3fr) 9fr; gap: 18px; align-items: start; }
