@@ -23,11 +23,12 @@ export * from "./portalTypes";
  * edits show up here too and the demo needs no sign-in.
  */
 
-/** A signed-out client on a private page goes to the portal's sign-in, in the page's language. */
+/** A client signed out mid-use on a private page goes to the portal's sign-in, in the page's language. */
 function toPortalLogin() {
   const { lang, path } = splitLang(window.location.pathname);
   if (isPortalPublic(path)) return;
-  const login = `${PORTAL_LOGIN}?returnTo=${encodeURIComponent(path + window.location.search)}`;
+  // the session ended mid-use: the sign-in page says so, and that their entries are kept
+  const login = `${PORTAL_LOGIN}?returnTo=${encodeURIComponent(path + window.location.search)}&reason=signedOut`;
   window.location.assign(lang ? withLang(login, lang) : login);
 }
 
@@ -61,7 +62,8 @@ export const livePortalApi: PortalApi = {
     unwrap<PortalProgressDto>(client.v1.portal.progress.get({ query: { today: localDateOf(Date.now()), ...(protocol ? { protocol } : {}) } })),
   settings: () => unwrap<{ units: DisplayUnits }>(client.v1.portal.settings.get()),
   saveSettings: (units) => unwrap<{ units: DisplayUnits }>(client.v1.portal.settings.put({ units })),
-  log: (input) => unwrap<PortalSavedLog>(client.v1.portal.logs.post({ ...input, today: input.today ?? localDateOf(Date.now()) })),
+  log: (input, opts) =>
+    unwrap<PortalSavedLog>(client.v1.portal.logs.post({ ...input, today: input.today ?? localDateOf(Date.now()) }, opts?.signal ? { fetch: { signal: opts.signal } } : undefined)),
   async deleteLog(id) {
     await unwrap<unknown>(client.v1.portal.logs({ id }).delete(undefined, { query: { today: localDateOf(Date.now()) } }));
   },
@@ -77,7 +79,9 @@ export const livePortalApi: PortalApi = {
     await unwrap<unknown>(client.v1.portal.link({ token }).post());
   },
   async signOut() {
-    await client.v1.portal.logout.post();
+    // a failed sign-out must say so: the cookie is still there (a 401 is already signed out)
+    const { error } = await client.v1.portal.logout.post();
+    if (error && error.status !== 401) throw Object.assign(new Error(`sign-out failed: ${String(error.status)}`), { status: error.status });
   },
   googleHref: (returnTo) => `/v1/auth/google?as=client&returnTo=${encodeURIComponent(returnTo)}`,
 };

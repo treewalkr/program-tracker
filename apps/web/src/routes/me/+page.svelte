@@ -13,6 +13,9 @@
   import Button from "$lib/ui/Button.svelte";
   import Icon from "$lib/ui/Icon.svelte";
   import Skeleton from "$lib/ui/Skeleton.svelte";
+  import Note from "$lib/ui/Note.svelte";
+  import { cachedWeekDto, portalDraftKey, PORTAL_WEEK_CACHE_KEY, PORTAL_WEEK_DTO_CACHE_KEY, portalWeekCacheJson } from "$lib/portal/logForm";
+  import { clearPortalCopies } from "$lib/portal/offline";
 
   let { data } = $props();
 
@@ -21,6 +24,8 @@
 
   let dto = $state<PortalWeekDto | null>(null);
   let failed = $state(false);
+  /** Showing this phone's copy of the week: the connection dropped. */
+  let offline = $state(false);
   /** Render cold starts take 30–50 s: after a few seconds say so, instead of looking broken. */
   let slow = $state(false);
   let tab = $state<"this" | "next" | "progress">("this");
@@ -47,8 +52,15 @@
     const timer = setTimeout(() => (slow = true), 4000);
     try {
       dto = await portalApi.week();
+      offline = false;
+      keepCopy(dto);
     } catch {
-      failed = true;
+      // no signal: the week as last loaded here, so the member can still open today's session
+      const copy = cachedWeekDto(readStored(PORTAL_WEEK_DTO_CACHE_KEY), today);
+      if (copy) {
+        dto = copy;
+        offline = true;
+      } else failed = true;
     } finally {
       clearTimeout(timer);
       slow = false;
@@ -58,6 +70,32 @@
   $effect(() => {
     void load();
   });
+
+  function readStored(key: string): string | null {
+    try {
+      return localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  }
+
+  /** Sessions with a half-logged draft on this phone: their card says "Continue". */
+  const drafts = $derived.by(() => {
+    const ids = new Set<string>();
+    for (const w of dto?.weeks ?? []) for (const x of w.sessions) if (!x.log && readStored(portalDraftKey(x.id))) ids.add(x.id);
+    return ids;
+  });
+
+  /** Keep the week on this phone: the home page and every session in it open offline. */
+  function keepCopy(d: PortalWeekDto) {
+    try {
+      localStorage.setItem(PORTAL_WEEK_DTO_CACHE_KEY, JSON.stringify(d));
+      const on = d.weeks.find((w) => w.loggable);
+      if (on) localStorage.setItem(PORTAL_WEEK_CACHE_KEY, portalWeekCacheJson(on));
+    } catch {
+      // storage full or private mode: no offline copy, nothing else changes
+    }
+  }
 
   /** Week 1's start date while it is still ahead: the page previews Week 1 under a banner. */
   const startsOn = $derived(dto?.program?.startsOn && today < dto.program.startsOn ? dto.program.startsOn : null);
@@ -87,8 +125,18 @@
     dto = await portalApi.week();
   }
 
+  let signOutFailed = $state(false);
   async function signOut() {
-    await portalApi.signOut();
+    signOutFailed = false;
+    try {
+      await portalApi.signOut();
+    } catch {
+      // still signed in on the server: say so, and keep the member here
+      signOutFailed = true;
+      return;
+    }
+    // a shared phone: the next person shouldn't see this member's week
+    clearPortalCopies();
     await goto("/me/login", { invalidateAll: true });
   }
 
@@ -153,6 +201,9 @@
     <p class="empty-hint">{t("week.emptyProgramHint")}</p>
   </div>
 {:else if shown}
+  {#if offline}
+    <div class="offline"><Note tone="warn" role="status">{t("week.offline")}</Note></div>
+  {/if}
   {#if startsOn}
     <section class="starts" role="status">
       <p class="starts-title">{t("week.startsOn", { date: fmtDay(startsOn) })}</p>
@@ -169,7 +220,7 @@
           </span>
         {/if}
       </h2>
-      <PortalSessionCard session={nextUp} focus logHref={`/me/log/${nextUp.id}`} notLogged={pastOpen(nextUpDay?.date ?? null)} onremove={removeLog} />
+      <PortalSessionCard session={nextUp} draft={drafts.has(nextUp.id)} focus logHref={`/me/log/${nextUp.id}`} notLogged={pastOpen(nextUpDay?.date ?? null)} onremove={removeLog} />
     </section>
   {:else if current?.loggable && current.sessions.length > 0}
     {@const skippedN = skippedCount(current)}
@@ -192,7 +243,7 @@
             </h3>
             <div class="cards">
               {#each g.sessions as s (s.id)}
-                <PortalSessionCard session={s} notLogged logHref={`/me/log/${s.id}`} />
+                <PortalSessionCard session={s} draft={drafts.has(s.id)} notLogged logHref={`/me/log/${s.id}`} />
               {/each}
             </div>
           </section>
@@ -255,7 +306,7 @@
         </h2>
         <div class="cards">
           {#each g.sessions as s (s.id)}
-            <PortalSessionCard session={s} notLogged={pastOpen(g.date, shown.loggable)} logHref={shown.loggable ? `/me/log/${s.id}` : null} onremove={shown.loggable ? removeLog : undefined} />
+            <PortalSessionCard session={s} draft={drafts.has(s.id)} notLogged={pastOpen(g.date, shown.loggable)} logHref={shown.loggable ? `/me/log/${s.id}` : null} onremove={shown.loggable ? removeLog : undefined} />
           {/each}
         </div>
       </section>
@@ -266,11 +317,14 @@
 
 {#if apiMode === "live"}
   <footer class="foot">
+    {#if signOutFailed}<p class="out-err" role="alert">{t("header.signOutFailed")}</p>{/if}
     <button type="button" class="link-out" onclick={signOut}>{t("header.signOut")}</button>
   </footer>
 {/if}
 
 <style>
+  .offline { margin-bottom: 16px; }
+  .out-err { margin: 0 0 8px; font-size: 14px; color: var(--bad); }
   .hello { margin: 20px 0 16px; }
   h1 {
     margin: 0;

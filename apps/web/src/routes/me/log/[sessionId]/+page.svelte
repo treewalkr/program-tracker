@@ -1,8 +1,9 @@
 <script lang="ts">
   import { tick } from "svelte";
   import { page } from "$app/state";
+  import { beforeNavigate } from "$app/navigation";
   import { addDays, groupKind, localDateOf, modalityMetric, movementPrep, type PortalSession, type PortalWeek } from "@pt/shared";
-  import { portalApi, PortalDuplicateError, type PortalSavedLog } from "$lib/api/portal";
+  import { portalApi, PortalDuplicateError, type PortalLogInput, type PortalSavedLog } from "$lib/api/portal";
   import { blocksOf, roundBreaks, roundOrder, setSkipReason, skipExercise, unskipExercise, withExtraSet, withoutExtra, MAX_SETS, SKIP_REASONS, type RoundBreak, type SkipReason } from "$lib/logSheet";
   import { EMPTY_READINESS, FLAG_NOTE_MAX, setFlagNote, toggleFlag, type ExerciseFlags, type ReadinessForm } from "$lib/logFlags";
   import LogStepper from "$lib/components/LogStepper.svelte";
@@ -39,6 +40,7 @@
   import PortalBar from "$lib/portal/PortalBar.svelte";
   import RestTimer from "$lib/portal/RestTimer.svelte";
   import { restOf } from "$lib/portal/restTimer";
+  import { PortalTimeoutError, SAVE_TIMEOUT_MS, withTimeout } from "$lib/portal/timeout";
   import Button from "$lib/ui/Button.svelte";
   import Icon from "$lib/ui/Icon.svelte";
   import BackButton from "$lib/ui/BackButton.svelte";
@@ -76,6 +78,17 @@
   let date = $state(today);
   let current = $state(0);
   let restored = $state(false);
+  /** The coach changed the session since the draft: what still matched was kept. */
+  let merged = $state(false);
+  /**
+   * This page may remove the stored draft: it restored one, or wrote one this visit.
+   * A draft it couldn't use is never deleted behind the member's back.
+   */
+  let ownsDraft = false;
+  /** Another tab changed this session's draft: this one stops writing until reloaded. */
+  let otherTab = $state(false);
+  /** The last save attempt never got an answer: a 409 "by you" now most likely is that save. */
+  let lastSaveLost = false;
   /** Opened from this phone's copy of the week: the connection dropped. */
   let offline = $state(false);
   /** RPE is optional: hidden until asked for, so kg and reps share one row on a phone. */
@@ -175,6 +188,10 @@
     undone = false;
     error = null;
     restored = false;
+    merged = false;
+    otherTab = false;
+    ownsDraft = false;
+    lastSaveLost = false;
     showRpe = false;
     feelOpen = false;
     let w: PortalWeek | null;
@@ -216,6 +233,8 @@
       startedAt = draft.startedAt ?? null;
       date = draft.date >= minDate && draft.date <= maxDate ? draft.date : freshForm(s).date;
       restored = true;
+      merged = draft.merged;
+      ownsDraft = true;
     }
     // a restored draft or a saved log may already carry a skip or pain: never hide it
     issuesOpen = flaggedAt(0);
@@ -235,30 +254,55 @@
   });
 
   // Autosave the half-filled form on this phone; a save or "start over" clears it.
-  $effect(() => {
-    if (loadState !== "ready" || !session || saved || byCoach) return;
+  /** The draft as it should be stored now: the form's JSON, or null when nothing was touched. */
+  const draftNow = $derived.by(() => {
+    if (loadState !== "ready" || !session || saved || byCoach) return undefined;
     const form = { rows, cardio, readiness, notes, date, flags, startedAt, prepDone };
     // untouched prefill is not a draft: write nothing until the first real edit
-    const dirty = !sameForm(form, freshForm(session));
-    if (dirty && !startedAt) startedAt = new Date().toISOString();
-    const json = dirty ? portalDraftJson(form) : null;
+    return sameForm(form, freshForm(session)) ? null : portalDraftJson(form);
+  });
+
+  /** Write (or clear) the stored draft now. Never clears one this page didn't restore or write. */
+  function writeDraft(json: string | null | undefined) {
+    if (json === undefined || !session || otherTab) return;
     const key = portalDraftKey(session.id);
-    const timer = setTimeout(() => {
-      try {
-        if (json) localStorage.setItem(key, json);
-        else localStorage.removeItem(key);
-      } catch {
-        // storage full or private mode: the form still works, it just won't survive a reload
-      }
-    }, 400);
+    try {
+      if (json) {
+        localStorage.setItem(key, json);
+        ownsDraft = true;
+      } else if (ownsDraft) localStorage.removeItem(key);
+    } catch {
+      // storage full or private mode: the form still works, it just won't survive a reload
+    }
+  }
+
+  $effect(() => {
+    const json = draftNow;
+    if (json && !startedAt) startedAt = new Date().toISOString();
+    const timer = setTimeout(() => writeDraft(json), 400);
     return () => clearTimeout(timer);
   });
 
+  // The last edit before leaving, locking the phone or a 401 redirect is written at once, not 400 ms later.
+  const flushDraft = () => writeDraft(draftNow);
+  beforeNavigate(flushDraft);
+
+  /** Another tab wrote or cleared this session's draft: stop overwriting it, offer a reload. */
+  function onStorage(e: StorageEvent) {
+    if (!session || e.key !== portalDraftKey(session.id) || e.storageArea !== localStorage) return;
+    otherTab = true;
+  }
+
   function startOver() {
     if (!session) return;
-    localStorage.removeItem(portalDraftKey(session.id));
+    try {
+      localStorage.removeItem(portalDraftKey(session.id));
+    } catch {
+      // private mode: nothing was kept
+    }
     fresh(session);
     restored = false;
+    merged = false;
     issuesOpen = flaggedAt(0);
   }
 
@@ -342,26 +386,49 @@
       error = cardioErrorText(cardioProblem);
       return;
     }
+    // the draft is on the phone before the request leaves: a 401 redirect or a closed tab keeps every entry
+    flushDraft();
     saving = true;
     try {
-      const log = await portalApi.log(built.input);
-      localStorage.removeItem(portalDraftKey(session.id));
-      saved = { log, sets: built.sets, prep: summary?.prep ?? null, replaced: byYou, skipped: !!built.input.cardio?.skipped, pain: !!built.input.cardio?.pain?.reported || built.input.cardio?.skipped?.reason === "pain" };
-      undone = false;
-      window.scrollTo({ top: 0 });
+      const log = await withTimeout((signal) => portalApi.log(built.input, { signal }), SAVE_TIMEOUT_MS);
+      done(log, built);
     } catch (e) {
       if (e instanceof PortalDuplicateError) {
+        if (lastSaveLost && !byYou && e.existing.loggedBy === "client" && e.existing.date === built.input.date) {
+          // the earlier attempt landed, only its answer was lost: that is this save
+          done({ id: e.existing.id, programSessionId: session.id, date: e.existing.date, loggedBy: "client" }, built);
+          return;
+        }
         // someone logged it meanwhile: show who, from fresh data
         error = e.existing.loggedBy === "trainer" ? t("log.byCoach") : t("log.byYou", { date: fmtShortDate(e.existing.date) });
         if (session) session = { ...session, log: { id: e.existing.id, loggedBy: e.existing.loggedBy, date: e.existing.date } };
+      } else if (e instanceof PortalTimeoutError) {
+        lastSaveLost = true;
+        error = t("log.timeout");
       } else {
         const status = (e as { status?: unknown }).status;
+        // no answer at all (Eden's failed fetch): the server may still have it
+        if (typeof status !== "number" || status >= 500) lastSaveLost = true;
         // the server's schema refused a value: say so, never "check your connection"
         error = status === 422 ? (/invalid log/.test((e as Error).message) ? t("log.invalid") : t("log.notThisWeek")) : t("log.error");
       }
     } finally {
       saving = false;
     }
+  }
+
+  /** The save landed: the draft goes, the recap shows. */
+  function done(log: PortalSavedLog, built: { sets: number; input: PortalLogInput }) {
+    if (!session) return;
+    try {
+      localStorage.removeItem(portalDraftKey(session.id));
+    } catch {
+      // private mode: nothing was kept
+    }
+    lastSaveLost = false;
+    saved = { log, sets: built.sets, prep: summary?.prep ?? null, replaced: byYou, skipped: !!built.input.cardio?.skipped, pain: !!built.input.cardio?.pain?.reported || built.input.cardio?.skipped?.reason === "pain" };
+    undone = false;
+    window.scrollTo({ top: 0 });
   }
 
   async function undo() {
@@ -510,7 +577,8 @@
 
 <svelte:head><title>{session?.name ?? t("app.title")} · Program Tracker</title></svelte:head>
 
-<svelte:window ononline={() => (offline = false)} />
+<svelte:window ononline={() => (offline = false)} onstorage={onStorage} onpagehide={flushDraft} />
+<svelte:document onvisibilitychange={() => document.visibilityState === "hidden" && flushDraft()} />
 
 <PortalBar coach={me?.trainer.name ?? null} />
 
@@ -593,9 +661,15 @@
     {#if offline}
       <Note tone="warn" role="status">{t("log.offline")}</Note>
     {/if}
+    {#if otherTab}
+      <Note tone="warn" role="status" class="draft">
+        <span>{t("log.otherTab")}</span>
+        <button type="button" class="link-btn" onclick={() => load(sessionId)}>{t("log.otherTabReload")}</button>
+      </Note>
+    {/if}
     {#if restored}
       <Note tone="ok" role="note" class="draft">
-        <span>{t("log.draftRestored")}</span>
+        <span>{merged ? t("log.draftMerged") : t("log.draftRestored")}</span>
         <button type="button" class="link-btn" onclick={startOver}>{t("log.discard")}</button>
       </Note>
     {/if}

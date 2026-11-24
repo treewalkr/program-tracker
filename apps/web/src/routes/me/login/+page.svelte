@@ -16,6 +16,8 @@
   // Google brings the client back to the page they asked for, in this language
   const googleHref = $derived(portalApi.googleHref(inLang(portalReturnTo(page.url.searchParams.get("returnTo")))));
   const code = $derived(page.url.searchParams.get("error"));
+  /** Sent here by a 401 mid-use: say why, and that what they entered is still on this phone. */
+  const signedOut = $derived(page.url.searchParams.get("reason") === "signedOut");
   const error = $derived(
     code ? t((ERRORS as readonly string[]).includes(code) ? (`login.error.${code}` as MessageKey) : "login.error.google_failed") : null,
   );
@@ -33,6 +35,8 @@
 
   {#if error}
     <Note tone="bad" role="alert" class="err">{error}</Note>
+  {:else if signedOut}
+    <Note tone="warn" role="status" class="err">{t("login.signedOut")}</Note>
   {/if}
 
   <a class="google" href={googleHref}>
