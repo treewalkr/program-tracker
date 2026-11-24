@@ -13,6 +13,11 @@
     type ExerciseForm,
   } from "$lib/exerciseLibrary";
   import Icon from "$lib/ui/Icon.svelte";
+  import InputField from "$lib/ui/InputField.svelte";
+  import InputNote from "$lib/ui/InputNote.svelte";
+  import SelectCombobox from "$lib/ui/SelectCombobox.svelte";
+  import SelectField from "$lib/ui/SelectField.svelte";
+  import type { SelectOption } from "$lib/ui/select/options";
   import PatternChips from "./PatternChips.svelte";
 
   /**
@@ -34,6 +39,9 @@
     onduplicate: (e: ExerciseDto) => void;
     onopen: (id: string) => void;
   }
+
+  const muscleOptions: SelectOption[] = MUSCLE_OPTIONS.map((o) => ({ value: o.key, label: o.label }));
+  const functionalOptions: SelectOption[] = [{ value: "", label: "Untagged" }, ...FUNCTIONAL_OPTIONS.map((o) => ({ value: o.key, label: o.label }))];
 
   let { exercise, prefill, list, onclose, onsave, onremove, onrestore, ondelete, onduplicate, onopen }: Props = $props();
 
@@ -109,19 +117,16 @@
     {/if}
 
     <div class="f">
-      <label class="label" for="xf-name">Name</label>
-      <input
-        bind:this={nameInput}
-        class="input"
-        id="xf-name"
+      <InputField
+        label="Name"
         bind:value={form.name}
-        maxlength="160"
+        bind:input={nameInput}
+        maxlength={160}
         autocomplete="off"
         placeholder="e.g. Chest-Supported DB Row"
         disabled={locked}
-        aria-invalid={Boolean(errors.name)}
+        error={errors.name}
       />
-      {#if errors.name}<p class="err">{errors.name}</p>{/if}
       {#if dupes.similar.length && !errors.name}
         <div class="dupe">
           Already in the library:
@@ -133,17 +138,19 @@
     </div>
 
     <div class="f">
-      <label class="label" for="xf-primary">Primary muscle</label>
-      <select
-        class="select"
-        id="xf-primary"
-        bind:value={form.primaryMuscleGroup}
+      <span class="label">Primary muscle</span>
+      <SelectCombobox
+        label="Primary muscle"
+        placeholder="Choose…"
+        emptyText="No muscles match"
+        options={muscleOptions}
+        value={form.primaryMuscleGroup || undefined}
         disabled={locked}
-        onchange={() => (form.secondaryMuscleGroups = form.secondaryMuscleGroups.filter((m) => m !== form.primaryMuscleGroup))}
-      >
-        <option value="" disabled>Choose…</option>
-        {#each MUSCLE_OPTIONS as o (o.key)}<option value={o.key}>{o.label}</option>{/each}
-      </select>
+        onchange={(m) => {
+          form.primaryMuscleGroup = m;
+          form.secondaryMuscleGroups = form.secondaryMuscleGroups.filter((x) => x !== m);
+        }}
+      />
       {#if errors.primaryMuscleGroup}<p class="err">{errors.primaryMuscleGroup}</p>{/if}
     </div>
 
@@ -191,18 +198,12 @@
     </div>
 
     <div class="f">
-      <label class="label" for="xf-func">Functional movement</label>
-      <select class="select" id="xf-func" bind:value={form.functionalMovement} aria-describedby="xf-func-hint">
-        <option value="">Untagged</option>
-        {#each FUNCTIONAL_OPTIONS as o (o.key)}<option value={o.key}>{o.label}</option>{/each}
-      </select>
+      <SelectField label="Functional movement" maxWidth="none" options={functionalOptions} bind:value={form.functionalMovement} describedby="xf-func-hint" />
       <p class="hint" id="xf-func-hint">Rotation here = the lift's rotational role (throws, chops).</p>
     </div>
 
     <div class="f">
-      <label class="label" for="xf-note">Coaching note <span class="hint-inline">shown in programs and to the AI</span></label>
-      <textarea class="textarea" id="xf-note" bind:value={form.note} rows="2" maxlength="280" placeholder="Setup, cues, regressions…"
-      ></textarea>
+      <InputNote label="Coaching note" hint="Shown in programs and to the AI" bind:value={form.note} rows={2} maxlength={280} placeholder="Setup, cues, regressions…" />
     </div>
 
     {#if exercise && rm}
@@ -242,7 +243,6 @@
   .tchip:disabled { opacity: 0.6; cursor: default; }
   .hint { margin: 6px 0 0; font-size: 12px; color: var(--muted); }
   .star-key :global(svg) { width: 11px; height: 11px; fill: currentColor; vertical-align: -1px; margin-right: 3px; }
-  .textarea { resize: vertical; font-family: var(--font-ui); }
   .err { margin-top: 4px; }
   .meta { display: flex; gap: 6px 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
   .ctx { margin: 0; font-size: 13px; color: var(--muted); }
