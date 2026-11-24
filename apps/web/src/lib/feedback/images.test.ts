@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { admit, compressImage, fitWithin, ImageRefused, type ImageCodec } from "./images";
+import { admit, captureScale, CAPTURE_MAX_PIXELS, compressImage, fitWithin, ImageRefused, visibleSlice, type ImageCodec } from "./images";
 
 const file = (type: string, name = "a") => new File([new Uint8Array(4)], name, { type });
 
@@ -79,5 +79,30 @@ describe("compressImage", () => {
     const huge = fakeCodec({ width: 10, height: 10, bytesAt: () => 5000 });
     await expect(compressImage(file("image/png", "big.png"), { codec: huge.codec, maxBytes: 1000 })).rejects.toThrow("too detailed");
     expect(huge.closed()).toBe(true);
+  });
+});
+
+describe("visibleSlice", () => {
+  const phone = { width: 390, height: 664 };
+  test("a scrolled phone page gives the screen the trainer saw, at full width", () => {
+    expect(visibleSlice({ left: 0, top: -350, width: 390, height: 2940 }, phone)).toEqual({ x: 0, y: 350, width: 390, height: 664 });
+  });
+  test("never runs past the end of the page, nor above its top", () => {
+    expect(visibleSlice({ left: 0, top: -2600, width: 390, height: 2940 }, phone)).toEqual({ x: 0, y: 2276, width: 390, height: 664 });
+    expect(visibleSlice({ left: 0, top: 20, width: 390, height: 2940 }, phone).y).toBe(0);
+  });
+  test("a page shorter than the screen is taken whole", () => {
+    expect(visibleSlice({ left: 0, top: 0, width: 390, height: 400 }, phone)).toEqual({ x: 0, y: 0, width: 390, height: 400 });
+  });
+});
+
+describe("captureScale", () => {
+  test("sharp on a retina screen, capped at 2x, never under 1x for an ordinary page", () => {
+    expect(captureScale(390, 2940, 3)).toBe(2);
+    expect(captureScale(1280, 3000, 1)).toBe(1);
+  });
+  test("a very long page drops the scale to stay under the canvas limit", () => {
+    const s = captureScale(390, 40000, 3);
+    expect(390 * s * 40000 * s).toBeLessThanOrEqual(CAPTURE_MAX_PIXELS + 1);
   });
 });

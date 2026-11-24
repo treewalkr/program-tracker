@@ -9,7 +9,7 @@
   import TicketPins from "./TicketPins.svelte";
   import AttachmentInput from "./AttachmentInput.svelte";
   import KindFields from "./KindFields.svelte";
-  import { compressImage, dataUrlToBlob } from "./images";
+  import { captureScale, compressImage, dataUrlToBlob, visibleSlice } from "./images";
   import { ImageTray } from "./tray.svelte";
   import { placePin } from "./layout";
   import InputNote from "$lib/ui/InputNote.svelte";
@@ -210,18 +210,35 @@
     }
   }
 
-  /** A capture, re-encoded like any other image (webp, ≤ 2000px, ≤ 2 MB). */
-  async function shoot(node: HTMLElement, kind: "element" | "page"): Promise<File | undefined> {
+  /**
+   * A capture, re-encoded like any other image (webp, ≤ 2000px, ≤ 2 MB). The
+   * page shot is the screen the trainer was looking at, not the whole page.
+   * Fixed overlays (toasts, banners, docks) are left out: the capture paints
+   * them from the top of the page, so they'd land on whatever is up there,
+   * often the very thing being reported. One holding `target` stays.
+   */
+  async function shoot(node: HTMLElement, kind: "element" | "page", target: Element): Promise<File | undefined> {
     try {
-      const { domToPng, domToJpeg } = await import("modern-screenshot");
-      const filter = (n: Node) => !isFeedbackUi(n);
+      const { domToPng, domToCanvas } = await import("modern-screenshot");
+      const filter = (n: Node) =>
+        !isFeedbackUi(n) && !(n instanceof Element && !n.contains(target) && getComputedStyle(n).position === "fixed");
       // Capture on the page canvas so dark-theme shots don't get a white backdrop.
       const backgroundColor = getComputedStyle(document.body).backgroundColor;
-      const url =
-        kind === "element"
-          ? await domToPng(node, { scale: Math.min(window.devicePixelRatio, 2), backgroundColor, filter })
-          : await domToJpeg(node, { scale: 1, quality: 0.85, backgroundColor, filter });
-      return await compressImage(await dataUrlToBlob(url), { name: `${kind}.png` });
+      let blob: Blob;
+      if (kind === "element") {
+        blob = await dataUrlToBlob(await domToPng(node, { scale: Math.min(window.devicePixelRatio, 2), backgroundColor, filter }));
+      } else {
+        const box = node.getBoundingClientRect();
+        const scale = captureScale(box.width, box.height, window.devicePixelRatio);
+        const full = await domToCanvas(node, { scale, backgroundColor, filter });
+        const cut = visibleSlice(box, { width: window.innerWidth, height: window.innerHeight });
+        const out = document.createElement("canvas");
+        out.width = Math.round(cut.width * scale);
+        out.height = Math.round(cut.height * scale);
+        out.getContext("2d")?.drawImage(full, cut.x * scale, cut.y * scale, out.width, out.height, 0, 0, out.width, out.height);
+        blob = await new Promise<Blob>((ok, fail) => out.toBlob((b) => (b ? ok(b) : fail(new Error("encode failed"))), "image/jpeg", 0.85));
+      }
+      return await compressImage(blob, { name: `${kind}.png` });
     } catch {
       // A failed (or too large) screenshot never blocks the comment itself.
       return undefined;
@@ -256,8 +273,10 @@
       // A small element (a heading, a chip) is shot inside a roomier ancestor, outlined.
       const frame = closeUpFrame(target);
       const elementShot =
-        frame === target ? await shoot(target, "element") : await outlined(target, () => shoot(frame, "element"));
-      const pageShot = includePage ? await outlined(target, () => shoot(document.body, "page")) : undefined;
+        frame === target
+          ? await shoot(target, "element", target)
+          : await outlined(target, () => shoot(frame, "element", target));
+      const pageShot = includePage ? await outlined(target, () => shoot(document.body, "page", target)) : undefined;
       const shots: CapturedShot[] = [
         ...(elementShot ? [{ kind: "element" as const, file: elementShot }] : []),
         ...(pageShot ? [{ kind: "page" as const, file: pageShot }] : []),
@@ -355,7 +374,7 @@
       />
       <label class="check">
         <input type="checkbox" bind:checked={includePage} />
-        Attach a screenshot of the whole page
+        Attach a screenshot of the screen
       </label>
       <AttachmentInput {tray} disabled={sending} label="this feedback" />
       {#if error}
