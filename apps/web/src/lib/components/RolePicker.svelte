@@ -4,6 +4,8 @@
   import { canCreateLabel, groupRoleLabels, pickableLabels, roleDisplay, searchRoleLabels } from "$lib/roleLabels";
   import { roleLabels } from "$lib/roleLabelStore.svelte";
   import Icon from "$lib/ui/Icon.svelte";
+  import InputField from "$lib/ui/InputField.svelte";
+  import SelectField from "$lib/ui/SelectField.svelte";
 
   /**
    * Role picker (ARIA combobox), the pill at the head of an exercise. Typing
@@ -53,6 +55,7 @@
   const optId = (i: number) => `${uid}-opt-${i}`;
   const indexOfLabel = (l: RoleLabel) => options.findIndex((o) => o.kind === "label" && o.label.key === l.key);
   const activeLabels = $derived(labels.filter((l) => !l.archived).sort((a, b) => a.rank - b.rank));
+  const afterOptions = $derived(activeLabels.map((l) => ({ value: l.key, label: l.name })));
 
   // —— forms: a new label, or a label's meaning ————————————————————————————
   type Form = { mode: "new" | "edit"; target: RoleLabel | null; name: string; chip: string; description: string; after: string };
@@ -221,41 +224,25 @@
           <div class="rp-form-body">
             {#if form.target?.builtinKey}
               <div class="rp-f2">
-                <label class="rp-f">
-                  <span>Chip <em>optional</em></span>
-                  <input bind:this={firstField} bind:value={form.chip} class="input" maxlength="12" placeholder={form.target.name} autocomplete="off" />
-                </label>
+                <InputField label="Chip" optional bind:input={firstField} bind:value={form.chip} maxlength={12} placeholder={form.target.name} autocomplete="off" />
               </div>
             {:else}
               <div class="rp-f2">
-                <label class="rp-f">
-                  <span>Name</span>
-                  <input bind:this={firstField} bind:value={form.name} class="input" required maxlength="40" autocomplete="off" />
-                </label>
-                <label class="rp-f">
-                  <span>Chip <em>optional</em></span>
-                  <input bind:value={form.chip} class="input" maxlength="12" placeholder={form.name.trim() || "Same as name"} autocomplete="off" />
-                </label>
+                <InputField label="Name" bind:input={firstField} bind:value={form.name} required maxlength={40} autocomplete="off" />
+                <InputField label="Chip" optional bind:value={form.chip} maxlength={12} placeholder={form.name.trim() || "Same as name"} autocomplete="off" />
               </div>
             {/if}
-            <label class="rp-f">
-              <span>What it means {#if form.target?.builtinKey}<em>empty = the default</em>{/if}</span>
-              <input
-                bind:value={form.description}
-                class="input"
-                required={!form.target?.builtinKey}
-                maxlength="200"
-                placeholder="e.g. Fast, light reps done fresh"
-                autocomplete="off"
-              />
-            </label>
+            <InputField
+              label="What it means"
+              hint={form.target?.builtinKey ? "Empty = the default" : null}
+              bind:value={form.description}
+              required={!form.target?.builtinKey}
+              maxlength={200}
+              placeholder="e.g. Fast, light reps done fresh"
+              autocomplete="off"
+            />
             {#if form.mode === "new"}
-              <label class="rp-f">
-                <span>Sort after</span>
-                <select bind:value={form.after} class="select">
-                  {#each activeLabels as l (l.key)}<option value={l.key}>{l.name}</option>{/each}
-                </select>
-              </label>
+              <SelectField label="Sort after" maxWidth="none" options={afterOptions} bind:value={form.after} />
             {/if}
             {#if formError}<p class="rp-err" role="alert">{formError}</p>{/if}
           </div>
@@ -429,6 +416,8 @@
     z-index: 20;
     overflow: hidden;
   }
+  /* the form's "Sort after" list opens past the bottom edge */
+  .rp-pop:has(> .rp-form) { overflow: visible; }
 
   .rp-search {
     display: flex;
@@ -573,12 +562,8 @@
   .rp-form-title { font: 600 14px var(--font-ui); color: var(--ink); }
   .rp-form-sub { margin-left: auto; font-size: 12px; color: var(--muted); }
   .rp-form-body { display: grid; gap: 10px; padding: 12px; }
-  .rp-f2 { display: grid; grid-template-columns: 1fr 96px; gap: 10px; }
-  .rp-f2:has(> :only-child) { grid-template-columns: 120px; }
-  .rp-f { display: grid; gap: 4px; min-width: 0; }
-  .rp-f > span { font: 500 12px var(--font-ui); color: var(--ink); }
-  .rp-f em { font-style: normal; font-weight: 400; color: var(--muted); }
-  .rp-f .input, .rp-f .select { width: 100%; font-size: 14px; }
+  .rp-f2 { display: grid; grid-template-columns: 1fr 120px; gap: 10px; }
+  .rp-f2:has(> :global(:only-child)) { grid-template-columns: 120px; }
   .rp-err { margin: 0; font-size: 12px; color: var(--bad); }
   .rp-form-foot {
     display: flex;
@@ -587,6 +572,7 @@
     gap: 8px;
     padding: 8px 12px;
     border-top: 1px solid var(--line-soft);
+    border-radius: 0 0 var(--radius) var(--radius);
     background: var(--well);
   }
   .rp-archive {
