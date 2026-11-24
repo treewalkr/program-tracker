@@ -137,10 +137,10 @@ describe("pendingProgram", () => {
 
 describe("ledgerRows", () => {
   test("program row flags an approved-but-inactive program", () => {
-    const rows = ledgerRows({ ...ledgerBase, pending: mkProgram({ id: "p1", version: 1 }) });
+    const rows = ledgerRows({ ...ledgerBase, pending: mkProgram({ id: "p1", name: "Strength Base B", version: 1 }) });
     expect(rows.find((r) => r.key === "Program")).toEqual({
       key: "Program",
-      value: "None active — v1 is approved but not active",
+      value: "None active — “Strength Base B” is approved but not active",
       lamp: "amber",
       link: { href: "/programs/p1", label: "Open program" },
     });

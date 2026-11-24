@@ -207,7 +207,8 @@ export function ledgerRows(i: {
   } else if (pending) {
     rows.push({
       key: "Program",
-      value: `None active — v${pending.version} is approved but not active`,
+      // the program row's own version (v1) isn't the draft version the trainer approved: name it instead
+      value: `None active — “${pending.name}” is approved but not active`,
       lamp: "amber",
       link: { href: `/programs/${pending.id}`, label: "Open program" },
     });
