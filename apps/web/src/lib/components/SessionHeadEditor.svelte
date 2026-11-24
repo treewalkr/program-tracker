@@ -5,6 +5,10 @@
   import { defaultCardio, kindForType, switchSessionKind, type SessionKind } from "@pt/shared";
   import ConfirmButton from "$lib/ui/ConfirmButton.svelte";
   import SessionTypePicker from "./SessionTypePicker.svelte";
+  import InputField from "$lib/ui/InputField.svelte";
+  import InputNote from "$lib/ui/InputNote.svelte";
+  import SelectField from "$lib/ui/SelectField.svelte";
+  import type { SelectOption } from "$lib/ui/select/options";
 
   /** Inline editor for a session's name, type (which sets its kind), notes and cardio prescription.
    *  Placement (day, order) lives on the week calendar, not here. */
@@ -42,16 +46,15 @@
     onsavetemplate?: (input: CardioTemplateInput) => Promise<CardioTemplateDto>;
   } = $props();
 
-  const DAYS = ["Any day", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  const DAYS: SelectOption[] = ["Any day", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((label, i) => ({ value: String(i), label }));
   const cardio = () => (session.cardio ??= defaultCardio());
 </script>
 
 <div class="sessedit">
   <div class="row">
-    <label class="f grow">
-      <span>Session name</span>
-      <input class="input" maxlength="160" bind:value={session.name} />
-    </label>
+    <div class="grow-f">
+      <InputField label="Session name" maxlength={160} bind:value={session.name} />
+    </div>
     <div class="f">
       <span>Type</span>
       <SessionTypePicker
@@ -67,17 +70,9 @@
         oncreate={oncreatetype}
       />
     </div>
-    <label class="f">
-      <span>Day</span>
-      <select class="select" value={String(session.weekday ?? 0)} onchange={(e) => onday(Number(e.currentTarget.value) || null)}>
-        {#each DAYS as d, i (i)}<option value={String(i)}>{d}</option>{/each}
-      </select>
-    </label>
+    <SelectField label="Day" options={DAYS} value={String(session.weekday ?? 0)} onchange={(v) => onday(Number(v) || null)} />
   </div>
-  <label class="f">
-    <span>Notes</span>
-    <textarea class="textarea" rows="2" maxlength="2000" value={session.notes ?? ""} oninput={(e) => (session.notes = e.currentTarget.value || undefined)}></textarea>
-  </label>
+  <InputNote label="Notes" rows={2} maxlength={2000} value={session.notes ?? ""} oninput={(v) => (session.notes = v || undefined)} />
 
   {#if session.kind === "cardio"}
     <CardioPrescriptionEditor bind:cardio={() => cardio(), (v) => (session.cardio = v)} {modalities} {templates} {zones} {onsavetemplate} />
@@ -103,7 +98,7 @@
   }
   .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; }
   .f { display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; color: var(--muted); }
-  .f.grow { flex: 1; min-width: 160px; }
+  .grow-f { flex: 1; min-width: 160px; }
   .foot { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
   .grow { flex: 1; }
 </style>
