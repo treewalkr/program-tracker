@@ -11,6 +11,7 @@
   import ConfirmButton from "$lib/ui/ConfirmButton.svelte";
   import EmptyState from "$lib/ui/EmptyState.svelte";
   import Icon from "$lib/ui/Icon.svelte";
+  import InputField from "$lib/ui/InputField.svelte";
   import Note from "$lib/ui/Note.svelte";
   import PageHead from "$lib/ui/PageHead.svelte";
   import Panel from "$lib/ui/Panel.svelte";
@@ -166,14 +167,12 @@
   {#if editor}
     <form class="editor" bind:this={editorEl} onsubmit={save} aria-label={editor.id ? `Edit ${editor.name}` : "New scheme"}>
       <div class="editor-fields">
-        <label class="field">
-          <span class="field-label">Name</span>
-          <input class="input" maxlength="120" placeholder="e.g. 5-week peak" bind:value={editor.name} />
-        </label>
-        <label class="field grow">
-          <span class="field-label">Description <span class="opt">optional</span></span>
-          <input class="input" maxlength="500" placeholder="When you use it, what it's for" bind:value={editor.description} />
-        </label>
+        <div class="field">
+          <InputField label="Name" maxlength={120} placeholder="e.g. 5-week peak" bind:value={editor.name} />
+        </div>
+        <div class="field grow">
+          <InputField label="Description" optional maxlength={500} placeholder="When you use it, what it's for" bind:value={editor.description} />
+        </div>
       </div>
       <WeekPlanRows bind:rows={editor.rows} />
       <div class="editor-acts">
@@ -304,10 +303,8 @@
   .editor { display: flex; flex-direction: column; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--line-soft); background: var(--well); }
   .row .editor { margin: -12px -16px; border-bottom: none; }
   .editor-fields { display: flex; gap: 12px; flex-wrap: wrap; }
-  .field { display: flex; flex-direction: column; gap: 4px; min-width: 200px; }
+  .field { min-width: 200px; }
   .field.grow { flex: 1; }
-  .field-label { font: 500 12px var(--font-ui); color: var(--ink); }
-  .opt { font-weight: 400; color: var(--muted); }
   .editor-acts { display: flex; align-items: center; gap: 8px; }
   .editor-acts .subtle { margin-left: auto; font-size: 12px; color: var(--muted); }
 
