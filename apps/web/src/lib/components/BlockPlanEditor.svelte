@@ -4,6 +4,10 @@
   import { normalizePlan, planChanges, setProgression, validatePlanWeek, PROGRESSION_STEP, type PlanWeek } from "$lib/draftReview";
   import BlockPlanStrip from "./BlockPlanStrip.svelte";
   import Icon from "$lib/ui/Icon.svelte";
+  import InputCell from "$lib/ui/InputCell.svelte";
+  import InputField from "$lib/ui/InputField.svelte";
+  import SelectCell from "$lib/ui/SelectCell.svelte";
+  import type { SelectOption } from "$lib/ui/select/options";
 
   /**
    * Edit a draft's block plan by hand: per-week directive, % target, progression rule and note;
@@ -29,11 +33,12 @@
   let edit = $state<ProgramPhasingDto>(normalizePlan(structuredClone($state.snapshot(phasing))));
   let selected = $state(1);
 
-  const METRICS: [WeekMetric | "", string][] = [
-    ["", "No target"],
-    ["overall_volume", "Volume"],
-    ["rep_volume", "Rep volume"],
-    ["intensity", "Load"],
+  const DIRECTIVES: SelectOption<WeekDirective>[] = WEEK_DIRECTIVES.map((d) => ({ value: d as WeekDirective, label: d }));
+  const METRICS: SelectOption<WeekMetric | "">[] = [
+    { value: "", label: "No target" },
+    { value: "overall_volume", label: "Volume" },
+    { value: "rep_volume", label: "Rep volume" },
+    { value: "intensity", label: "Load" },
   ];
 
   const weeks = $derived(edit.weeks ?? []);
@@ -46,12 +51,13 @@
     w.target = metric ? { metric, deltaPercent: w.target?.deltaPercent ?? (metric === "intensity" ? 2.5 : 5) } : undefined;
   }
 
-  const PROGRESSIONS: [ProgressionKind | "", string][] = [
-    ["", "None"],
-    ["kg", "+kg"],
-    ["percent", "+% 1RM"],
-    ["sets", "+sets"],
+  const PROGRESSIONS: SelectOption<ProgressionKind | "">[] = [
+    { value: "", label: "None" },
+    { value: "kg", label: "+kg" },
+    { value: "percent", label: "+% 1RM" },
+    { value: "sets", label: "+sets" },
   ];
+  const figText = (n: number) => (Number.isFinite(n) ? String(n) : "");
 
   function setProgAmount(w: PlanWeek, value: string) {
     if (w.progression) w.progression.amount = value === "" ? Number.NaN : Number(value);
@@ -75,8 +81,8 @@
   <BlockPlanStrip phasing={normalized} bind:selected changed={changedWeeks} {deload} />
 
   <div class="top">
-    <label>Phase<input class="input" maxlength="120" bind:value={edit.phase} /></label>
-    <label>Next block<input class="input" maxlength="120" placeholder="optional" bind:value={edit.nextPhase} /></label>
+    <div class="f"><InputField label="Phase" maxlength={120} bind:value={edit.phase} /></div>
+    <div class="f"><InputField label="Next block" maxlength={120} placeholder="optional" bind:value={() => edit.nextPhase ?? "", (v) => (edit.nextPhase = v)} /></div>
     <span class="subtle">{weeks.length} weeks · sessions repeat every week · after approval, Block phasing → Preview progression writes weeks 2+ from these rules</span>
   </div>
 
@@ -88,28 +94,19 @@
         <tr class:changed={changedWeeks.has(i + 1)}>
           <td class="w">W{i + 1}</td>
           <td>
-            <select class="select dir" aria-label="Week {i + 1} directive" bind:value={w.directive}>
-              {#each WEEK_DIRECTIVES as d (d)}<option value={d as WeekDirective}>{d}</option>{/each}
-            </select>
+            <SelectCell label="Week {i + 1} directive" options={DIRECTIVES} bind:value={w.directive} />
           </td>
           <td class="tgt-cell">
             <div class="tgt">
-              <select
-                class="select met"
-                aria-label="Week {i + 1} target metric"
-                value={w.target?.metric ?? ""}
-                onchange={(e) => setMetric(w, e.currentTarget.value as WeekMetric | "")}
-              >
-                {#each METRICS as [m, label] (m)}<option value={m}>{label}</option>{/each}
-              </select>
+              <SelectCell label="Week {i + 1} target metric" options={METRICS} value={w.target?.metric ?? ""} onchange={(m) => setMetric(w, m)} />
               {#if w.target}
-                <input
-                  class="input pct"
-                  type="number"
-                  step="0.5"
-                  aria-label="Week {i + 1} target percent"
-                  value={Number.isFinite(w.target.deltaPercent) ? w.target.deltaPercent : ""}
-                  oninput={(e) => setPct(w, e.currentTarget.value)}
+                <InputCell
+                  figure
+                  width={6}
+                  step={0.5}
+                  label="Week {i + 1} target percent"
+                  value={figText(w.target.deltaPercent)}
+                  oncommit={(v) => setPct(w, v)}
                 />
                 <span class="vs">% vs {i === 0 ? "start" : `W${i}`}</span>
               {/if}
@@ -121,22 +118,15 @@
               <span class="vs" title="Week 1 is the base the later weeks progress from">base</span>
             {:else}
               <div class="tgt">
-                <select
-                  class="select met"
-                  aria-label="Week {i + 1} progression vs W{i}"
-                  value={w.progression?.kind ?? ""}
-                  onchange={(e) => setProgression(w, e.currentTarget.value as ProgressionKind | "")}
-                >
-                  {#each PROGRESSIONS as [k, label] (k)}<option value={k}>{label}</option>{/each}
-                </select>
+                <SelectCell label="Week {i + 1} progression vs W{i}" options={PROGRESSIONS} value={w.progression?.kind ?? ""} onchange={(k) => setProgression(w, k)} />
                 {#if w.progression}
-                  <input
-                    class="input pct"
-                    type="number"
+                  <InputCell
+                    figure
+                    width={6}
                     step={PROGRESSION_STEP[w.progression.kind]}
-                    aria-label="Week {i + 1} progression amount"
-                    value={Number.isFinite(w.progression.amount) ? w.progression.amount : ""}
-                    oninput={(e) => setProgAmount(w, e.currentTarget.value)}
+                    label="Week {i + 1} progression amount"
+                    value={figText(w.progression.amount)}
+                    oncommit={(v) => setProgAmount(w, v)}
                   />
                   <span class="vs">{w.progression.kind === "kg" ? "kg" : w.progression.kind === "percent" ? "pts" : "sets"}</span>
                 {/if}
@@ -144,7 +134,7 @@
             {/if}
           </td>
           <td class="note-cell">
-            <input class="input note" maxlength="500" placeholder="What this week should do" aria-label="Week {i + 1} note" bind:value={w.note} />
+            <InputCell maxlength={500} placeholder="What this week should do" label="Week {i + 1} note" bind:value={() => w.note ?? "", (v) => (w.note = v)} />
           </td>
           <td>
             {#if i === weeks.length - 1 && weeks.length > 1}
@@ -176,12 +166,7 @@
     align-items: flex-end;
     margin: 14px 0 10px;
   }
-  .top label {
-    display: grid;
-    gap: 4px;
-    font: 500 12px/1 var(--font-ui);
-  }
-  .top .input {
+  .top .f {
     width: 200px;
   }
   .sr {
@@ -213,34 +198,15 @@
   tr.changed .w {
     color: var(--blue);
   }
-  .ed :global(.select),
-  .ed :global(.input) {
-    padding: 4px 8px;
-    font-size: 13px;
-  }
-  .dir {
-    width: 130px;
-  }
-  .met {
-    width: 128px;
-  }
-  .pct {
-    width: 76px;
-    text-align: right;
-    font-family: var(--font-mono);
-  }
   .tgt {
     display: flex;
-    gap: 6px;
+    gap: 12px;
     align-items: center;
     white-space: nowrap;
   }
   .vs {
     color: var(--muted);
     font-size: 12px;
-  }
-  .note {
-    width: 100%;
   }
   .msg {
     font-size: 12px;
@@ -309,9 +275,6 @@
     .prog-cell,
     .note-cell {
       grid-column: 2 / 4;
-    }
-    .dir {
-      width: 100%;
     }
     .hint {
       margin-left: 0;
