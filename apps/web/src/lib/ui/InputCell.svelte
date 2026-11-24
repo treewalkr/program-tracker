@@ -1,9 +1,12 @@
 <script lang="ts">
+	import { formatFigure, parseFigure, stepFigure } from './input/figure';
+
 	/**
 	 * Input 04 · Quiet cell — text or a figure edited inside a dense table or
 	 * week row. Plain text at rest (aligned with the column), the field on
 	 * hover, the full focus ring on focus — the same rhythm as Select 04.
 	 * Enter commits, Esc reverts; `oncommit` fires only when the value changed.
+	 * A figure cell with `step` steps on ↑/↓ like a number field.
 	 */
 	interface Props {
 		/** Accessible name: "Notes for Back squat". */
@@ -15,10 +18,17 @@
 		/** Width in `ch`; omit to fill the cell. */
 		width?: number;
 		disabled?: boolean;
+		maxlength?: number;
+		/** Marks the cell as holding a value that can't be saved; the message sits outside the cell. */
+		invalid?: boolean;
+		/** With `figure`: ↑/↓ step the figure by this (Shift ×10), clamped to min/max. */
+		step?: number;
+		min?: number;
+		max?: number;
 		oncommit?: (value: string) => void;
 	}
 
-	let { label, value = $bindable(''), placeholder, figure = false, width, disabled = false, oncommit }: Props = $props();
+	let { label, value = $bindable(''), placeholder, figure = false, width, disabled = false, maxlength, invalid = false, step, min, max, oncommit }: Props = $props();
 
 	let start = '';
 	let el = $state<HTMLInputElement>();
@@ -31,6 +41,9 @@
 			e.preventDefault();
 			value = start;
 			el?.blur();
+		} else if (figure && step && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+			e.preventDefault();
+			value = formatFigure(stepFigure(parseFigure(value), step * (e.shiftKey ? 10 : 1), e.key === 'ArrowUp' ? 1 : -1, min, max));
 		}
 	}
 
@@ -48,6 +61,8 @@
 	aria-label={label}
 	{placeholder}
 	{disabled}
+	{maxlength}
+	aria-invalid={invalid || undefined}
 	autocomplete="off"
 	style:width={width ? `calc(${width}ch + 14px)` : undefined}
 	bind:value
@@ -73,6 +88,7 @@
 	.fig { font: 400 13px/17px var(--font-mono); font-variant-numeric: tabular-nums; text-align: right; }
 	.cell:hover:not(:disabled):not(:focus) { border-color: var(--line); background: var(--well); }
 	.cell:focus { outline: none; border-color: var(--blue); background: var(--surface); box-shadow: 0 0 0 3px var(--focus-ring); }
+	.cell[aria-invalid='true'], .cell[aria-invalid='true']:hover { border-color: var(--bad); }
 	.cell:disabled { cursor: not-allowed; opacity: 0.55; }
 	@media (max-width: 720px) { .cell { min-height: 40px; font-size: 16px; } }
 </style>

@@ -25,6 +25,7 @@
   let invite = $state('');
   let inviteErr = $state<string | null>(null);
   let scheme = $state('');
+  let focusMe = $state<HTMLInputElement>();
 </script>
 
 <Story name="Default" asChild>
@@ -77,5 +78,12 @@
   <div style="display: flex; gap: 8px; align-items: center; max-width: 420px">
     <div style="flex: 1"><InputField label="Scheme name" hideLabel bind:value={scheme} placeholder="Scheme name, e.g. 5-week peak" /></div>
     <button type="button" class="btn small">Save scheme</button>
+  </div>
+</Story>
+
+<Story name="Focused from outside" asChild>
+  <div style="max-width: 320px; display: grid; gap: 8px">
+    <InputField label="Exercise name" value="Goblet squat" bind:input={focusMe} />
+    <button type="button" class="btn small" onclick={() => (focusMe?.focus(), focusMe?.select())}>Rename</button>
   </div>
 </Story>

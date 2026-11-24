@@ -4,6 +4,7 @@
   import type { OneRepMaxes } from "@pt/shared";
   import { phasingToRows, progressionPreview, rowsToPhasing, type PhasingRow } from "$lib/phasing";
   import WeekPlanRows from "./WeekPlanRows.svelte";
+  import InputField from "$lib/ui/InputField.svelte";
 
   let {
     phasing = $bindable(),
@@ -67,28 +68,8 @@
 
   {#if enabled}
     <div class="phase-inputs">
-      <label class="field">
-        <span class="field-label">Current phase</span>
-        <input
-          class="input"
-          type="text"
-          maxlength="120"
-          placeholder="e.g. Accumulation"
-          aria-label="Current phase"
-          bind:value={phase}
-        />
-      </label>
-      <label class="field">
-        <span class="field-label">Next phase</span>
-        <input
-          class="input"
-          type="text"
-          maxlength="120"
-          placeholder="e.g. Intensification (optional)"
-          aria-label="Next phase"
-          bind:value={nextPhase}
-        />
-      </label>
+      <InputField label="Current phase" maxlength={120} placeholder="e.g. Accumulation" bind:value={phase} />
+      <InputField label="Next phase" maxlength={120} placeholder="e.g. Intensification (optional)" bind:value={nextPhase} />
     </div>
 
     <div class="meta-row">
@@ -171,15 +152,6 @@
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 12px;
-  }
-  .field {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-  .field-label {
-    font-size: 12px;
-    color: var(--muted);
   }
   .meta-row {
     display: flex;

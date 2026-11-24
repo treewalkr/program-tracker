@@ -17,10 +17,10 @@ const html = (result: ImportResult, over: { pickAb?: boolean; pick?: ImportAb | 
     props: { result, block: over.block ?? result.defaultBlock, pickAb: false, pick: null, onblock: noop, onab: noop, ...over },
   }).body;
 
-/** The <option>s of a select, as text. */
-const optionsOf = (body: string, id: string) => {
-  const select = body.slice(body.indexOf(`id="${id}"`));
-  return [...select.slice(0, select.indexOf("</select>")).matchAll(/<option[^>]*>([^<]*)<\/option>/g)].map((m) => m[1]);
+/** The week a labelled week field shows as chosen. */
+const chosenIn = (body: string, label: string) => {
+  const field = body.slice(body.indexOf(`>${label}</span>`));
+  return field.slice(0, field.indexOf("</button>")).match(/<span class="t[^"]*"><span>([^<]*)<\/span>/)?.[1];
 };
 
 describe("ImportWeekPicker", () => {
@@ -36,8 +36,8 @@ describe("ImportWeekPicker", () => {
     expect(body).toMatch(/value="2" checked/);
     expect(body).not.toMatch(/value="ab" checked/);
     expect(body).toContain(">latest<");
-    // the week selects only show once A/B weeks is picked
-    expect(body).not.toContain("<select");
+    // the week fields only show once A/B weeks is picked
+    expect(body).not.toContain('role="combobox"');
   });
 
   test("one block of two weeks: the picker shows with the one-block legend", () => {
@@ -76,14 +76,10 @@ describe("ImportWeekPicker", () => {
     const r = read("fb-015-ab.txt");
     const body = html(r, { pickAb: true, pick: { a: 1, b: 2, source: "picked" } });
     expect(body).toMatch(/value="ab" checked/);
-    expect(body).toMatch(/<label[^>]*for="pi-ab-a"[^>]*>Week A<\/label>/);
-    expect(body).toMatch(/<label[^>]*for="pi-ab-b"[^>]*>Week B<\/label>/);
-    const weeks = ["Week 1 (คี่) (Push · Pull)", "Week 2 (คู่) (squat+vertical · Deadlift + Horizontal)"];
-    // the empty first week isn't listed
-    expect(optionsOf(body, "pi-ab-a")).toEqual(weeks);
-    expect(optionsOf(body, "pi-ab-b")).toEqual(weeks);
-    expect(body).toMatch(/id="pi-ab-a"[\s\S]*?<option value="1" selected/);
-    expect(body).toMatch(/id="pi-ab-b"[\s\S]*?<option value="2" selected/);
+    expect(body.match(/role="combobox"/g)).toHaveLength(2);
+    expect(chosenIn(body, "Week A")).toBe("Week 1 (คี่) (Push · Pull)");
+    expect(chosenIn(body, "Week B")).toBe("Week 2 (คู่) (squat+vertical · Deadlift + Horizontal)");
+    expect(body.match(/aria-describedby="pi-ab-hint"/g)).toHaveLength(2);
     expect(body).toContain("Odd weeks run A, even weeks B.");
     expect(body).not.toContain("pi-ab-error");
     // no block is checked while A/B weeks is

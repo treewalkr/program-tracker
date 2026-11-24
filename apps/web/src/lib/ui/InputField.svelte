@@ -29,6 +29,8 @@
 		spellcheck?: boolean;
 		/** Keep the label for screen readers only (a field inline beside its button). */
 		hideLabel?: boolean;
+		/** The input element, for focus and select. */
+		input?: HTMLInputElement;
 		oninput?: (value: string) => void;
 		onchange?: (value: string) => void;
 		onblur?: () => void;
@@ -52,6 +54,7 @@
 		inputmode,
 		spellcheck,
 		hideLabel = false,
+		input = $bindable(),
 		oninput,
 		onchange,
 		onblur,
@@ -67,6 +70,7 @@
 		{#if maxlength !== undefined && left <= 10}<span class:full={left <= 0}>{value.length} / {maxlength}</span>{/if}
 	{/snippet}
 	<input
+		bind:this={input}
 		{id}
 		class="in"
 		{type}
