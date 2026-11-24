@@ -147,7 +147,7 @@ export const en = {
   "log.byCoach": "Your coach already logged this session.",
   "log.byYou": "You logged this on {date}. Saving again replaces it.",
   /** Replacing a log the coach reviewed or left a note on (D5: the note stays, the edit goes back to them). */
-  "log.byYouReviewed": "You logged this on {date} and your coach has seen it. Saving again replaces it. Any note from your coach stays, and they'll see what you changed.",
+  "log.byYouReviewed": "You logged this on {date} and your coach has reviewed it. Saving again replaces it and takes off the reviewed mark, so they'll look at it again. Any note from your coach stays.",
   "log.notThisWeek": "This session isn't in this week, so it can't be logged.",
   "log.notFound": "This session isn't in your program any more.",
   "log.error": "Couldn't save. Check your connection and try again.",
@@ -487,7 +487,7 @@ export const th: Record<MessageKey, string> = {
   "log.discard": "เริ่มใหม่",
   "log.byCoach": "โค้ชบันทึกเซสชันนี้แล้ว",
   "log.byYou": "คุณบันทึกไว้เมื่อ {date} บันทึกอีกครั้งจะแทนที่ของเดิม",
-  "log.byYouReviewed": "คุณบันทึกไว้เมื่อ {date} และโค้ชดูแล้ว บันทึกอีกครั้งจะแทนที่ของเดิม ข้อความจากโค้ชยังอยู่ และโค้ชจะเห็นสิ่งที่คุณแก้ด้วย",
+  "log.byYouReviewed": "คุณบันทึกไว้เมื่อ {date} และโค้ชดูแล้ว ถ้าบันทึกอีกครั้งจะแทนที่ของเดิม และกลับเป็นยังไม่ได้ดู โค้ชจะได้ดูอีกรอบ ส่วนข้อความจากโค้ชยังอยู่เหมือนเดิม",
   "log.notThisWeek": "เซสชันนี้ไม่อยู่ในสัปดาห์นี้ จึงบันทึกไม่ได้",
   "log.notFound": "เซสชันนี้ไม่อยู่ในโปรแกรมแล้ว",
   "log.error": "บันทึกไม่สำเร็จ ตรวจสอบอินเทอร์เน็ตแล้วลองอีกครั้ง",

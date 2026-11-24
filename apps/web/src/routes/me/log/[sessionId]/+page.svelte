@@ -757,7 +757,8 @@
     {#if byCoach}
       <Note tone="warn" role="note">{t("log.byCoach")}</Note>
     {:else if byYou && session.log}
-      <Note tone="warn" role="note">{t("log.byYou", { date: fmtShortDate(session.log.date) })}</Note>
+      <!-- D5: the member's edit clears the coach's reviewed mark; the coach's note stays -->
+      <Note tone="warn" role="note">{t(session.log.entry?.reviewedAt ? "log.byYouReviewed" : "log.byYou", { date: fmtShortDate(session.log.date) })}</Note>
     {/if}
     {#if offline}
       <Note tone="warn" role="status">{t("log.offline")}</Note>
