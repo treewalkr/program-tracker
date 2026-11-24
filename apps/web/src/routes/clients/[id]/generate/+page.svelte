@@ -29,6 +29,8 @@
   import ToggleChip from "$lib/ui/ToggleChip.svelte";
   import Segmented from "$lib/ui/Segmented.svelte";
   import Note from "$lib/ui/Note.svelte";
+  import InputField from "$lib/ui/InputField.svelte";
+  import InputUnit from "$lib/ui/InputUnit.svelte";
   import Icon from "$lib/ui/Icon.svelte";
   import Button from "$lib/ui/Button.svelte";
   import PageHead from "$lib/ui/PageHead.svelte";
@@ -689,20 +691,17 @@
           {/if}
           {#if !weekMode && !fillTarget}
             <div class="block-shape">
-              <label class="len">
-                <span>Block length</span>
-                <input
-                  class="input num"
-                  type="number"
-                  inputmode="numeric"
+              <div class="len">
+                <InputUnit
+                  label="Block length"
+                  unit="weeks"
+                  width="auto"
                   min={MIN_BLOCK_WEEKS}
                   max={MAX_AI_BLOCK_WEEKS}
-                  bind:value={blockWeeks}
-                  aria-invalid={!blockWeeksValid}
-                  aria-describedby="g-len-help"
+                  bind:value={() => (Number.isFinite(blockWeeks) ? blockWeeks : null), (v) => (blockWeeks = v ?? NaN)}
+                  error={blockWeeksValid ? null : `AI drafts are ${MIN_BLOCK_WEEKS}–${MAX_AI_BLOCK_WEEKS} weeks. Longer blocks: build them by hand.`}
                 />
-                <span class="subtle">weeks</span>
-              </label>
+              </div>
               <Segmented
                 label="Weeks"
                 lead="Weeks"
@@ -714,9 +713,6 @@
                 ]}
               />
             </div>
-            {#if !blockWeeksValid}
-              <p class="box-help bad" id="g-len-help">AI drafts are {MIN_BLOCK_WEEKS}–{MAX_AI_BLOCK_WEEKS} weeks. Longer blocks: build them by hand.</p>
-            {/if}
             {#if abHint}
               <div class="box-note">
                 <Note tone="warn">
@@ -796,7 +792,7 @@
 
         {#if instructions.trim()}
           <div class="save-tpl">
-            <input class="input" placeholder="Template name, e.g. ‘Deload policy’" bind:value={tplName} maxlength="80" />
+            <div class="tpl-name"><InputField label="Template name" hideLabel placeholder="Template name, e.g. ‘Deload policy’" bind:value={tplName} maxlength={80} /></div>
             <Button variant="ghost" small type="button" onclick={saveAsTemplate} disabled={savingTpl || !tplName.trim()}>
               {savingTpl ? "Saving…" : "Save note as template"}
             </Button>
@@ -892,7 +888,7 @@
   .manage:hover { color: var(--ink); }
   .skel-manage { flex-basis: 100%; text-align: right; }
   .save-tpl { display: flex; gap: 8px; margin-top: 14px; }
-  .save-tpl .input { flex: 1; }
+  .tpl-name { flex: 1; min-width: 0; }
 
   .merged {
     margin: 0;
@@ -967,10 +963,8 @@
   .box .skel-text { height: 106px; }
   .keep .skel-line { display: flex; align-items: center; width: 100%; height: 20px; }
   .box textarea::placeholder { color: var(--muted); }
-  .block-shape { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 18px; padding: 6px 14px 10px; }
-  .len { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
-  .len > span:first-child { font-weight: 600; color: var(--ink); }
-  .num { width: 64px; text-align: right; font-variant-numeric: tabular-nums; }
+  .block-shape { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 8px 18px; padding: 6px 14px 10px; }
+  .len { min-width: 0; }
   .box-help { margin: -4px 14px 10px; font-size: 12px; }
   .box-help.bad { color: var(--bad); }
   .wait { font: 500 12px/1 var(--font-mono); color: var(--muted); }
