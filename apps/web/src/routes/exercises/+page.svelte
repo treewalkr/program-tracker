@@ -39,6 +39,7 @@
   import SkeletonPanel from "$lib/ui/SkeletonPanel.svelte";
   import ListToolbar from "$lib/ui/ListToolbar.svelte";
   import Pager from "$lib/ui/Pager.svelte";
+  import SelectPrefixed from "$lib/ui/SelectPrefixed.svelte";
   import { listUrlState } from "$lib/list/urlState.svelte";
   import { pageOf } from "@pt/shared";
 
@@ -55,6 +56,11 @@
   const q = $derived(view.q);
   let filters = $state<Filters>(emptyFilters());
   let sort = $state<Sort>("name");
+  const SORTS: { value: Sort; label: string }[] = [
+    { value: "name", label: "Name" },
+    { value: "uses", label: "Most used" },
+    { value: "muscle", label: "Muscle" },
+  ];
   let selected = $state<string[]>([]);
   let mapOpen = $state(true);
 
@@ -458,11 +464,7 @@
         {label}{#if n}<span class="n">{n}</span>{/if}<Icon name="chevron" />
       </button>
     {/each}
-    <select class="select sortsel" bind:value={sort} onchange={() => view.setPage(1)} aria-label="Sort">
-      <option value="name">Sort: Name</option>
-      <option value="uses">Sort: Most used</option>
-      <option value="muscle">Sort: Muscle</option>
-    </select>
+    <div class="sortsel"><SelectPrefixed prefix="Sort" options={SORTS} bind:value={sort} onchange={() => view.setPage(1)} /></div>
   {/snippet}
 
 {#if loading}
@@ -688,7 +690,7 @@
 <style>
   .fbtn :global(svg) { width: 12px; height: 12px; }
   .fbtn .n { font: 500 11px/1 var(--font-ui); background: var(--hover-ink); color: var(--on-ink); border-radius: 99px; padding: 2px 6px; }
-  .sortsel { width: auto; }
+  .sortsel { flex: none; width: 180px; }
   .active-f { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin: -4px 0 12px; }
   .active-f .tchip :global(svg) { width: 10px; height: 10px; margin-left: 4px; }
   .active-f .linkbtn { font-size: 12px; margin-left: 6px; }

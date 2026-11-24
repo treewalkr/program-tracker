@@ -16,12 +16,14 @@
   import PageHead from "$lib/ui/PageHead.svelte";
   import Pager from "$lib/ui/Pager.svelte";
   import Skeleton from "$lib/ui/Skeleton.svelte";
+  import SelectPrefixed from "$lib/ui/SelectPrefixed.svelte";
   import Tooltip from "$lib/ui/Tooltip.svelte";
   import { ROSTER_SORTS, ROSTER_STATUSES, cardioUnitLabel, type RosterStatus } from "@pt/shared";
 
   const DAY = ["", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   const STATUS_LABEL: Record<RosterStatus, string> = { all: "All", active: "Active", paused: "Paused", archived: "Archived" };
   const SORT_LABEL = { name: "Name", last: "Last trained", recent: "Recently added" } as const;
+  const SORTS = ROSTER_SORTS.map((s) => ({ value: s, label: SORT_LABEL[s] }));
   /** Days without a session before "last trained" turns amber. */
   const STALE_DAYS = 7;
   const today = localToday();
@@ -126,12 +128,7 @@
           </button>
         {/each}
       </div>
-      <label class="sort">
-        <span>Sort</span>
-        <select class="select" value={list.params.sort}>
-          {#each ROSTER_SORTS as s (s)}<option value={s}>{SORT_LABEL[s]}</option>{/each}
-        </select>
-      </label>
+      <div class="sort"><SelectPrefixed prefix="Sort" options={SORTS} value={list.params.sort} disabled /></div>
     </div>
     <div class="rows" aria-hidden="true">
       <table class="sheet roster">
@@ -203,12 +200,7 @@
           </button>
         {/each}
       </div>
-      <label class="sort">
-        <span>Sort</span>
-        <select class="select" value={list.params.sort} onchange={(e) => list.set({ sort: e.currentTarget.value as keyof typeof SORT_LABEL })}>
-          {#each ROSTER_SORTS as s (s)}<option value={s}>{SORT_LABEL[s]}</option>{/each}
-        </select>
-      </label>
+      <div class="sort"><SelectPrefixed prefix="Sort" options={SORTS} value={list.params.sort} onchange={(v) => list.set({ sort: v })} /></div>
     </div>
 
     {#if data.items.length === 0}
@@ -332,8 +324,7 @@
   }
   .state:hover { color: var(--ink); background: var(--well-2); }
   .state.on { color: var(--ink); font-weight: 600; }
-  .sort { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
-  .sort .select { width: auto; padding-block: 2px; min-height: 28px; }
+  .sort { flex: none; width: 200px; }
 
   .rows { overflow-x: auto; transition: opacity 120ms ease-out; }
   .rows.stale { opacity: 0.55; pointer-events: none; }

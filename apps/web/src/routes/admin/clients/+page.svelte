@@ -16,6 +16,7 @@
   import PageHead from "$lib/ui/PageHead.svelte";
   import Pill from "$lib/ui/Pill.svelte";
   import SkeletonPanel from "$lib/ui/SkeletonPanel.svelte";
+  import SelectPrefixed from "$lib/ui/SelectPrefixed.svelte";
 
   const STATUS_LABEL: Record<ClientStatus, string> = { active: "Active", paused: "Paused", archived: "Archived" };
 
@@ -54,8 +55,16 @@
   const q = $derived(view.q);
   const trainerId = $derived(view.params.trainer);
   const status = $derived(view.params.status as ClientStatus | "");
+  const statusOpts: { value: ClientStatus | ""; label: string }[] = [
+    { value: "", label: "Any" },
+    ...CLIENT_STATUSES.map((s) => ({ value: s, label: STATUS_LABEL[s] })),
+  ];
 
   const trainers = $derived(trainersOf(rows ?? []));
+  const trainerOpts = $derived([
+    { value: "", label: "All" },
+    ...trainers.map((t) => ({ value: t.id, label: t.name, hint: t.access === "disabled" ? "disabled" : undefined })),
+  ]);
   const shown = $derived(filterClients(rows ?? [], { q, trainerId, status }));
   // Paged in the browser: the directory is one read, and `?demo` swaps in sample rows.
   const paged = $derived(pageOf(shown, view.page, view.limit));
@@ -89,16 +98,8 @@
   <section class="panel"><EmptyState>No clients yet — trainers' clients show up here once they add them.</EmptyState></section>
 {:else}
   {#snippet toolbarFilters()}
-    <select class="select" aria-label="Trainer" value={trainerId} onchange={(e) => view.set({ trainer: e.currentTarget.value })}>
-      <option value="">All trainers</option>
-      {#each trainers as t (t.id)}
-        <option value={t.id}>{t.name}{t.access === "disabled" ? " (disabled)" : ""}</option>
-      {/each}
-    </select>
-    <select class="select" aria-label="Status" value={status} onchange={(e) => view.set({ status: e.currentTarget.value as ClientStatus | "" })}>
-      <option value="">Any status</option>
-      {#each CLIENT_STATUSES as s (s)}<option value={s}>{STATUS_LABEL[s]}</option>{/each}
-    </select>
+    <div class="filt"><SelectPrefixed prefix="Trainer" options={trainerOpts} value={trainerId} onchange={(v) => view.set({ trainer: v })} /></div>
+    <div class="filt"><SelectPrefixed prefix="Status" options={statusOpts} value={status} onchange={(v) => view.set({ status: v })} /></div>
   {/snippet}
   <ListToolbar
     bind:value={view.search}
@@ -166,6 +167,7 @@
 {/if}
 
 <style>
+  .filt { flex: none; width: 200px; }
   :global(.note.sample-note) { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; }
   :global(.list-toolbar) .select { width: auto; }
   .who { display: flex; align-items: center; gap: 10px; }
