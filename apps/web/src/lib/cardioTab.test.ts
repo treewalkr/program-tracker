@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { computeHrZones, type CardioLog, type LogPrescription, type ProgramSession } from "@pt/shared";
-import { cardioLogRows, cardioTiles, cardioWeeks, dayLabel, distanceByModality, planSource, reviewRows } from "./cardioTab";
+import { cardioLogRows, cardioTiles, cardioWeeks, dayLabel, distanceByModality, planSource, repResults, reviewRows } from "./cardioTab";
 
 const monday = "2026-11-16";
 const log = (id: string, date: string, cardio: CardioLog, extra: Record<string, unknown> = {}) => ({
@@ -110,6 +110,27 @@ describe("plan vs actual", () => {
     expect(free.every((r) => r.plan === "—" || r.label === "Average pace")).toBe(true);
     expect(free.some((r) => r.label === "Work reps")).toBe(false);
     expect(planSource(null)).toContain("Freestyle");
+  });
+
+  test("per-rep distance, HR and RPE reach the review", () => {
+    const hrs = [158, 162, 165, 168, 172];
+    const kms = [520, 510, 520, 500, 530];
+    const reps = { ...actual, avgHr: undefined, maxHr: undefined, intervals: kms.map((distanceM, i) => ({ intervalId: "w", rep: i + 1, distanceM, avgHr: hrs[i], rpe: i === 4 ? 9 : undefined })) };
+    const rows = reviewRows(reps, plan, "pace");
+    const by = Object.fromEntries(rows.map((r) => [r.label, r]));
+    expect(by["Work reps"]).toMatchObject({ actual: "0.52 · 0.51 · 0.52 · 0.50 · 0.53 km", aside: "5 of 5 with distance" });
+    expect(by["Heart rate"]).toMatchObject({ actual: "work reps avg 165" });
+    expect(by["Heart rate"].note).toContain("reps' own");
+
+    const table = repResults(reps, plan, "pace");
+    expect(table.band).toEqual({ min: zones[3].min, max: zones[3].max });
+    expect(table.cols).toEqual({ time: true, distance: true, pace: true, hr: true, rpe: true });
+    expect(table.rows[0]).toMatchObject({ rep: "1", time: "2:00", distance: "0.52 km", pace: "3:51 /km", hr: 158, hrVsBand: "in", rpe: null });
+    expect(table.rows[4]).toMatchObject({ hr: 172, hrVsBand: "above", rpe: "9" });
+    // nothing typed per rep: no table, and the coach is told there's nothing
+    expect(repResults(actual, plan, "pace").rows).toEqual([]);
+    const blank = { ...actual, intervals: [{ intervalId: "w", rep: 1 }] };
+    expect(reviewRows(blank, plan, "pace").find((r) => r.label === "Work reps")).toMatchObject({ actual: "1 reported" });
   });
 
   test("a bpm band the coach set is the plan, not the zone it overrides", () => {
