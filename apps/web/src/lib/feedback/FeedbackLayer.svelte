@@ -11,6 +11,8 @@
   import KindFields from "./KindFields.svelte";
   import { compressImage, dataUrlToBlob } from "./images";
   import { ImageTray } from "./tray.svelte";
+  import { placePin } from "./layout";
+  import InputNote from "$lib/ui/InputNote.svelte";
   import {
     cleanReport,
     feedbackHandle,
@@ -26,7 +28,7 @@
    * handlers) and pins a comment form to the clicked element.
    */
 
-  const FORM_W = 340;
+  const NOTE_ID = "fb-pin-comment";
 
   let hovered = $state<Element | null>(null);
   let selected = $state<Element | null>(null);
@@ -44,7 +46,10 @@
   let sending = $state(false);
   let error = $state<string | null>(null);
   let toast = $state<string | null>(null);
-  let textarea = $state<HTMLTextAreaElement>();
+  /** The pin's rendered height and the Feedback bar's top edge, to keep the pin on screen. */
+  let pinH = $state(0);
+  let barEl = $state<HTMLElement>();
+  let barTop = $state<number | null>(null);
   /** Existing-item pins: which popover is open, which items could not be placed. */
   let pinOpen = $state<string | null>(null);
   let unplaced = $state<FeedbackItem[]>([]);
@@ -64,18 +69,14 @@
 
   const formPos = $derived.by(() => {
     if (!selRect) return null;
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    const below = vh - selRect.bottom > 280 || selRect.top < 280;
-    const left = Math.min(Math.max(8, selRect.left), vw - FORM_W - 8);
-    return below
-      ? `left:${left}px; top:${Math.min(selRect.bottom + 8, vh - 280)}px`
-      : `left:${left}px; bottom:${vh - selRect.top + 8}px`;
+    const p = placePin(selRect, pinH, { width: window.innerWidth, height: window.innerHeight, floor: barTop ?? undefined });
+    return `left:${p.left}px; top:${p.top}px; width:${p.width}px; max-height:${p.maxHeight}px`;
   });
 
   function measure() {
     hoverRect = hovered?.isConnected ? hovered.getBoundingClientRect() : null;
     selRect = selected?.isConnected ? selected.getBoundingClientRect() : null;
+    barTop = barEl ? barEl.getBoundingClientRect().top : null;
   }
 
   async function select(el: Element) {
@@ -84,7 +85,7 @@
     error = null;
     measure();
     await tick();
-    textarea?.focus();
+    document.getElementById(NOTE_ID)?.focus();
   }
 
   function widen() {
@@ -311,6 +312,7 @@
       class="pin"
       class:dropping={tray.dragging}
       style={formPos}
+      bind:offsetHeight={pinH}
       aria-label="Leave feedback on this element"
       {@attach tray.zone}
       onsubmit={(e) => {
@@ -327,15 +329,17 @@
       {#if selVia.length}
         <p class="via">in {selVia.join(" ← ")}</p>
       {/if}
-      <textarea
-        bind:this={textarea}
+      <InputNote
+        id={NOTE_ID}
+        label="Your feedback"
+        hideLabel
         bind:value={comment}
         onkeydown={onFormKey}
-        rows="4"
-        maxlength="5000"
+        rows={4}
+        maxRows={8}
+        maxlength={5000}
         placeholder="What should change here?"
-        aria-label="Your feedback"
-      ></textarea>
+      />
       <KindFields
         bind:kind
         bind:report
@@ -367,7 +371,7 @@
     </form>
   {/if}
 
-  <div class="bar" class:on={feedbackMode.on} role="toolbar" aria-label="Feedback mode">
+  <div class="bar" bind:this={barEl} class:on={feedbackMode.on} role="toolbar" aria-label="Feedback mode">
     {#if feedbackMode.on}
       <span class="live" aria-hidden="true"></span>
       <span class="title">Feedback</span>
@@ -471,10 +475,13 @@
     margin: 4px 0 0;
   }
 
+  /* Width, place and max height come from placePin; past that it scrolls, so Send stays reachable. */
   .pin {
     position: fixed;
     z-index: 9999;
-    width: 340px;
+    box-sizing: border-box;
+    overflow-y: auto;
+    overscroll-behavior: contain;
     background: var(--surface);
     border: 1px solid var(--line);
     border-radius: 8px;
@@ -525,23 +532,6 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  textarea {
-    width: 100%;
-    box-sizing: border-box;
-    resize: vertical;
-    min-height: 84px;
-    font: inherit;
-    padding: 6px 8px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    background: var(--bg);
-    color: var(--ink);
-  }
-  textarea:focus {
-    outline: none;
-    border-color: var(--blue);
-    box-shadow: 0 0 0 3px var(--focus);
-  }
   .check {
     display: flex;
     align-items: center;
@@ -554,7 +544,17 @@
     font-size: 12px;
     color: var(--bad);
   }
+  /* A scrolling flex column must not squash its rows. */
+  .pin > :global(*) {
+    flex: none;
+  }
+  /* Send and Cancel stay pinned to the bottom edge while the form scrolls. */
   .pin-actions {
+    position: sticky;
+    bottom: -12px;
+    margin: 0 -12px -12px;
+    padding: 8px 12px 12px;
+    background: var(--surface);
     display: flex;
     align-items: center;
     gap: 6px;
