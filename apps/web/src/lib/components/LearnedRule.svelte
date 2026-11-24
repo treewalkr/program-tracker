@@ -4,6 +4,7 @@
 	import type { CoachingRuleDto } from '$lib/api/types';
 	import Button from '$lib/ui/Button.svelte';
 	import Icon from '$lib/ui/Icon.svelte';
+	import InputField from '$lib/ui/InputField.svelte';
 
 	/**
 	 * "Learned: … Keep for: this client / all clients · Edit · Dismiss" — the
@@ -59,15 +60,17 @@
 			<Icon name="sparkle" />
 			<span class="label">Learned</span>
 			{#if editing}
-				<input
-					class="input rule-input"
-					aria-label="Rule text"
-					maxlength={400}
-					bind:value={text}
-					onkeydown={(e) => {
-						if (e.key === 'Escape') editing = false;
-					}}
-				/>
+				<div class="rule-input">
+					<InputField
+						label="Rule text"
+						hideLabel
+						maxlength={400}
+						bind:value={text}
+						onkeydown={(e) => {
+							if (e.key === 'Escape') editing = false;
+						}}
+					/>
+				</div>
 			{:else}
 				<q class="rule">{text}</q>
 			{/if}
@@ -134,7 +137,6 @@
 	.rule-input {
 		flex: 1;
 		min-width: 220px;
-		font-size: 13px;
 	}
 	.actions {
 		display: flex;
