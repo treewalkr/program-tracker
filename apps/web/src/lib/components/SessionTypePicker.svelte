@@ -303,6 +303,8 @@
     transition: background-color 120ms, border-color 120ms;
   }
   .small .tp-btn { min-width: 112px; min-height: 0; padding: 3px 26px 3px 8px; font-size: 12.5px; }
+  /* touch: the compact trigger still gets a finger-size target */
+  @media (pointer: coarse) { .small .tp-btn { min-height: 40px; } }
   .tp-btn:hover { background: var(--well-2); border-color: var(--line-strong); }
   .tp-btn[aria-expanded="true"] {
     background: var(--surface);
