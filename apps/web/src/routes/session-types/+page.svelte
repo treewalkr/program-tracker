@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, tick } from "svelte";
+  import { onMount } from "svelte";
   import { groupSessionTypes, isPresetKey, presetParent, type SessionKind } from "@pt/shared";
   import { api } from "$lib/api";
   import type { SessionTypeDto } from "$lib/api/types";
@@ -11,6 +11,9 @@
   import ConfirmButton from "$lib/ui/ConfirmButton.svelte";
   import EmptyState from "$lib/ui/EmptyState.svelte";
   import Icon from "$lib/ui/Icon.svelte";
+  import InputField from "$lib/ui/InputField.svelte";
+  import InputRename from "$lib/ui/InputRename.svelte";
+  import InputSearch from "$lib/ui/InputSearch.svelte";
   import Note from "$lib/ui/Note.svelte";
   import PageHead from "$lib/ui/PageHead.svelte";
   import Panel from "$lib/ui/Panel.svelte";
@@ -26,8 +29,6 @@
   let adding = $state(false);
 
   let editingId = $state<string | null>(null);
-  let editName = $state("");
-  let editInput = $state<HTMLInputElement>();
   let showArchived = $state(false);
 
   const isPreset = (t: SessionTypeDto) => isPresetKey(t.presetKey);
@@ -65,24 +66,11 @@
     adding = false;
   }
 
-  async function startRename(t: SessionTypeDto) {
-    editingId = t.id;
-    editName = t.name;
-    await tick();
-    editInput?.select();
-  }
+  const startRename = (t: SessionTypeDto) => (editingId = t.id);
 
-  async function saveRename(t: SessionTypeDto) {
-    const name = editName.trim();
-    if (!name || name === t.name) {
-      editingId = null;
-      return;
-    }
-    await run(async () => {
-      put(await api.patchSessionType(t.id, { name }));
-      editingId = null;
-    });
-  }
+  /** The rename box closes itself; it only calls here with a changed, non-empty name. */
+  const saveRename = (t: SessionTypeDto, name: string) =>
+    run(async () => void put(await api.patchSessionType(t.id, { name })));
 
   const setFormat = (t: SessionTypeDto, format: SessionKind) =>
     run(async () => void put(await api.patchSessionType(t.id, { format })));
@@ -118,10 +106,7 @@
 
 {#if error}<div class="err"><Note tone="bad">{error}</Note></div>{/if}
 
-<div class="search">
-  <Icon name="search" />
-  <input bind:value={query} type="search" placeholder="Search types" aria-label="Search types" autocomplete="off" />
-</div>
+<div class="search"><InputSearch label="Search types" bind:value={query} /></div>
 
 {#snippet dot(format: SessionTypeDto["format"])}
   <span class="dot {format}" aria-hidden="true"></span>
@@ -194,10 +179,9 @@
 
 <Panel title="Custom" count={tree.custom.length} class="types-panel">
   <form class="panel-body add" onsubmit={add} aria-label="Add a custom session type">
-    <label class="new-name">
-      <span class="lbl">Name</span>
-      <input class="input" placeholder="New type, e.g. Hypertrophy" bind:value={newName} maxlength="40" />
-    </label>
+    <div class="new-name">
+      <InputField label="Name" placeholder="New type, e.g. Hypertrophy" bind:value={newName} maxlength={40} />
+    </div>
     <div class="new-format">
       <SelectDescribed label="What does this session record?" options={formatOptions} bind:value={newFormat} />
     </div>
@@ -218,18 +202,16 @@
         <li class="row custom">
           {@render dot(t.format)}
           {#if editingId === t.id}
-            <form class="rename" onsubmit={(e) => { e.preventDefault(); saveRename(t); }}>
-              <input
-                bind:this={editInput}
-                bind:value={editName}
-                class="input"
-                maxlength="40"
-                aria-label="Rename {t.name}"
-                onkeydown={(e) => { if (e.key === "Escape") editingId = null; }}
+            <div class="rename">
+              <InputRename
+                value={t.name}
+                thing={t.name}
+                size="row"
+                maxlength={40}
+                bind:editing={() => editingId === t.id, (on) => (editingId = on ? t.id : null)}
+                onsave={(name) => saveRename(t, name)}
               />
-              <Button small variant="primary" type="submit">Save</Button>
-              <Button small variant="ghost" type="button" onclick={() => (editingId = null)}>Cancel</Button>
-            </form>
+            </div>
           {:else}
             <button class="name" type="button" onclick={() => startRename(t)} title="Rename">{t.name}</button>
             <span class="use">{usage(t.usedIn)}</span>
@@ -280,21 +262,7 @@
 <style>
   .err { margin-bottom: 12px; }
 
-  .search {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    max-width: 360px;
-    margin-bottom: 16px;
-    padding: 0 12px;
-    background: var(--well);
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    color: var(--muted);
-  }
-  .search :global(svg) { width: 14px; height: 14px; flex: none; }
-  .search input { flex: 1; min-width: 0; border: none; outline: none; background: none; padding: 6px 0; font: 14px var(--font-ui); color: var(--ink); }
-  .search:focus-within { color: var(--blue); border-color: var(--blue); box-shadow: 0 0 0 3px var(--focus-ring); background: var(--surface); }
+  .search { max-width: 360px; margin-bottom: 16px; }
 
   :global(.types-panel) + :global(.types-panel) { margin-top: 16px; }
 
@@ -311,8 +279,7 @@
   .lock-note :global(svg) { width: 13px; height: 13px; flex: none; }
 
   .add { display: flex; gap: 8px 12px; align-items: flex-end; flex-wrap: wrap; border-bottom: 1px solid var(--line-soft); }
-  .new-name { display: grid; gap: 4px; flex: 1; min-width: 200px; }
-  .new-name .lbl { font: 500 12px var(--font-ui); color: var(--ink); }
+  .new-name { flex: 1; min-width: 200px; }
   .new-format { flex: 0 1 260px; min-width: 220px; }
 
 
@@ -382,8 +349,7 @@
   .use { font-size: 12px; color: var(--muted); white-space: nowrap; }
   .fmt { width: 120px; }
   .acts { display: flex; gap: 4px; justify-content: flex-end; min-width: 150px; }
-  .rename { grid-column: 2 / -1; display: flex; gap: 8px; align-items: center; }
-  .rename .input { flex: 1; max-width: 320px; }
+  .rename { grid-column: 2 / -1; max-width: 480px; }
   .row.muted .name, .row.muted .dot { opacity: 0.6; }
 
   .archived { margin-top: 16px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
