@@ -134,6 +134,62 @@ describe.skipIf(!dbUp)("session log duplicates", () => {
     expect(byKey(after[0])).toEqual(byKey(before));
   });
 
+  test("a trainer replace keeps the coach's note and mark; Undo restores them on the original, once", async () => {
+    const strip = (l: any) => {
+      const { id, createdAt, sets, ...rest } = l;
+      return { ...rest, sets: sets.map(({ id, sessionLogId, createdAt, ...s }: any) => s) };
+    };
+    const sessionC = crypto.randomUUID();
+    const base = { clientId, programId, programSessionId: sessionC, sets: [{ programExerciseId: null, exerciseId: squatId, setNumber: 1, type: "working", weightKg: 90, reps: 5 }] };
+    const original = await call("POST", "/v1/logs/sessions", { ...base, date: "2026-11-10", notes: "first" });
+    expect(original.status).toBe(201);
+    const review = await call("PATCH", `/v1/logs/sessions/${original.body.id}/review`, { reviewed: true, feedback: "Bar speed looked good" });
+    expect(review.status).toBe(200);
+    const [before] = await mine(sessionC);
+    expect(before).toMatchObject({ trainerFeedback: "Bar speed looked good", reviewedBy: review.body.reviewedBy });
+    expect(before.reviewedAt).toBeTruthy();
+
+    const replacing = await call("POST", "/v1/logs/sessions", { ...base, date: "2026-11-10", notes: "fixed", onDuplicate: "replace" });
+    expect(replacing.status).toBe(201);
+    // the coach replacing their own reviewed log keeps both (D5 is about the member's edit)
+    expect(replacing.body).toMatchObject({ trainerFeedback: "Bar speed looked good", reviewedAt: before.reviewedAt, reviewedBy: before.reviewedBy });
+    expect(strip(replacing.body.replaced[0])).toEqual(strip(before));
+
+    // Undo: write the original back, then remove the replacement
+    const restored = await call("POST", "/v1/logs/sessions", logToInput(replacing.body.replaced[0]));
+    expect(restored.status).toBe(201);
+    expect((await call("DELETE", `/v1/logs/sessions/${replacing.body.id}`)).status).toBe(204);
+    const after = await mine(sessionC);
+    expect(after).toHaveLength(1);
+    expect(strip(after[0])).toEqual(strip(before));
+  });
+
+  test("Undo restores feedback on a log whose mark a member edit cleared, and no feedback means none", async () => {
+    const sessionD = crypto.randomUUID();
+    const base = { clientId, programId, programSessionId: sessionD, date: "2026-11-11", sets: [{ programExerciseId: null, exerciseId: squatId, setNumber: 1, type: "working", reps: 8 }] };
+    const first = await call("POST", "/v1/logs/sessions", base);
+    expect(first.body).toMatchObject({ trainerFeedback: null, reviewedAt: null, reviewedBy: null });
+    const swapped = await call("POST", "/v1/logs/sessions", { ...base, onDuplicate: "replace" });
+    expect(swapped.body).toMatchObject({ trainerFeedback: null, reviewedAt: null, reviewedBy: null });
+    expect("review" in logToInput(swapped.body.replaced[0])).toBe(false);
+
+    await call("PATCH", `/v1/logs/sessions/${swapped.body.id}/review`, { reviewed: false, feedback: "Note only" });
+    const [noted] = await mine(sessionD);
+    const back = await call("POST", "/v1/logs/sessions", logToInput(noted));
+    expect(back.body).toMatchObject({ trainerFeedback: "Note only", reviewedAt: null, reviewedBy: null });
+  });
+
+  test("a review restore that isn't a timestamp is a 422", async () => {
+    const r = await call("POST", "/v1/logs/sessions", {
+      clientId,
+      programId,
+      date: "2026-11-12",
+      review: { reviewedAt: "yesterday", trainerFeedback: null },
+      sets: [{ programExerciseId: null, exerciseId: squatId, setNumber: 1, type: "working", reps: 8 }],
+    });
+    expect(r.status).toBe(422);
+  });
+
   test("a cardio log round-trips too", async () => {
     const cardio = { modality: "Bike", durationMin: 30, hrZone: 2, distanceKm: 12.5, rpe: 6 };
     const first = await call("POST", "/v1/logs/sessions", { clientId, programId, date: "2026-11-04", kind: "cardio", cardio, sets: [] });

@@ -4,6 +4,7 @@ import { db, sessionLogs, setLogs, exercises, programs, clientHrProfiles } from 
 import {
   CardioLog,
   cardioLogIssues,
+  carriedReview,
   logPrepCheck,
   profileOn,
   upgradeCardioLog,
@@ -15,6 +16,7 @@ import {
   type LoggedBy,
   type LogPrescription,
   type ProgramWeek,
+  type ReviewFieldsOf,
 } from "@pt/shared";
 import { queueSignalsForOutbox } from "./signals-service";
 
@@ -44,6 +46,13 @@ export const SessionLogFields = z.object({
   durationMin: z.number().int().min(1).max(600).optional(),
   /** Movement-prep items ticked (program-exercise ids); only the session's prep slots are kept. */
   prepDone: z.array(z.string().min(1).max(64)).max(50).optional(),
+  /** Undo after Replace: the coach's review as the removed log had it (trainer route only; the portal omits it). */
+  review: z
+    .object({
+      reviewedAt: z.string().datetime({ offset: true }).nullable(),
+      trainerFeedback: z.string().max(2000).nullable(),
+    })
+    .optional(),
   /** When this program session is already logged: 409 (reject), swap it (replace), or keep both (add). */
   onDuplicate: z.enum(["reject", "replace", "add"]).default("reject"),
   sets: z
@@ -178,6 +187,8 @@ export async function logPrescription(
   return snapshot;
 }
 
+type ReviewFields = ReviewFieldsOf<Date>;
+
 /** Which duplicates a `replace` may remove: any (the trainer), or only the client's own (the portal). */
 export type ReplacePolicy = "any" | "own";
 
@@ -251,8 +262,20 @@ export async function createSessionLog({
       // Read the sets first: they go with their log (ON DELETE CASCADE).
       const removedSets = serializeSets(await tx.select().from(setLogs).where(inArray(setLogs.sessionLogId, ids)));
       const removed = await tx.delete(sessionLogs).where(inArray(sessionLogs.id, ids)).returning();
+      // Newest first, like `duplicates`: the coach's note comes from the newest log that has one.
+      const order = new Map(ids.map((id, i) => [id, i]));
+      removed.sort((a, b) => order.get(a.id)! - order.get(b.id)!);
       replaced = removed.map((l) => ({ ...l, sets: removedSets.filter((st) => st.sessionLogId === l.id) }));
     }
+    // A replace keeps the coach's review (D5); an Undo write-back (trainer only) restores it as it was.
+    const review: ReviewFields =
+      input.review && loggedBy === "trainer"
+        ? {
+            trainerFeedback: input.review.trainerFeedback,
+            reviewedAt: input.review.reviewedAt ? new Date(input.review.reviewedAt) : null,
+            reviewedBy: input.review.reviewedAt ? trainerId : null,
+          }
+        : carriedReview<Date>(replaced, loggedBy);
     const [log] = await tx
       .insert(sessionLogs)
       .values({
@@ -271,6 +294,7 @@ export async function createSessionLog({
         prepDone,
         prescription,
         loggedBy,
+        ...review,
       })
       .returning();
 

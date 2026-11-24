@@ -20,7 +20,7 @@ const SEEN_EVERY_MS = 60 * 60 * 1000;
 
 /** A portal log: the trainer's log shape minus who/which program (the session and the
  *  active program say that), always for a planned session, and never "add" beside one. */
-const PortalLogInput = SessionLogFields.omit({ clientId: true, programId: true, onDuplicate: true, programSessionId: true })
+const PortalLogInput = SessionLogFields.omit({ clientId: true, programId: true, onDuplicate: true, programSessionId: true, review: true })
   .extend({
     programSessionId: z.string().uuid(),
     /** Already logged: 409 (reject) or swap the client's own log (replace). */
