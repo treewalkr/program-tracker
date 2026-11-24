@@ -141,13 +141,15 @@
   }
 
   let copyingKey = $state<string | null>(null);
+  /** A copy's name differs from the built-in's, so Generate's Rules chips tell the two apart. */
+  const copyName = (p: InstructionPreset) => `${p.name} (yours)`.slice(0, 80);
 
   /** Built-ins are read-only; copying makes an editable one in the library. */
   async function copyPreset(p: InstructionPreset) {
     copyingKey = p.key;
     listError = null;
     try {
-      await api.createInstructionTemplate({ name: p.name, content: p.content });
+      await api.createInstructionTemplate({ name: copyName(p), content: p.content });
       await load();
     } catch (e) {
       listError = (e as Error).message;
@@ -323,7 +325,7 @@
   }
   async function copyAndSelect(p: InstructionPreset) {
     await copyPreset(p);
-    const mine = [...templates].reverse().find((t) => t.name === p.name);
+    const mine = [...templates].reverse().find((t) => t.name === copyName(p));
     if (!listError && mine) await pick(mine.id);
   }
 
@@ -373,7 +375,7 @@
       });
       if (a !== "confirm") return;
     }
-    if (!newName.trim() || INSTRUCTION_PRESETS.some((x) => x.name === newName)) newName = p.name;
+    if (!newName.trim() || INSTRUCTION_PRESETS.some((x) => copyName(x) === newName)) newName = copyName(p);
     newContent = p.content;
   }
 </script>
