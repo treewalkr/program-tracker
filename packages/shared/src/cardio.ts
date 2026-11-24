@@ -149,6 +149,8 @@ export interface CardioPlanTotals {
   recoverySec: number;
   /** True when some distance has no time, which is why durationSec is null. */
   untimedDistance: boolean;
+  /** Seconds in the parts that have a time (= durationSec when nothing is distance-only). */
+  timedSec: number;
 }
 
 /** Recoveries a work interval adds: between reps, plus one after the last when asked. */
@@ -174,6 +176,7 @@ export function cardioTotals(rx: Rx): CardioPlanTotals {
       workSec: durationSec ?? 0,
       recoverySec: 0,
       untimedDistance: durationSec == null && distanceM > 0,
+      timedSec: durationSec ?? 0,
     };
   }
   let time = 0;
@@ -198,7 +201,7 @@ export function cardioTotals(rx: Rx): CardioPlanTotals {
     add(iv, reps, bucket);
     if (iv.recovery) add(iv.recovery, recoveryCount(iv), "recovery");
   }
-  return { durationSec: untimed ? null : time, distanceM, workSec, recoverySec, untimedDistance: untimed };
+  return { durationSec: untimed ? null : time, distanceM, workSec, recoverySec, untimedDistance: untimed, timedSec: time };
 }
 
 // ---------------------------------------------------------------------------

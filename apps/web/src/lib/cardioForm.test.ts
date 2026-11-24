@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { CardioLog } from "@pt/shared";
 import { cardioTemplatePreset, fromCardioTemplate } from "@pt/shared";
-import { asPrescribedForm, cardioFormCalc, cardioFormOf, cardioFormOfLog, cardioLogOf, emptyCardioForm, intervalRows, readCardioForm } from "./cardioForm";
+import { asPrescribedForm, cardioFormCalc, cardioFormOf, cardioFormOfLog, cardioLogOf, emptyCardioForm, intervalRows, readCardioForm, steadyFromIntervals } from "./cardioForm";
 
 const intervals = fromCardioTemplate(cardioTemplatePreset("intervals")!, "Running");
 
@@ -89,4 +89,21 @@ test("readCardioForm upgrades an old draft's minutes and drops junk", () => {
   const f = readCardioForm({ modality: "Bike", durationMin: "45", hrZone: "2", intensity: "easy", rpe: "6" });
   expect(f).toMatchObject({ modality: "Bike", durationSec: 2700, rpe: 6, skipped: null });
   expect(readCardioForm("junk", emptyCardioForm("Row")).modality).toBe("Row");
+});
+
+describe("steadyFromIntervals", () => {
+  test("a 6 × 800 m session keeps its timed minutes and its distance", () => {
+    const next = steadyFromIntervals({
+      modality: "Running",
+      intervals: [
+        { id: "a", type: "warmup", repeat: 1, durationSec: 600 },
+        { id: "b", type: "work", repeat: 6, distanceM: 800, recovery: { type: "active_recovery", durationSec: 180 } },
+        { id: "c", type: "cooldown", repeat: 1, durationSec: 300 },
+      ],
+    });
+    expect(next).toEqual({ modality: "Running", durationMin: 30, distanceKm: 4.8 });
+  });
+  test("a timed session keeps its time only", () => {
+    expect(steadyFromIntervals({ modality: "Bike", intervals: [{ id: "a", type: "work", repeat: 3, durationSec: 600 }] })).toEqual({ modality: "Bike", durationMin: 30 });
+  });
 });

@@ -21,6 +21,7 @@
   import { distanceUnit, showDistance, storeDistance, units } from "$lib/units.svelte";
   import { fromCardioTemplate, zoneBpm, type HrZone } from "@pt/shared";
   import { paceField, targetMetric } from "$lib/cardioTarget";
+  import { steadyFromIntervals } from "$lib/cardioForm";
   import type { CardioTemplateDto, CardioTemplateInput, CardioTemplatesDto, ModalityDto } from "$lib/api/types";
   import IntervalBuilder from "./IntervalBuilder.svelte";
   import SelectCombobox from "$lib/ui/SelectCombobox.svelte";
@@ -113,11 +114,7 @@
     ];
   }
   function dropIntervals() {
-    const t = cardioTotals(cardio);
-    const next = { ...cardio };
-    delete next.intervals;
-    if (t.durationSec) next.durationMin = Math.min(300, Math.max(1, Math.round(t.durationSec / 60)));
-    cardio = next;
+    cardio = steadyFromIntervals(cardio);
   }
 
   let naming = $state(false);

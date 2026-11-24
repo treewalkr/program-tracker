@@ -95,6 +95,7 @@ describe("cardioTotals", () => {
       workSec: 720,
       recoverySec: 360,
       untimedDistance: false,
+      timedSec: 33 * 60,
     });
   });
 
@@ -115,6 +116,7 @@ describe("cardioTotals", () => {
     expect(t.untimedDistance).toBe(true);
     expect(t.distanceM).toBe(2400);
     expect(t.recoverySec).toBe(450);
+    expect(t.timedSec).toBe(600 + 450); // the timed parts still add up
   });
 
   test("without intervals the session's own duration and distance are the plan", () => {
@@ -124,6 +126,7 @@ describe("cardioTotals", () => {
       workSec: 2400,
       recoverySec: 0,
       untimedDistance: false,
+      timedSec: 2400,
     });
     expect(cardioTotals({ distanceKm: 5 }).durationSec).toBeNull();
   });

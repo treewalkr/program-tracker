@@ -320,3 +320,16 @@ export function readCardioForm(raw: unknown, base: CardioForm = emptyCardioForm(
     }),
   };
 }
+
+/**
+ * "Back to one steady block": the intervals go, and the session keeps what they added up to —
+ * the timed minutes and the distance, both when both exist (a 6 × 800 m session keeps 30 min and 4.8 km).
+ */
+export function steadyFromIntervals<C extends CardioPrescription>(cardio: C): C {
+  const t = cardioTotals(cardio);
+  const next = { ...cardio };
+  delete next.intervals;
+  if (t.timedSec > 0) next.durationMin = Math.min(300, Math.max(1, Math.round(t.timedSec / 60)));
+  if (t.distanceM > 0) next.distanceKm = Math.round(t.distanceM) / 1000;
+  return next;
+}
