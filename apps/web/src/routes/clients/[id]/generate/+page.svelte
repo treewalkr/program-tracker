@@ -295,18 +295,24 @@
   /** A note applied as a revision: the new version becomes the one under review. */
   function showRevision(child: GenerationDto) {
     allGens = [child, ...allGens.filter((g) => g.id !== child.id)];
+    // Approved while the revision ran: the program came from the version on screen, so stay on it.
+    if (newProgram) return;
     gen = child;
   }
 
   async function approve() {
     if (!gen) return;
+    // The version the trainer approved — a revision landing meanwhile must not take its place.
+    const target = gen;
     approving = true;
     approveError = null;
     try {
-      newProgram = await api.approveGeneration(gen.id);
-      gen = { ...gen, status: "approved" }; // backend flips it; keep the pill in sync
+      newProgram = await api.approveGeneration(target.id);
+      const approved: GenerationDto = { ...target, status: "approved", approvedProgramId: newProgram.id }; // backend flips it; keep the pill in sync
+      allGens = allGens.map((g) => (g.id === target.id ? approved : g));
+      gen = approved;
     } catch (err) {
-      approveError = { id: gen.id, message: (err as Error).message || "Could not apply this draft" };
+      approveError = { id: target.id, message: (err as Error).message || "Could not apply this draft" };
     } finally {
       approving = false;
     }
