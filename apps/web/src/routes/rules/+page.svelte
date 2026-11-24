@@ -8,7 +8,9 @@
   import Button from "$lib/ui/Button.svelte";
   import ConfirmButton from "$lib/ui/ConfirmButton.svelte";
   import EmptyState from "$lib/ui/EmptyState.svelte";
-  import Field from "$lib/ui/Field.svelte";
+  import InputNote from "$lib/ui/InputNote.svelte";
+  import SelectCombobox from "$lib/ui/SelectCombobox.svelte";
+  import SelectField from "$lib/ui/SelectField.svelte";
   import Note from "$lib/ui/Note.svelte";
   import PageHead from "$lib/ui/PageHead.svelte";
   import Panel from "$lib/ui/Panel.svelte";
@@ -22,6 +24,8 @@
 
   let newText = $state("");
   let newClientId = $state("");
+  const scopeOptions = $derived([{ value: "", label: "All clients" }, ...clients.map((c) => ({ value: c.id, label: c.name }))]);
+  const CATEGORY_OPTIONS = COACHING_RULE_CATEGORIES.map((c) => ({ value: c, label: COACHING_RULE_CATEGORY_LABELS[c] }));
   let newCategory = $state<CoachingRuleCategory>("style");
   let creating = $state(false);
   let createError = $state<string | null>(null);
@@ -114,33 +118,23 @@
         void create();
       }}
     >
-      <Field label="Rule" htmlFor="r-text">
-        <textarea
-          class="textarea"
-          id="r-text"
-          rows="3"
-          maxlength="400"
-          placeholder="Never program barbell back squats for this client. Use belt squats."
-          bind:value={newText}
-        ></textarea>
-      </Field>
+      <InputNote
+        label="Rule"
+        rows={3}
+        maxlength={400}
+        placeholder="Never program barbell back squats for this client. Use belt squats."
+        bind:value={newText}
+      />
       <div class="two">
-        <Field label="Applies to" htmlFor="r-client">
-          <select class="select" id="r-client" bind:value={newClientId}>
-            <option value="">All clients</option>
-            {#each clients as c (c.id)}<option value={c.id}>{c.name}</option>{/each}
-          </select>
-        </Field>
-        <Field label="Kind" htmlFor="r-cat">
-          <select class="select" id="r-cat" bind:value={newCategory}>
-            {#each COACHING_RULE_CATEGORIES as c (c)}<option value={c}>{COACHING_RULE_CATEGORY_LABELS[c]}</option>{/each}
-          </select>
-        </Field>
+        <div class="f">
+          <span class="lbl" aria-hidden="true">Applies to</span>
+          <SelectCombobox label="Applies to" placeholder="Choose a client…" options={scopeOptions} bind:value={newClientId} emptyText="No clients match" />
+        </div>
+        <SelectField label="Kind" maxWidth="none" options={CATEGORY_OPTIONS} bind:value={newCategory} />
       </div>
       {#if createError}<p class="err" role="alert">{createError}</p>{/if}
       <div class="form-foot">
         <Button variant="primary" type="submit" disabled={creating || newText.trim().length < 3}>{creating ? "Saving…" : "Add rule"}</Button>
-        <span class="subtle mono">{newText.length}/400</span>
       </div>
     </form>
   </Panel>
@@ -183,7 +177,7 @@
                         void saveEdit(r);
                       }}
                     >
-                      <textarea class="textarea" rows="2" maxlength="400" aria-label="Rule text" bind:value={editText}></textarea>
+                      <InputNote label="Rule text" hideLabel rows={2} maxlength={400} bind:value={editText} />
                       <div class="row-actions">
                         <Button small variant="primary" type="submit" disabled={busyId === r.id || editText.trim().length < 3}>Save</Button>
                         <Button small variant="ghost" type="button" onclick={() => (editingId = null)}>Cancel</Button>
@@ -202,18 +196,16 @@
                     {@render origin(r)}
                     <div class="row-actions">
                       <Button small onclick={() => startEdit(r)}>Edit</Button>
-                      <select
-                        class="select scope"
-                        aria-label="Applies to"
-                        disabled={busyId === r.id}
-                        onchange={(e) => {
-                          const v = e.currentTarget.value;
-                          void act(r.id, () => api.updateCoachingRule(r.id, { clientId: v || null }));
-                        }}
-                      >
-                        <option value="" selected={r.clientId === null}>All clients</option>
-                        {#each clients as c (c.id)}<option value={c.id} selected={r.clientId === c.id}>{c.name}</option>{/each}
-                      </select>
+                      <div class="scope">
+                        <SelectCombobox
+                          label="Applies to"
+                          options={scopeOptions}
+                          value={r.clientId ?? ""}
+                          disabled={busyId === r.id}
+                          emptyText="No clients match"
+                          onchange={(v) => void act(r.id, () => api.updateCoachingRule(r.id, { clientId: v || null }))}
+                        />
+                      </div>
                       <Button small variant="ghost" disabled={busyId === r.id} onclick={() => act(r.id, () => api.updateCoachingRule(r.id, { status: "retired" }))}>Retire</Button>
                       <ConfirmButton label="Delete" confirmLabel="Really delete?" onconfirm={() => act(r.id, () => api.deleteCoachingRule(r.id))} small variant="ghost" class="danger" />
                     </div>
@@ -284,7 +276,9 @@
   .mono { font: 500 12px/1 var(--font-mono); font-variant-numeric: tabular-nums; }
   .broken { color: var(--bad); }
   .row-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-  .scope { width: auto; max-width: 200px; font-size: 12px; padding-block: 3px; }
+  .scope { width: 200px; max-width: 100%; }
+  .f { display: grid; gap: 4px; min-width: 0; }
+  .lbl { font: 500 12px var(--font-ui); color: var(--ink); }
 
   .origin { font-size: 12px; color: var(--muted); }
   .origin summary { cursor: pointer; width: fit-content; }
