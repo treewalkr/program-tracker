@@ -8,7 +8,7 @@
   import PortalBar from "$lib/portal/PortalBar.svelte";
   import PortalSessionCard from "$lib/portal/PortalSessionCard.svelte";
   import PortalProgress from "$lib/portal/PortalProgress.svelte";
-  import { dayGroups, doneCount, earlierOpen, focusSession, skippedCount } from "$lib/portal/week";
+  import { calendarDays, dayGroups, doneCount, earlierOpen, focusSession, skippedCount } from "$lib/portal/week";
   import { cardioSummary } from "$lib/portal/progress";
   import Button from "$lib/ui/Button.svelte";
   import Icon from "$lib/ui/Icon.svelte";
@@ -103,19 +103,19 @@
   const next = $derived(dto?.weeks.find((w) => !w.loggable && w !== current) ?? null);
   const shown = $derived(tab === "next" && next ? next : current);
   const tabs = $derived<("this" | "next" | "progress")[]>(next ? ["this", "next", "progress"] : ["this", "progress"]);
-  /** The calendar leaves out the session "Next up" already shows, and any day that leaves empty. */
-  const groups = $derived(
-    shown
-      ? dayGroups(shown, today)
-          .map((g) => (shown === current && nextUp ? { ...g, sessions: g.sessions.filter((s) => s.id !== nextUp.id) } : g))
-          .filter((g) => g.sessions.length > 0)
-      : [],
-  );
   /** "Next up" leads the page: today's first open session, else the next one. */
   const nextUp = $derived(current?.loggable ? focusSession(current, today) : null);
   const nextUpDay = $derived(current && nextUp ? (dayGroups(current, today).find((g) => g.sessions.some((s) => s.id === nextUp.id)) ?? null) : null);
   const earlier = $derived(current?.loggable ? earlierOpen(current, today, nextUp?.id ?? null) : []);
   const earlierN = $derived(earlier.reduce((n, g) => n + g.sessions.length, 0));
+  /** This week's calendar leaves out what "Next up" and "Earlier this week" already show. */
+  const groups = $derived(
+    !shown
+      ? []
+      : shown === current
+        ? calendarDays(shown, today, [...(nextUp ? [nextUp.id] : []), ...earlier.flatMap((g) => g.sessions.map((s) => s.id))])
+        : calendarDays(shown, today, []),
+  );
   /** A past day of this week whose session is still open. */
   const pastOpen = (date: string | null, loggable = true) => loggable && !!date && date < today;
 
