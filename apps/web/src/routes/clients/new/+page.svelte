@@ -13,6 +13,8 @@
   import Note from "$lib/ui/Note.svelte";
   import PageHead from "$lib/ui/PageHead.svelte";
   import ProfileSection from "$lib/components/ProfileSection.svelte";
+  import LeaveGuard from "$lib/ui/LeaveGuard.svelte";
+  import { createLeaveGuard } from "$lib/leaveGuard.svelte";
 
   const session = page.data.session;
   const draftKey = newClientDraftKey(apiMode, session?.kind === "signedIn" ? session.trainer.id : null);
@@ -35,6 +37,20 @@
   let cameFromApp = false;
   const missing = $derived(nameError(name) ? "a name" : emailError(email) ? "a valid email" : null);
   const badBasics = $derived(invalidBasics(profile));
+  const blank = JSON.stringify({ name: "", email: "", phone: "", profile: emptyProfile() });
+  const typed = $derived(JSON.stringify({ name, email, phone, profile }) !== blank);
+
+  const guard = createLeaveGuard({
+    // off once Cancel or a successful add has let go of the form
+    dirty: () => autosave && saving == null && typed,
+    prompt: () => ({
+      title: "Leave this new client?",
+      body: "They aren't added yet. What you've entered stays as a draft on this device and comes back next time you open New client.",
+      leaveLabel: "Leave, keep draft",
+      danger: false,
+    }),
+  });
+
   /**
    * Bring a field the trainer must fix to the top of the screen and focus it.
    * Top, not nearest: the sticky add bar covers the bottom of a phone screen,
@@ -134,6 +150,8 @@
     document.getElementById("f-name")?.focus();
   });
 </script>
+
+<LeaveGuard {guard} />
 
 <svelte:head><title>New client · Program Tracker</title></svelte:head>
 
