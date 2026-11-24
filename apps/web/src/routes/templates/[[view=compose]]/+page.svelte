@@ -334,7 +334,7 @@
   async function startFrom(p: InstructionPreset) {
     const own = newContent.trim() && !INSTRUCTION_PRESETS.some((x) => x.content === newContent);
     if (own) {
-      const a = await leaveGuard.ask({
+      const a = await guard.asker.ask({
         title: `Replace your rules with ${p.name}?`,
         body: "What you've written in Body so far will be replaced.",
         confirmLabel: "Replace",
