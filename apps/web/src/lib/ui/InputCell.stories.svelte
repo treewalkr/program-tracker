@@ -57,6 +57,10 @@
   <div style="padding: 0 6px"><InputCell label="Rest seconds" bind:value={rest} figure width={6} step={15} min={0} max={600} /></div>
 </Story>
 
+<Story name="Signed figure" asChild>
+  <div style="padding: 0 6px"><InputCell label="Target change, percent" value="-5" figure signed width={5} step={1} min={-100} max={200} placeholder="±%" /></div>
+</Story>
+
 <Story name="Capped length" asChild>
   <div style="padding: 0 6px"><InputCell label="Tempo" bind:value={tempo} width={8} maxlength={7} placeholder="3-1-1-0" /></div>
 </Story>
