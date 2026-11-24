@@ -211,7 +211,7 @@
   </div>
 
   <div class="tablewrap">
-  <table class="settable">
+  <table class="settable" class:one={!split}>
     <thead>
       <tr>
         <th class:l={split}>{split ? "Set" : "Sets"}</th>
@@ -360,6 +360,34 @@
   .foot { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; margin: -2px 0 -4px; }
   .foot > :global(.btn.ghost:first-child) { margin-left: -8px; }
   .grow { flex: 1; }
+  /* Phone width (and inside a superset's box): one row of five-plus cells
+     would clip Rest off the right edge, so the single-row prescription wraps
+     into label-over-field rows of three. Per-set tables keep scrolling. */
+  .tablewrap { container-type: inline-size; }
+  @container (max-width: 380px) {
+    .settable.one,
+    .settable.one :is(thead, tbody, tr) { display: contents; }
+    .settable.one { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 4px; width: 100%; }
+    .settable.one th:nth-child(n + 4) { padding-top: 8px; }
+    .settable.one td { padding-inline: 6px; }
+    .settable.one td :global(input) { max-width: calc(100% + 12px); }
+    /* label's right edge on the digits' (the cell's padding 6 + border 1) */
+    .settable.one th { padding-right: 7px; }
+    .settable.one th:nth-child(1) { grid-area: 1 / 1; }
+    .settable.one td:nth-child(1) { grid-area: 2 / 1; }
+    .settable.one th:nth-child(2) { grid-area: 1 / 2; }
+    .settable.one td:nth-child(2) { grid-area: 2 / 2; }
+    .settable.one th:nth-child(3) { grid-area: 1 / 3; }
+    .settable.one td:nth-child(3) { grid-area: 2 / 3; }
+    .settable.one th:nth-child(4) { grid-area: 3 / 1; }
+    .settable.one td:nth-child(4) { grid-area: 4 / 1; }
+    .settable.one th:nth-child(5) { grid-area: 3 / 2; }
+    .settable.one td:nth-child(5) { grid-area: 4 / 2; }
+    .settable.one th:nth-child(6) { grid-area: 3 / 3; }
+    .settable.one td:nth-child(6) { grid-area: 4 / 3; }
+    .settable.one th:nth-child(7) { grid-area: 5 / 1; }
+    .settable.one td:nth-child(7) { grid-area: 6 / 1; }
+  }
   @media (max-width: 600px) {
     .fixed { width: 46px; padding-left: 4px; }
     .exedit { margin: 0 -8px; padding: 10px; }

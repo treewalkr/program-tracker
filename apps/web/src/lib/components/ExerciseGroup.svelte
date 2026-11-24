@@ -58,10 +58,11 @@
       <span>{rounds} {rounds === 1 ? "round" : "rounds"}</span>
     {/if}
     {#if onmoveup || onmovedown || onungroup}
-      <span class="grow"></span>
+      <span class="actions">
       {#if onmoveup}<button type="button" class="act" disabled={!canMoveUp} onclick={onmoveup} aria-label="Move {kind.toLowerCase()} {group} up">↑</button>{/if}
       {#if onmovedown}<button type="button" class="act" disabled={!canMoveDown} onclick={onmovedown} aria-label="Move {kind.toLowerCase()} {group} down">↓</button>{/if}
       {#if onungroup}<button type="button" class="act text" onclick={onungroup}>Ungroup</button>{/if}
+      </span>
     {/if}
   </div>
   <div class="gbody">
@@ -77,6 +78,7 @@
   }
   .ghead {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 6px;
     padding: 5px 10px;
@@ -90,7 +92,6 @@
   .letter { font: 600 11px/1 var(--font-mono); color: var(--muted); }
   .sep { color: var(--faint); }
   .rounds { display: inline-flex; padding: 0 6px; }
-  .grow { flex: 1; }
   .act {
     border: 1px solid transparent;
     background: none;
@@ -102,6 +103,14 @@
   }
   .act:hover:not(:disabled) { background: var(--well-2); color: var(--ink); }
   .act:disabled { opacity: 0.4; cursor: default; }
+  /* the actions wrap to their own line rather than push Ungroup off a narrow screen */
+  .actions { display: inline-flex; align-items: center; gap: 2px; margin-left: auto; }
+  @media (pointer: coarse) {
+    .act { min-width: 44px; min-height: 44px; }
+  }
+  @media (max-width: 600px) {
+    .gbody { padding: 10px 8px; }
+  }
   .gbody {
     display: flex;
     flex-direction: column;

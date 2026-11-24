@@ -14,6 +14,10 @@
   import Panel from "$lib/ui/Panel.svelte";
   import Pill from "$lib/ui/Pill.svelte";
   import SkeletonRows from "$lib/ui/SkeletonRows.svelte";
+  import LeaveGuard from "$lib/ui/LeaveGuard.svelte";
+  import { createLibraryGuard } from "$lib/libraryGuard.svelte";
+  import { hasDraft } from "$lib/libraryDraft";
+  import { revealRow } from "$lib/revealRow";
 
   /**
    * Aliases: the names the trainer writes (as written → exercise). Their own
@@ -53,11 +57,21 @@
     await run(async () => {
       await api.saveAliases([{ alias: newAlias, exerciseId: newExerciseId, source: "manual" }]);
       await reload();
+      const made = personalAliasFor(list, newAlias);
+      added = `Added ${made?.alias ?? newAlias.trim()}.`;
+      if (made) void revealRow(made.id);
       newAlias = "";
       newExerciseId = "";
     });
     adding = false;
   }
+
+  /** Set after an add, cleared when the form is typed in again. */
+  let added = $state<string | null>(null);
+  $effect(() => {
+    if (newAlias) added = null;
+  });
+  const guard = createLibraryGuard({ dirty: () => hasDraft(newAlias), what: () => `The new alias “${newAlias.trim()}”` });
 
   const repoint = (a: AliasDto, exerciseId: string) =>
     run(async () => {
@@ -107,6 +121,7 @@
       {adding ? "Adding…" : "Add alias"}
     </Button>
   </form>
+  <p class="added" role="status">{added ?? ""}</p>
 
   <div class="search"><InputSearch label="Search aliases" placeholder="Search aliases or exercises" bind:value={query} /></div>
 
@@ -129,7 +144,7 @@
     <ul class="rows">
       {#each shown as a (a.id)}
         {@const off = overridden.has(a.id)}
-        <li class="row" class:muted={off}>
+        <li class="row" class:muted={off} data-row={a.id}>
           <span class="written mono" title="As written (normalized)">{a.alias}</span>
           <span class="arrow" aria-hidden="true">→</span>
           {#if changingId === a.id}
@@ -158,7 +173,11 @@
   {/if}
 </Panel>
 
+<LeaveGuard guard={guard.asker} />
+
 <style>
+  .added { margin: 0; padding: 0 16px; font-size: 13px; font-weight: 500; color: var(--good); }
+  .added:not(:empty) { padding-block: 8px; border-bottom: 1px solid var(--line-soft); }
   .err { margin-bottom: 12px; }
   .mono { font-family: var(--font-mono); }
 

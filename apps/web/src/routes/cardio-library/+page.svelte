@@ -21,6 +21,10 @@
   import SelectDescribed from "$lib/ui/SelectDescribed.svelte";
   import SkeletonRows from "$lib/ui/SkeletonRows.svelte";
   import Tabs from "$lib/ui/Tabs.svelte";
+  import LeaveGuard from "$lib/ui/LeaveGuard.svelte";
+  import { createLibraryGuard } from "$lib/libraryGuard.svelte";
+  import { hasDraft } from "$lib/libraryDraft";
+  import { revealRow } from "$lib/revealRow";
   import type { SelectOption } from "$lib/ui/select/options";
 
   type Tab = "templates" | "modalities";
@@ -87,9 +91,18 @@
       const row = await api.createModality({ name: newName, metric: newMetric });
       modalities = [...(modalities ?? []), row];
       newName = "";
+      added = `Added ${row.name}.`;
+      void revealRow(row.id);
     });
     adding = false;
   }
+  /** Set after an add, cleared when the name is typed in again. */
+  let added = $state<string | null>(null);
+  $effect(() => {
+    if (newName) added = null;
+  });
+  const guard = createLibraryGuard({ dirty: () => hasDraft(newName), what: () => `The new modality “${newName.trim()}”` });
+
   const renameModality = (m: ModalityDto, name: string) => run(async () => void putModality(await api.patchModality(m.id, { name })));
   const setMetric = (m: ModalityDto, metric: CardioMetric) => run(async () => void putModality(await api.patchModality(m.id, { metric })));
   const archiveModality = (m: ModalityDto, archived: boolean) => run(async () => void putModality(await api.patchModality(m.id, { archived })));
@@ -212,6 +225,7 @@
         <div class="new-metric"><SelectDescribed label="How pace shows" options={metricOptions} bind:value={newMetric} /></div>
         <Button variant="primary" type="submit" disabled={adding || !newName.trim()}>{adding ? "Adding…" : "Add modality"}</Button>
       </form>
+      <p class="added" role="status">{added ?? ""}</p>
       {#if !modalities}
         <SkeletonRows rows={2} dense />
       {:else if customModalities.length === 0}
@@ -219,7 +233,7 @@
       {:else}
         <ul class="rows">
           {#each customModalities as m (m.id)}
-            <li class="row custom">
+            <li class="row custom" data-row={m.id}>
               <div class="main"><InputRename value={m.name} thing="modality" size="row" onsave={(name) => renameModality(m, name)} /></div>
               <span class="fact">{usage(m.usedIn)}</span>
               <div class="metric"><SelectCell label="How pace shows for {m.name}" options={metricCells} value={m.metric} onchange={(v) => setMetric(m, v)} /></div>
@@ -262,6 +276,8 @@
   </section>
 {/snippet}
 
+<LeaveGuard guard={guard.asker} />
+
 <style>
   .err { margin-bottom: 12px; }
   .search { max-width: 360px; margin: 16px 0; }
@@ -270,6 +286,8 @@
   .stack { display: grid; gap: 16px; }
   .lock-note { display: flex; align-items: baseline; gap: 6px; margin: 0; padding: 8px 16px; border-bottom: 1px solid var(--line-soft); font-size: 13px; color: var(--muted); }
   .lock-note :global(svg) { width: 13px; height: 13px; flex: none; }
+  .added { margin: 0; padding: 0 16px; font-size: 13px; font-weight: 500; color: var(--good); }
+  .added:not(:empty) { padding-block: 8px; border-bottom: 1px solid var(--line-soft); }
   .add { display: flex; gap: 8px 12px; align-items: flex-end; flex-wrap: wrap; border-bottom: 1px solid var(--line-soft); }
   .new-name { flex: 1; min-width: 200px; }
   .new-metric { flex: 0 1 260px; min-width: 220px; }

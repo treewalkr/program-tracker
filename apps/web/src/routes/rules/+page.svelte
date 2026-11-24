@@ -16,6 +16,10 @@
   import Panel from "$lib/ui/Panel.svelte";
   import Pill from "$lib/ui/Pill.svelte";
   import SkeletonRows from "$lib/ui/SkeletonRows.svelte";
+  import LeaveGuard from "$lib/ui/LeaveGuard.svelte";
+  import { createLibraryGuard } from "$lib/libraryGuard.svelte";
+  import { editChanged, hasDraft } from "$lib/libraryDraft";
+  import { revealRow } from "$lib/revealRow";
 
   let rules = $state<CoachingRuleDto[]>([]);
   let clients = $state<ClientDto[]>([]);
@@ -75,9 +79,11 @@
     creating = true;
     createError = null;
     try {
-      await api.createCoachingRule({ text: newText.trim(), category: newCategory, clientId: newClientId || null });
+      const made = await api.createCoachingRule({ text: newText.trim(), category: newCategory, clientId: newClientId || null });
       newText = "";
       await load();
+      added = `Added to ${made.clientId ? (made.clientName ?? clientName(made.clientId) ?? "the client's rules") : "All clients"}.`;
+      void revealRow(made.id);
     } catch (e) {
       createError = (e as Error).message;
     } finally {
@@ -85,7 +91,26 @@
     }
   }
 
-  function startEdit(r: CoachingRuleDto) {
+  /** Set after a create, cleared when the form is typed in again. */
+  let added = $state<string | null>(null);
+  $effect(() => {
+    if (newText) added = null;
+  });
+
+  const drafting = $derived(hasDraft(newText));
+  const editDirty = $derived(editChanged({ text: editText }, editingId ? rules.find((r) => r.id === editingId) : null));
+  const guard = createLibraryGuard({
+    dirty: () => drafting || editDirty,
+    what: () => (editDirty ? "Your edit to a rule" : "Your new rule"),
+  });
+  /** Dropping an open edit (Cancel, or Edit on another rule) asks first when it changed. */
+  async function closeEdit() {
+    if (!editDirty || (await guard.discard())) editingId = null;
+    return editingId === null;
+  }
+
+  async function startEdit(r: CoachingRuleDto) {
+    if (!(await closeEdit())) return;
     editingId = r.id;
     editText = r.text;
   }
@@ -135,6 +160,7 @@
       {#if createError}<p class="err" role="alert">{createError}</p>{/if}
       <div class="form-foot">
         <Button variant="primary" type="submit" disabled={creating || newText.trim().length < 3}>{creating ? "Saving…" : "Add rule"}</Button>
+        <p class="added" role="status">{added ?? ""}</p>
       </div>
     </form>
   </Panel>
@@ -168,7 +194,7 @@
             <h3 class="group-head">{g.label} <span class="subtle">{g.rules.length}</span></h3>
             <div class="list">
               {#each g.rules as r (r.id)}
-                <div class="item">
+                <div class="item" data-row={r.id}>
                   {#if editingId === r.id}
                     <form
                       class="stack"
@@ -180,7 +206,7 @@
                       <InputNote label="Rule text" hideLabel rows={2} maxlength={400} bind:value={editText} />
                       <div class="row-actions">
                         <Button small variant="primary" type="submit" disabled={busyId === r.id || editText.trim().length < 3}>Save</Button>
-                        <Button small variant="ghost" type="button" onclick={() => (editingId = null)}>Cancel</Button>
+                        <Button small variant="ghost" type="button" onclick={closeEdit}>Cancel</Button>
                       </div>
                     </form>
                   {:else}
@@ -255,11 +281,14 @@
   {/if}
 {/snippet}
 
+<LeaveGuard guard={guard.asker} />
+
 <style>
   .cols { display: grid; grid-template-columns: minmax(300px, 5fr) 7fr; gap: 18px; align-items: start; }
   .stack { display: flex; flex-direction: column; gap: 14px; }
   .two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  .form-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .form-foot { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; }
+  .added { margin: 0; font-size: 13px; font-weight: 500; color: var(--good); }
   .err { margin: 0; font-size: 13px; font-weight: 500; color: var(--bad); }
 
   .list { display: flex; flex-direction: column; }
@@ -292,5 +321,5 @@
   .retired summary::-webkit-details-marker { display: none; }
   .retired:not([open]) summary { border-bottom: none; }
 
-  @media (max-width: 980px) { .cols { grid-template-columns: 1fr; } }
+  @media (max-width: 980px) { .cols { grid-template-columns: minmax(0, 1fr); } }
 </style>

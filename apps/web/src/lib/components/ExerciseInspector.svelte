@@ -38,12 +38,14 @@
     ondelete: (e: ExerciseDto) => void;
     onduplicate: (e: ExerciseDto) => void;
     onopen: (id: string) => void;
+    /** Called with true while the form differs from what it opened with (for the page's leave guard). */
+    ondirty?: (dirty: boolean) => void;
   }
 
   const muscleOptions: SelectOption[] = MUSCLE_OPTIONS.map((o) => ({ value: o.key, label: o.label }));
   const functionalOptions: SelectOption[] = [{ value: "", label: "Untagged" }, ...FUNCTIONAL_OPTIONS.map((o) => ({ value: o.key, label: o.label }))];
 
-  let { exercise, prefill, list, onclose, onsave, onremove, onrestore, ondelete, onduplicate, onopen }: Props = $props();
+  let { exercise, prefill, list, onclose, onsave, onremove, onrestore, ondelete, onduplicate, onopen, ondirty }: Props = $props();
 
   const initial = untrack(() => formFrom(exercise, prefill));
   let form = $state<ExerciseForm>(structuredClone(initial));
@@ -53,6 +55,7 @@
 
   const locked = $derived(exercise !== null && !exercise.custom);
   const dirty = $derived(JSON.stringify(form) !== JSON.stringify(initial));
+  $effect(() => ondirty?.(dirty));
   const rm = $derived(exercise ? removeAction(exercise) : null);
   const dupes = $derived(locked ? { exact: null, similar: [] } : similarNames(list, form.name, exercise?.id));
   const prefilledFrom = untrack(() =>

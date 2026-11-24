@@ -18,6 +18,10 @@
   import PageHead from "$lib/ui/PageHead.svelte";
   import Panel from "$lib/ui/Panel.svelte";
   import SkeletonRows from "$lib/ui/SkeletonRows.svelte";
+  import LeaveGuard from "$lib/ui/LeaveGuard.svelte";
+  import { createLibraryGuard } from "$lib/libraryGuard.svelte";
+  import { hasDraft } from "$lib/libraryDraft";
+  import { revealRow } from "$lib/revealRow";
 
   let types = $state<SessionTypeDto[]>([]);
   let loaded = $state(false);
@@ -60,11 +64,21 @@
     if (!newName.trim() || adding) return;
     adding = true;
     await run(async () => {
-      types = [...types, await api.createSessionType({ name: newName, format: newFormat })];
+      const row = await api.createSessionType({ name: newName, format: newFormat });
+      types = [...types, row];
       newName = "";
+      added = `Added ${row.name}.`;
+      void revealRow(row.id);
     });
     adding = false;
   }
+
+  /** Set after an add, cleared when the name is typed in again. */
+  let added = $state<string | null>(null);
+  $effect(() => {
+    if (newName) added = null;
+  });
+  const guard = createLibraryGuard({ dirty: () => hasDraft(newName), what: () => `The new type “${newName.trim()}”` });
 
   const startRename = (t: SessionTypeDto) => (editingId = t.id);
 
@@ -189,6 +203,7 @@
       {adding ? "Adding…" : "Add type"}
     </Button>
   </form>
+  <p class="added" role="status">{added ?? ""}</p>
 
   {#if !loaded}
     <SkeletonRows rows={2} dense />
@@ -199,7 +214,7 @@
   {:else}
     <ul class="rows">
       {#each customShown as t (t.id)}
-        <li class="row custom">
+        <li class="row custom" data-row={t.id}>
           {@render dot(t.format)}
           {#if editingId === t.id}
             <div class="rename">
@@ -259,6 +274,8 @@
   </section>
 {/if}
 
+<LeaveGuard guard={guard.asker} />
+
 <style>
   .err { margin-bottom: 12px; }
 
@@ -279,6 +296,8 @@
   }
   .lock-note :global(svg) { width: 13px; height: 13px; flex: none; }
 
+  .added { margin: 0; padding: 0 16px; font-size: 13px; font-weight: 500; color: var(--good); }
+  .added:not(:empty) { padding-block: 8px; border-bottom: 1px solid var(--line-soft); }
   .add { display: flex; gap: 8px 12px; align-items: flex-end; flex-wrap: wrap; border-bottom: 1px solid var(--line-soft); }
   .new-name { flex: 1; min-width: 200px; }
   .new-format { flex: 0 1 260px; min-width: 220px; }
