@@ -514,7 +514,21 @@
     height: calc(100vh - var(--view-bar-h, 0px));
     /* dvh: iOS Safari's 100vh runs under its toolbar, hiding the foot. */
     height: calc(100dvh - var(--view-bar-h, 0px));
-    overflow: hidden; /* labels clip at the edge while the column animates; only the nav scrolls */
+    /* Labels clip at the edge while the column animates. A menu taller than
+       the screen (the admin's Platform group on a phone or iPad landscape)
+       scrolls as one column: the foot follows the list instead of pinning
+       over it and hiding the last groups in an inner box. */
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    /* Thumb stays invisible until the menu is in use. */
+    scrollbar-color: transparent transparent;
+    transition: scrollbar-color 160ms;
+  }
+  .side:hover,
+  .side:focus-within {
+    scrollbar-color: var(--line-strong) transparent;
   }
 
   /* Edge rail: rides the column's right border (and its animation), 6px each
@@ -677,25 +691,8 @@
     flex-direction: column;
     gap: 16px;
   }
-  /* Header and foot stay put; a long admin nav scrolls between them. The
-     scroll box reaches into the side padding so focus rings aren't clipped. */
-  .nav.primary {
-    flex: 1;
-    min-height: 0;
-    overflow-x: hidden;
-    overflow-y: auto;
-    margin: -4px -8px;
-    padding: 4px 8px;
-    scrollbar-width: thin;
-    /* Thumb stays invisible until the nav is in use; the gutter keeps its
-       width so nothing shifts when it appears. */
-    scrollbar-color: transparent transparent;
-    transition: scrollbar-color 160ms;
-  }
-  .nav.primary:hover,
-  .nav.primary:focus-within {
-    scrollbar-color: var(--line-strong) transparent;
-  }
+  /* Takes the spare height so the foot sits at the bottom when the menu fits. */
+  .nav.primary { flex: 1 0 auto; }
   .group {
     display: flex;
     flex-direction: column;
@@ -835,8 +832,8 @@
   /* Icon rail: chosen on wide screens, the default on narrow ones. The 39px
      content box centres 32px buttons at x=11.5, so 16px icons land on x=20. */
   .shell.slim { grid-template-columns: 56px 1fr; }
-  .rail .nav.primary { scrollbar-width: none; } /* a scrollbar would eat the 56px rail */
-  .rail .nav.primary::-webkit-scrollbar { display: none; }
+  .rail .side { scrollbar-width: none; } /* a scrollbar would eat the 56px rail */
+  .rail .side::-webkit-scrollbar { display: none; }
   /* Rows keep their open-menu heights on the rail, so icons hold the same y
      both ways and the toggle only moves things sideways. */
   .rail .brand { flex: none; width: 32px; height: 48px; padding: 8px 0; }
