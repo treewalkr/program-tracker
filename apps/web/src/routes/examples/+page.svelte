@@ -333,6 +333,8 @@
   .item-head h3 { font-size: 14px; }
   .prog-link { color: var(--ink); }
   .prog-link:hover { color: var(--blue); text-underline-offset: 3px; }
+  /* Touch: a 44px-tall target; inline padding doesn't move the line. */
+  @media (pointer: coarse) { .prog-link { position: relative; padding-block: 14px; } }
 
   .facts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 10px; }
   .goal { color: var(--ink); margin-right: 4px; }

@@ -93,6 +93,8 @@
     color: var(--ink);
     text-decoration: none;
   }
+  /* Touch: a 44px-tall target; inline padding doesn't move the line. */
+  @media (pointer: coarse) { .version a { padding-block: 13px; } }
   .version a:hover {
     color: var(--blue);
     text-decoration: underline;

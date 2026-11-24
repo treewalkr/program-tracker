@@ -728,6 +728,8 @@
   .rd-raw { margin: 0; }
   .rd-raw summary { cursor: pointer; font-size: 13px; color: var(--muted); margin-bottom: 8px; }
   .rd-raw summary:hover { color: var(--ink); }
+  /* Touch: a 44px-tall target without moving the line (the 8px gap below stays). */
+  @media (pointer: coarse) { .rd-raw summary { padding-block: 13px; margin-block: -13px -5px; } }
   .rd-form { max-width: 720px; }
 
   /* The page's own Back, styled as BackButton: a 28px line with a 44px target. */
