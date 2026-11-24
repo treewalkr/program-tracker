@@ -2,6 +2,8 @@
   import { deloadRulesText, type DeloadSettings } from "@pt/shared";
   import Field from "$lib/ui/Field.svelte";
   import Skeleton from "$lib/ui/Skeleton.svelte";
+  import SelectField from "$lib/ui/SelectField.svelte";
+  import type { SelectOption } from "$lib/ui/select/options";
 
   /**
    * The five knobs of a deload rule, plus a live plain-language preview.
@@ -33,6 +35,11 @@
   const setsLabel = (n: number) => (n === 100 ? "All" : n === 50 ? "Half" : `${n} %`);
   const loadLabel = (n: number) => (n === 0 ? "No change" : `−${Math.abs(n)} %`);
 
+  const opts = (ns: number[], label: (n: number) => string): SelectOption[] => ns.map((n) => ({ value: String(n), label: label(n) }));
+  const SET_OPTS = opts(SETS, setsLabel);
+  const LOAD_OPTS = opts(LOADS, loadLabel);
+  const RPE_OPTS: SelectOption[] = [{ value: "", label: "No cap" }, ...opts(RPES, String)];
+
   const preview = $derived(deloadRulesText(value));
 </script>
 
@@ -53,17 +60,9 @@
 {:else}
   <div class="rule" class:off={disabled}>
     <div class="knobs">
-      <Field label="Sets kept" htmlFor="{idPrefix}-sets">
-        <select id="{idPrefix}-sets" class="select" {disabled} bind:value={value.setsKeptPercent}>
-          {#each SETS as n (n)}<option value={n}>{setsLabel(n)}</option>{/each}
-        </select>
-      </Field>
+      <SelectField label="Sets kept" maxWidth="none" options={SET_OPTS} {disabled} value={String(value.setsKeptPercent)} onchange={(v) => (value.setsKeptPercent = Number(v))} />
 
-      <Field label="Load" htmlFor="{idPrefix}-load">
-        <select id="{idPrefix}-load" class="select" {disabled} bind:value={value.loadPercent}>
-          {#each LOADS as n (n)}<option value={n}>{loadLabel(n)}</option>{/each}
-        </select>
-      </Field>
+      <SelectField label="Load" maxWidth="none" options={LOAD_OPTS} {disabled} value={String(value.loadPercent)} onchange={(v) => (value.loadPercent = Number(v))} />
 
       <Field label="From">
         <div class="seg" role="radiogroup" aria-label="Load from">
@@ -76,12 +75,7 @@
         </div>
       </Field>
 
-      <Field label="RPE cap" htmlFor="{idPrefix}-rpe">
-        <select id="{idPrefix}-rpe" class="select" {disabled} bind:value={value.rpeCap}>
-          <option value={null}>No cap</option>
-          {#each RPES as n (n)}<option value={n}>{n}</option>{/each}
-        </select>
-      </Field>
+      <SelectField label="RPE cap" maxWidth="none" options={RPE_OPTS} {disabled} value={value.rpeCap == null ? "" : String(value.rpeCap)} onchange={(v) => (value.rpeCap = v === "" ? null : Number(v))} />
 
       <label class="amrap">
         <input type="checkbox" {disabled} bind:checked={value.amrap} />
@@ -103,7 +97,6 @@
     align-items: end;
   }
   .knobs :global(.label) { font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 4px; }
-  .knobs .select { min-height: 32px; font-variant-numeric: tabular-nums; }
   /* the two-option switch needs two columns or "Week 1" is clipped */
   .knobs > :global(:has(> .seg)) { grid-column: span 2; }
 
