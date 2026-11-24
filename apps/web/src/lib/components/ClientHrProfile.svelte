@@ -229,8 +229,10 @@
   }
   /* A finger on an iPad: the desk's 23px quiet cells grow to a tappable height, apart from each other. */
   @media (pointer: coarse) {
-    .pair { gap: 4px; }
-    .pair :global(.cell) { min-height: 40px; font-size: 16px; }
+    .pair { gap: 2px; }
+    .zones td.r { padding-inline: 4px; }
+    /* InputCell bleeds 6px each side for the desk's hover; here that hides the dash. */
+    .pair :global(.cell) { min-height: 40px; font-size: 16px; margin: 0; width: 100%; }
   }
   .mono { font-family: var(--font-mono); }
   @media (max-width: 640px) {
