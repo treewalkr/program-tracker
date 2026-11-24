@@ -1,9 +1,13 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
-  import { WEEK_DIRECTIVES, WEEK_METRICS, type ProgressionKind, type WeekMetric } from "@pt/shared";
+  import { WEEK_DIRECTIVES, WEEK_METRICS, type ProgressionKind, type WeekDirective, type WeekMetric } from "@pt/shared";
   import type { PhasingRow } from "$lib/phasing";
   import Button from "$lib/ui/Button.svelte";
   import Icon from "$lib/ui/Icon.svelte";
+  import InputCell from "$lib/ui/InputCell.svelte";
+  import SelectCell from "$lib/ui/SelectCell.svelte";
+  import type { SelectOption } from "$lib/ui/select/options";
+  import { parseFigure } from "$lib/ui/input/figure";
 
   /**
    * Week-by-week scheme rows: directive, target (metric ±%), progression rule
@@ -35,6 +39,14 @@
   const PROG_LABELS: Record<ProgressionKind, string> = { kg: "+kg", percent: "+% 1RM", sets: "+sets" };
   const PROG_STEP: Record<ProgressionKind, number> = { kg: 2.5, percent: 2.5, sets: 1 };
 
+  const DIRECTIVES: SelectOption<WeekDirective>[] = WEEK_DIRECTIVES.map((d) => ({ value: d, label: d }));
+  const METRICS: SelectOption<WeekMetric | "">[] = [{ value: "", label: "No target" }, ...WEEK_METRICS.map((m) => ({ value: m, label: METRIC_LABELS[m] }))];
+  const PROGS: SelectOption<ProgressionKind | "">[] = [
+    { value: "", label: "No progression" },
+    ...(Object.keys(PROG_LABELS) as ProgressionKind[]).map((k) => ({ value: k, label: PROG_LABELS[k] })),
+  ];
+  const figText = (n: number | null | undefined) => (n == null ? "" : String(n));
+
   /** Rows whose note field is open while still empty. */
   let noteOpen = $state<Record<number, boolean>>({});
 </script>
@@ -44,54 +56,42 @@
     <div class="week-row">
       <div class="row-main">
         <span class="wk">W{i + 1}</span>
-        <select class="select tiny" bind:value={r.directive} aria-label="Week {i + 1} directive">
-          {#each WEEK_DIRECTIVES as opt (opt)}
-            <option value={opt}>{opt}</option>
-          {/each}
-        </select>
-        <select class="select tiny" bind:value={r.metric} aria-label="Week {i + 1} target">
-          <option value="">No target</option>
-          {#each WEEK_METRICS as m (m)}
-            <option value={m}>{METRIC_LABELS[m]}</option>
-          {/each}
-        </select>
+        <span class="c"><SelectCell label="Week {i + 1} directive" options={DIRECTIVES} bind:value={r.directive} /></span>
+        <span class="c"><SelectCell label="Week {i + 1} target" options={METRICS} bind:value={r.metric} /></span>
         {#if r.metric !== ""}
-          <input
-            class="input tiny-num"
-            type="number"
-            min="-100"
-            max="200"
+          <span class="c"><InputCell
+            figure
+            width={5}
+            step={1}
+            min={-100}
+            max={200}
             placeholder="±%"
-            aria-label="Week {i + 1} target change, percent"
-            bind:value={r.deltaPercent}
-          />
+            label="Week {i + 1} target change, percent"
+            value={figText(r.deltaPercent)}
+            oncommit={(v) => (r.deltaPercent = parseFigure(v))}
+          /></span>
         {/if}
         {#if i > 0}
-          <select
-            class="select tiny"
-            aria-label="Week {i + 1} progression vs week {i}"
+          <span class="c"><SelectCell
+            label="Week {i + 1} progression vs week {i}"
+            options={PROGS}
             value={r.progKind ?? ""}
-            onchange={(e) => {
-              const k = e.currentTarget.value as ProgressionKind | "";
+            onchange={(k) => {
               r.progKind = k;
               if (k && !r.progAmount) r.progAmount = PROG_STEP[k];
             }}
-          >
-            <option value="">No progression</option>
-            {#each Object.entries(PROG_LABELS) as [k, label] (k)}
-              <option value={k}>{label}</option>
-            {/each}
-          </select>
+          /></span>
           {#if r.progKind}
-            <input
-              class="input tiny-num"
-              type="number"
-              min="-50"
-              max="50"
+            <span class="c"><InputCell
+              figure
+              width={5}
               step={PROG_STEP[r.progKind]}
-              aria-label="Week {i + 1} progression amount"
-              bind:value={r.progAmount}
-            />
+              min={-50}
+              max={50}
+              label="Week {i + 1} progression amount"
+              value={figText(r.progAmount)}
+              oncommit={(v) => (r.progAmount = parseFigure(v))}
+            /></span>
           {/if}
         {/if}
         <span class="row-end">
@@ -111,14 +111,9 @@
         </span>
       </div>
       {#if r.note || noteOpen[i]}
-        <input
-          class="input note"
-          type="text"
-          maxlength="500"
-          placeholder="Note for week {i + 1}, e.g. RPE ≤ 7"
-          aria-label="Week {i + 1} note"
-          bind:value={r.note}
-        />
+        <div class="note">
+          <InputCell maxlength={500} placeholder="Note for week {i + 1}, e.g. RPE ≤ 7" label="Week {i + 1} note" bind:value={() => r.note ?? "", (v) => (r.note = v)} />
+        </div>
       {/if}
     </div>
   {/each}
@@ -135,8 +130,8 @@
   .row-main { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
   .row-end { margin-left: auto; display: inline-flex; gap: 2px; }
   .wk { font: 500 12px var(--font-mono); width: 26px; color: var(--muted); }
-  .select.tiny { width: auto; padding: 3px 6px; font-size: 12.5px; }
-  .tiny-num { width: 64px; padding: 3px 6px; text-align: right; font-family: var(--font-mono); font-size: 12.5px; }
-  .note { margin-left: 32px; width: calc(100% - 32px); padding: 3px 8px; font-size: 12.5px; }
+  /* the quiet cells pull 6px into their gutter; give it back so neighbours don't touch */
+  .c { display: inline-flex; padding: 0 6px; }
+  .note { margin-left: 38px; margin-right: 6px; }
   .add-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 2px; }
 </style>
