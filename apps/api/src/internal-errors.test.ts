@@ -20,6 +20,9 @@ const app = new Elysia()
   .get("/thrown-status", () => {
     throw status(403, { error: "not yours" });
   })
+  .get("/db-down", () => {
+    throw Object.assign(new Error("write CONNECT_TIMEOUT db.internal.example:6543"), { code: "CONNECT_TIMEOUT" });
+  })
   .get("/coded", () => {
     throw Object.assign(new Error("bad range"), { status: 400 });
   })
@@ -67,8 +70,26 @@ describe("internal errors", () => {
     expect(((await bad.json()) as { type: string }).type).toBe("validation");
   });
 
-  test("only unknown and internal codes are ours to hide", () => {
+  test("an error with its own code (a driver or system error) is hidden too", async () => {
+    const logged = spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const res = await get("/db-down");
+      expect(res.status).toBe(500);
+      const text = await res.text();
+      expect(text).not.toContain("CONNECT_TIMEOUT");
+      expect(text).not.toContain("db.internal");
+      expect(JSON.parse(text)).toEqual({ error: INTERNAL_ERROR, requestId: "req12345" });
+    } finally {
+      logged.mockRestore();
+    }
+  });
+
+  test("only Elysia's own codes and route statuses pass through", () => {
     expect(isInternalError("UNKNOWN", new Error("x"))).toBe(true);
+    expect(isInternalError("ECONNREFUSED", new Error("connect ECONNREFUSED 10.0.0.5:5432"))).toBe(true);
+    expect(isInternalError("23505", new Error("duplicate key value violates unique constraint"))).toBe(true);
+    expect(isInternalError(20, new Error("The operation was aborted"))).toBe(true);
+    expect(isInternalError("23505", Object.assign(new Error("x"), { status: 409 }))).toBe(false);
     expect(isInternalError("INTERNAL_SERVER_ERROR", new Error("x"))).toBe(true);
     expect(isInternalError("UNKNOWN", Object.assign(new Error("x"), { status: 503 }))).toBe(true);
     expect(isInternalError("UNKNOWN", Object.assign(new Error("x"), { status: 404 }))).toBe(false);
