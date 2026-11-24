@@ -117,7 +117,9 @@ export function cardioParts(c: Pick<PortalCardioPrescription, "durationMin" | "h
   const metric = portalMetric(c.modality);
   if (total) {
     if (total.durationSec) parts.push(durationText(total.durationSec, t));
-    if (total.distanceM > 0) parts.push(metresText(total.distanceM, t));
+    // a distance-only part: the timed minutes around it still count ("30 min + 4.8 km")
+    if (!total.durationSec && total.timedSec > 0 && total.distanceM > 0) parts.push(`${durationText(total.timedSec, t)} + ${metresText(total.distanceM, t)}`);
+    else if (total.distanceM > 0) parts.push(metresText(total.distanceM, t));
   } else {
     if (c.durationMin) parts.push(t("rx.minutes", { n: c.durationMin }));
     if (c.hrZone) parts.push(t("rx.zone", { n: c.hrZone }));
