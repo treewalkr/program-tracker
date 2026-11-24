@@ -13,7 +13,7 @@
   import Icon, { type IconName } from "$lib/ui/Icon.svelte";
   import FeedbackLayer from "$lib/feedback/FeedbackLayer.svelte";
   import GuideSearch from "$lib/guide/GuideSearch.svelte";
-  import { searchShortcut } from "$lib/guide/searchState.svelte";
+  import { openGuideSearch, searchShortcut } from "$lib/guide/searchState.svelte";
   import { feedbackUnread } from "$lib/feedback/unread.svelte";
   import { installRuntimeCapture, runtime } from "$lib/feedback/runtime";
   import { syncThemeAttribute } from "$lib/theme.svelte";
@@ -444,6 +444,10 @@
         onclick={toggleSide}
       >
         <Icon name="sidebar" />
+      </button>
+      <!-- ⌘K's tap path: touch screens and narrow windows (CSS shows it). -->
+      <button type="button" class="side-toggle search" aria-label="Search the guides" onclick={() => openGuideSearch()}>
+        <Icon name="search" />
       </button>
     </div>
     {#if focusRoute && !drawerOpen}
@@ -939,11 +943,15 @@
     .main { padding: 20px 16px 56px; }
   }
 
-  /* Touch screens (and narrow windows): a 44px target around the 28px toggle,
-     without moving the title line. */
+  .side-toggle { position: relative; }
+  .side-toggle.search { display: none; }
+  /* Touch screens (and narrow windows): a 44px target around each 28px topbar
+     button, without moving the title line, and the search button ⌘K can't
+     reach there. */
   @media (max-width: 860px), (hover: none) {
-    .side-toggle { position: relative; }
     .side-toggle::before { content: ""; position: absolute; inset: -8px; }
+    .side-toggle.search { display: grid; }
+    .topbar { gap: 16px; }
   }
 
   /* Touch screens have no hover, so rail tooltips never show: the rail
