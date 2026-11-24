@@ -11,6 +11,8 @@ declare global {
 		interface PageState {
 			/** Templates page, narrow widths: the reader is open over the list. */
 			tplOpen?: boolean;
+			/** Templates page: the new-template composer is open (/templates/new). */
+			tplNew?: boolean;
 		}
 		// interface Platform {}
 	}

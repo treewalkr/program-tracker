@@ -81,4 +81,6 @@
 	.sel:disabled { cursor: default; }
 	@media (prefers-reduced-motion: reduce) { .sel :global(svg) { transition: none; } }
 	@media (max-width: 720px) { .sel { min-height: 40px; font-size: 16px; } }
+	/* No hover on touch: show the resting frame and chevron so the cell reads as tappable. */
+	@media (hover: none) { .sel { border-color: var(--line-soft); } .sel :global(svg) { opacity: 1; } }
 </style>

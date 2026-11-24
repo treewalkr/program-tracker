@@ -31,6 +31,58 @@ export function trainersOf(rows: AdminClient[]): AdminClient["trainer"][] {
   return [...seen.values()];
 }
 
+/** How recently one client of a trainer's book logged, for the book strip. */
+export type BookCell = "recent" | "fading" | "quiet" | "never" | "off";
+const CELL_ORDER: Record<BookCell, number> = { recent: 0, fading: 1, quiet: 2, never: 3, off: 4 };
+
+/** One trainer's book: who they are, their clients, and what the strip and fact line show. */
+export interface TrainerBook {
+  trainer: AdminClient["trainer"];
+  clients: AdminClient[];
+  status: Record<ClientStatus, number>;
+  /** Active clients with no session in over DORMANT_DAYS. */
+  quiet: number;
+  /** Active clients who never logged. */
+  never: number;
+  /** Clients whose programme ran past its plan. */
+  over: number;
+  /** One cell per client: active by recency (≤7 days, 8–14, quiet, never), then paused/archived. */
+  strip: { client: AdminClient; cell: BookCell }[];
+}
+
+/** Active clients: logged in 7 days → recent, 8–14 → fading, older → quiet, never → never. Paused/archived → off. */
+export function bookCell(c: AdminClient, today: string): BookCell {
+  if (c.status !== "active") return "off";
+  if (!c.lastSessionAt) return "never";
+  const d = daysBetween(c.lastSessionAt, today);
+  return d <= 7 ? "recent" : d <= DORMANT_DAYS ? "fading" : "quiet";
+}
+
+/** Rows grouped by trainer, in first-seen order (the API sorts by trainer name); clients keep their order. */
+export function booksOf(rows: AdminClient[], today: string): TrainerBook[] {
+  const books = new Map<string, TrainerBook>();
+  for (const c of rows) {
+    let b = books.get(c.trainer.id);
+    if (!b) {
+      b = { trainer: c.trainer, clients: [], status: { active: 0, paused: 0, archived: 0 }, quiet: 0, never: 0, over: 0, strip: [] };
+      books.set(c.trainer.id, b);
+    }
+    const cell = bookCell(c, today);
+    b.clients.push(c);
+    b.status[c.status]++;
+    if (cell === "quiet") b.quiet++;
+    if (cell === "never") b.never++;
+    if (c.programme?.over) b.over++;
+    b.strip.push({ client: c, cell });
+  }
+  for (const b of books.values()) {
+    b.strip.sort(
+      (x, y) => CELL_ORDER[x.cell] - CELL_ORDER[y.cell] || (y.client.lastSessionAt ?? "").localeCompare(x.client.lastSessionAt ?? ""),
+    );
+  }
+  return [...books.values()];
+}
+
 /** Whole calendar days from a `YYYY-MM-DD` day to `today` (`YYYY-MM-DD`). */
 export function daysBetween(day: string, today: string): number {
   return Math.round((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${day}T00:00:00Z`)) / 86_400_000);

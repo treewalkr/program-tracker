@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+## v0.1.51 — 2026-11-24
+
+### New
+- **Progression schemes show their shape.** Each scheme draws its weeks as a small bar chart, coloured by what each week pushes (volume, intensity or deload), with a week-by-week table under it, so schemes are easy to tell apart. A new scheme starts from a preset under "Start from", and the week editor lists one week per line.
+  - th: หน้า Progression schemes ดูรูปทรงของแต่ละ scheme ได้ในแวบเดียว ทุก scheme มีกราฟแท่งเล็ก ๆ หนึ่งแท่งต่อสัปดาห์ สีบอกว่าสัปดาห์นั้นเน้นอะไร (volume, intensity หรือ deload) และมีตารางรายสัปดาห์อยู่ข้างใต้ ตอนสร้าง scheme ใหม่ เลือก preset ใน "Start from" แล้วค่อยปรับต่อได้เลย ส่วนตัวแก้สัปดาห์ก็เรียงหนึ่งสัปดาห์ต่อหนึ่งบรรทัดแล้ว
+- **Start a template from a built-in.** New template has a "Start from" row of the built-in templates. Pick one to fill Body with its rules, then edit them. If you've already written your own, it asks before replacing it. New template also has its own link, /templates/new.
+  - th: เริ่มเทมเพลตใหม่จาก built-in ได้แล้ว หน้า New template มีแถว "Start from" รวมเทมเพลต built-in ไว้ เลือกอันไหนก็จะเติมกฎของอันนั้นลงใน Body ให้แก้ต่อ ถ้าเขียนของตัวเองไว้แล้ว ระบบจะถามก่อนทับ หน้านี้ยังมีลิงก์ของตัวเองด้วย คือ /templates/new
+- **All clients, by trainer (admins).** The All clients page groups clients under each trainer, with a strip showing how recently each one logged and counts of who's gone quiet, never logged or run past their plan. Click a trainer to open their list.
+  - th: หน้า All clients ของแอดมินจัดกลุ่มเมมเบอร์ตามเทรนเนอร์ แต่ละคนมีแถบสีบอกว่าเมมเบอร์บันทึกล่าสุดเมื่อไหร่ และบอกจำนวนคนที่เงียบไป ยังไม่เคยบันทึก หรือเลยแผนไปแล้ว คลิกที่เทรนเนอร์เพื่อกางดูรายชื่อ
+
+### Improved
+- **Every form field and dropdown matches.** Text boxes, notes, dates and dropdowns across the app share one look, size and keyboard behaviour, from the program editor and session log to Generate, Coaching rules, Examples and member forms. On a phone they're 40px tall with 16px text, so the iPhone doesn't zoom in when you tap one.
+  - th: ช่องกรอกและดรอปดาวน์ทั้งแอปหน้าตาเหมือนกันแล้ว ทั้งช่องข้อความ ช่องโน้ต ช่องวันที่ และดรอปดาวน์ ใช้ขนาดและปุ่มคีย์บอร์ดแบบเดียวกันหมด ตั้งแต่ตัวแก้โปรแกรม หน้าบันทึกเซสชัน ไปจนถึง Generate, Coaching rules, Examples และฟอร์มของเมมเบอร์ บนมือถือช่องสูง 40px ตัวอักษร 16px แตะแล้ว iPhone ก็ไม่ซูมเข้าเอง
+- **Templates on phones and iPad** open as a list first. Tap a template to read it full screen, and Back returns to the list.
+  - th: บนมือถือและ iPad หน้า Templates จะเปิดเป็นรายการก่อน แตะเทมเพลตไหนก็เปิดอ่านเต็มจอ กด Back ก็กลับมาที่รายการ
+- **Tidier phones.** Tabs and rows of buttons stay on one line and scroll sideways, with a soft fade at the edge while there's more. Scrollbars are hidden on phones and touch screens, search boxes run full width, and list filters share one row.
+  - th: บนมือถือ แท็บและแถวปุ่มอยู่บรรทัดเดียว เลื่อนด้านข้างได้ ถ้ายังมีต่อ ขอบจะจางให้รู้ บนมือถือและจอสัมผัสไม่มี scrollbar แล้ว ช่องค้นหากว้างเต็มจอ ส่วนตัวกรองในหน้ารายการก็อยู่แถวเดียวกัน
+- **Number cells.** Up and down arrows step the number in a table cell, and on a phone you can type a minus in week targets and progression. On touch screens the cells show their edges, so you can see where to tap.
+  - th: ในช่องตัวเลขของตาราง กดลูกศรขึ้นลงเพื่อเพิ่มหรือลดค่าได้ บนมือถือใส่เครื่องหมายลบในเป้าหมายรายสัปดาห์และ progression ได้แล้ว ส่วนบนจอสัมผัส ช่องจะมีขอบให้เห็นว่าต้องแตะตรงไหน
+- Pages in the side menu show ‹ Back when you opened them from another page.
+  - th: หน้าที่อยู่ในเมนูด้านข้าง ถ้าเปิดมาจากหน้าอื่นจะมีปุ่ม ‹ Back ด้วย
+
+### Fixed
+- On Coaching rules, the member picker stays inside its column.
+  - th: หน้า Coaching rules ตัวเลือกเมมเบอร์ไม่ล้นออกนอกคอลัมน์แล้ว
+- The date field when logging a member's session has room for the full date.
+  - th: ช่องวันที่ตอนบันทึกเซสชันของเมมเบอร์กว้างพอให้เห็นวันที่เต็ม ๆ แล้ว
+
 ## v0.1.50 — 2026-11-24
 
 ### New

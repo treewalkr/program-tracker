@@ -35,7 +35,7 @@ export { weekTargetLabel, planChanges, type PlanChange };
  * with the week-1 basis. A deload is a one-week dip: the next week resumes from
  * the last pre-deload values, so back-to-back deloads each dip from that baseline.
  */
-export function planIndexes(ph: ProgramPhasingDto, deload: DeloadSettings = DEFAULT_DELOAD): { vol: number; load: number }[] {
+export function planIndexes(ph: Pick<ProgramPhasingDto, "weeks">, deload: DeloadSettings = DEFAULT_DELOAD): { vol: number; load: number }[] {
   // Trim float noise (100 × 1.025 × 0.9 = 92.24999…) so display rounding is honest.
   const clean = (n: number) => +n.toPrecision(12);
   let vol = 100;
