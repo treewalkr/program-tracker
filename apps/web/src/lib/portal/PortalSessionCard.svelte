@@ -82,8 +82,9 @@
         <p class="meta">{session.typeName}</p>
       {/if}
     </div>
-    {#if logHref && !lead && (!session.log || !byCoach)}
-      <a class="btn side" href={logHref}>{session.log ? t("session.edit") : logLabel}</a>
+    {#if logHref && !lead}
+      <!-- a coach's log opens read-only: see it, never edit it -->
+      <a class="btn side" href={logHref}>{byCoach ? t("session.view") : session.log ? t("session.edit") : logLabel}</a>
     {/if}
   </div>
   {#if notLogged && !session.log}
