@@ -1,6 +1,8 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import { groupKind } from "@pt/shared";
+  import InputCell from "$lib/ui/InputCell.svelte";
+  import { parseFigure } from "$lib/ui/input/figure";
 
   /**
    * A superset / circuit: a hairline box with a well-gray header
@@ -41,15 +43,16 @@
     <strong>{kind}</strong>
     <span class="sep">·</span>
     {#if onrounds}
-      <input
-        class="input rounds"
-        type="number"
-        min="1"
-        max="20"
-        aria-label="Rounds for {kind.toLowerCase()} {group}"
-        value={rounds}
-        onchange={(e) => onrounds(Number(e.currentTarget.value))}
-      />
+      <span class="rounds"><InputCell
+        figure
+        width={3}
+        step={1}
+        min={1}
+        max={20}
+        label="Rounds for {kind.toLowerCase()} {group}"
+        value={String(rounds)}
+        oncommit={(v) => onrounds(parseFigure(v) ?? 0)}
+      /></span>
       <span>rounds</span>
     {:else}
       <span>{rounds} {rounds === 1 ? "round" : "rounds"}</span>
@@ -86,7 +89,7 @@
   .ghead strong { color: var(--ink); font-weight: 600; }
   .letter { font: 600 11px/1 var(--font-mono); color: var(--muted); }
   .sep { color: var(--faint); }
-  .rounds { width: 52px; padding: 2px 6px; text-align: right; font: 12px var(--font-mono); }
+  .rounds { display: inline-flex; padding: 0 6px; }
   .grow { flex: 1; }
   .act {
     border: 1px solid transparent;
