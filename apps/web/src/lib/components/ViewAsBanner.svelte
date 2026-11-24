@@ -2,6 +2,7 @@
   import type { Impersonator } from "$lib/api/auth";
   import type { Locale } from "$lib/portal/messages";
   import Icon from "$lib/ui/Icon.svelte";
+  import InputField from "$lib/ui/InputField.svelte";
   import { VIEW_TEXT, confirmMatches, endedReason, firstName, minutesLeft, viewState } from "$lib/viewAs";
 
   /**
@@ -34,6 +35,7 @@
 
   let dialog = $state<HTMLDialogElement>();
   let typed = $state("");
+  let nameInput = $state<HTMLInputElement>();
   let allowing = $state(false);
   let allowError = $state<string | null>(null);
   const canAllow = $derived(confirmMatches(typed, view.trainer.name) && !allowing);
@@ -42,6 +44,7 @@
     typed = "";
     allowError = null;
     dialog?.showModal();
+    nameInput?.focus();
   }
   function closeAllow() {
     dialog?.close();
@@ -107,19 +110,7 @@
   <form onsubmit={submitAllow}>
     <h2 id="{uid}-title">{text.dialogTitle(first)}</h2>
     <p id="{uid}-body">{text.dialogBody(first)}</p>
-    <label class="label" for="{uid}-name">{text.typeToConfirm(first)}</label>
-    <!-- svelte-ignore a11y_autofocus -->
-    <input
-      id="{uid}-name"
-      class="input"
-      bind:value={typed}
-      autocomplete="off"
-      autocapitalize="off"
-      spellcheck="false"
-      autofocus
-      placeholder={first}
-      aria-invalid={allowError ? true : undefined}
-    />
+    <InputField label={text.typeToConfirm(first)} bind:input={nameInput} bind:value={typed} autocomplete="off" spellcheck={false} placeholder={first} />
     {#if allowError}<p class="err" role="alert">{allowError}</p>{/if}
     <div class="dialog-actions">
       <button type="button" class="btn" onclick={closeAllow}>{text.cancel}</button>
@@ -340,13 +331,6 @@
     font: 400 13.5px/1.5 var(--font-ui);
     color: var(--muted);
     text-wrap: pretty;
-  }
-  .allow .label {
-    display: block;
-    margin-bottom: 6px;
-  }
-  .allow .input {
-    width: 100%;
   }
   .allow .err {
     margin: 6px 0 0;
