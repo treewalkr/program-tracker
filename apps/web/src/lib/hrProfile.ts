@@ -114,3 +114,20 @@ export const MAX_HR_UNTESTED = "Max HR not tested — zones approximate";
 /** True when the zones lean on a max HR without a test date. */
 export const maxHrUntested = (p: { method: HrZoneMethod; maxHr: number | null; maxHrTestedOn: string | null } | null | undefined) =>
   !!p && !!p.maxHr && !p.maxHrTestedOn && (p.method === "hrmax" || p.method === "karvonen");
+
+/**
+ * A new version starting before an existing one only fills the gap: the
+ * version in effect on a date is the latest start on or before it. Says so,
+ * or null when nothing starts after `from`.
+ */
+export function hrBackdateNote(versions: readonly { version: number; effectiveFrom: string }[], from: string): string | null {
+  if (!from) return null;
+  let next: { version: number; effectiveFrom: string } | null = null;
+  for (const v of versions) {
+    if (v.effectiveFrom <= from) continue;
+    if (!next || v.effectiveFrom < next.effectiveFrom || (v.effectiveFrom === next.effectiveFrom && v.version > next.version)) next = v;
+  }
+  return next
+    ? `This version only covers sessions from ${from} until ${next.effectiveFrom} — version ${next.version} takes over then.`
+    : null;
+}
