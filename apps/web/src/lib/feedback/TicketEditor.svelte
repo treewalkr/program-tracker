@@ -177,19 +177,13 @@
     border-radius: var(--radius);
     resize: vertical;
     /* Same face as the comment it replaces, so the edit reads in place. */
-    font: 500 15px/1.5 var(--font-ui);
+    font: 500 var(--field-font, 15px)/1.5 var(--font-ui); /* 16px on touch (app.css): no iOS focus zoom */
     color: var(--ink);
     background: var(--bg);
   }
   textarea:focus {
     outline: none;
     border-color: var(--blue);
-  }
-  /* 16px stops iOS Safari zooming in when the editor focuses the box. */
-  @media (max-width: 720px), (pointer: coarse) {
-    textarea {
-      font-size: 16px;
-    }
   }
   .actions {
     display: flex;
