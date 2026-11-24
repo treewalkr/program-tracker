@@ -31,6 +31,8 @@
     zones: computeHrZones(method, { restingHr, maxHr: 188 })!,
     createdAt: `${effectiveFrom}T09:00:00.000Z`,
   });
+  /** v3 starts before v2 (a lab test entered on its test date): v2 stays in effect, history lists by start. */
+  const backdated = (): HrProfileDto[] => [...two, { ...v(3, '2026-11-01', 'hrmax', null), id: 'hr-3' }];
   const two = [v(1, '2026-10-12', 'hrmax', null), v(2, '2026-11-12', 'karvonen', 58)];
   const save = async (input: HrProfileInputDto): Promise<HrProfileDto> => ({ ...two[1], id: 'hr-3', version: 3, ...input, restingHr: input.restingHr ?? null, maxHr: input.maxHr ?? null, maxHrTestedOn: input.maxHrTestedOn ?? null, lthr: input.lthr ?? null, zones: profileZones(input)! });
 </script>
@@ -39,10 +41,28 @@
   <div style="max-width: 760px"><ClientHrProfile versions={two} {today} onsave={save} /></div>
 </Story>
 
+<Story name="Backdated version" asChild>
+  <div style="max-width: 760px"><ClientHrProfile versions={backdated()} {today} onsave={save} /></div>
+</Story>
+
 <Story name="No zones yet" asChild>
   <div style="max-width: 760px"><ClientHrProfile versions={[]} {today} onsave={save} /></div>
 </Story>
 
 <Story name="Loading" asChild>
   <div style="max-width: 760px"><ClientHrProfile versions={null} {today} onsave={save} /></div>
+</Story>
+
+<Story
+  name="Custom zones (touch)"
+  asChild
+  parameters={{ docs: { description: { story: 'New version › Custom. On a coarse pointer (iPad, phone) the bpm cells are 40px tall with 16px figures and show as fields; they ask for the whole-number keypad.' } } }}
+  play={async ({ canvasElement }) => {
+    const button = (name: string) => [...canvasElement.querySelectorAll('button')].find((b) => b.textContent?.trim() === name);
+    button('New version')?.click();
+    await new Promise((r) => setTimeout(r));
+    button('Custom')?.click();
+  }}
+>
+  <div style="max-width: 760px"><ClientHrProfile versions={two} {today} onsave={save} /></div>
 </Story>

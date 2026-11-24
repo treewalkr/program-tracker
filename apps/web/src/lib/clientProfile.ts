@@ -232,7 +232,18 @@ export function startedOnError(date: string, today: string = localIso(new Date()
 
 /** True when any basics field would be refused by the API. */
 export function basicsInvalid(f: ProfileForm): boolean {
-  return !!(bodyweightError(f.bodyweightKg) || heightError(f.heightCm) || birthDateError(f.birthDate) || startedOnError(f.startedOn));
+  return invalidBasics(f).length > 0;
+}
+
+/** The basics with an error, named in the form's order: "date of birth", "bodyweight". */
+export function invalidBasics(f: ProfileForm, today: string = localIso(new Date())): string[] {
+  const checks: [string, string | null][] = [
+    ["date of birth", birthDateError(f.birthDate, today)],
+    ["client since", startedOnError(f.startedOn, today)],
+    ["bodyweight", bodyweightError(f.bodyweightKg)],
+    ["height", heightError(f.heightCm)],
+  ];
+  return checks.filter(([, err]) => err).map(([name]) => name);
 }
 
 /** A phone field's value for the API: trimmed, empty → null. */

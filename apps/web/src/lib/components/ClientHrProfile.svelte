@@ -1,7 +1,7 @@
 <script lang="ts">
   import { HR_ZONE_METHODS, profileOn, type HrZone, type HrZoneMethod } from "@pt/shared";
   import type { HrProfileDto, HrProfileInputDto } from "$lib/api/types";
-  import { HR_METHOD_HINT, HR_METHOD_LABEL, hrDraftOf, hrDraftZones, hrInputOf, hrInputsLine, MAX_HR_UNTESTED, maxHrUntested, type HrDraft } from "$lib/hrProfile";
+  import { HR_METHOD_HINT, HR_METHOD_LABEL, hrBackdateNote, hrDraftOf, hrDraftZones, hrInputOf, hrInputsLine, MAX_HR_UNTESTED, maxHrUntested, type HrDraft } from "$lib/hrProfile";
   import ProfileSection from "./ProfileSection.svelte";
   import Segmented from "$lib/ui/Segmented.svelte";
   import InputUnit from "$lib/ui/InputUnit.svelte";
@@ -36,6 +36,11 @@
   let showHistory = $state(false);
 
   const preview = $derived(hrDraftZones(draft));
+  const backdated = $derived(editing ? hrBackdateNote(versions ?? [], draft.effectiveFrom) : null);
+  /** Latest start first, the one in effect marked: the highest number isn't always the one that applies. */
+  const byStart = $derived(
+    [...(versions ?? [])].sort((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom) || b.version - a.version)
+  );
   const methods = HR_ZONE_METHODS.map((m) => ({ value: m, label: HR_METHOD_LABEL[m], title: HR_METHOD_HINT[m] }));
 
   function edit() {
@@ -74,6 +79,13 @@
     }
   }
 
+  /** bpm is a whole number: the zone cells ask for the digits-only keypad (InputCell's figure mode asks for the decimal one). */
+  const wholeNumberPad = (node: HTMLElement) => {
+    for (const input of node.querySelectorAll("input")) {
+      input.inputMode = "numeric";
+      input.pattern = "[0-9]*";
+    }
+  };
   const zoneRows = $derived<readonly HrZone[] | null>(editing ? ("zones" in preview ? preview.zones : draft.method === "custom" ? draft.zones : null) : (current?.zones ?? null));
 </script>
 
@@ -85,17 +97,20 @@
     <p class="hint">{HR_METHOD_HINT[draft.method]}</p>
 
     <div class="inputs">
-      <div class="u"><InputUnit label="Resting HR" unit="bpm" min={30} max={120} optional={draft.method !== "karvonen"} bind:value={draft.restingHr} disabled={busy} /></div>
-      <div class="u"><InputUnit label="Max HR" unit="bpm" min={100} max={240} optional={draft.method === "lthr" || draft.method === "custom"} bind:value={draft.maxHr} disabled={busy} /></div>
+      <div class="u"><InputUnit label="Resting HR" unit="bpm" decimals={0} min={30} max={120} optional={draft.method !== "karvonen"} bind:value={draft.restingHr} disabled={busy} /></div>
+      <div class="u"><InputUnit label="Max HR" unit="bpm" decimals={0} min={100} max={240} optional={draft.method === "lthr" || draft.method === "custom"} bind:value={draft.maxHr} disabled={busy} /></div>
       <div class="d"><InputDate label="Max HR tested on" optional {today} max={today} hint="Blank = not tested" bind:value={draft.maxHrTestedOn} disabled={busy} /></div>
-      <div class="u"><InputUnit label="LTHR" unit="bpm" min={80} max={230} optional={draft.method !== "lthr"} bind:value={draft.lthr} disabled={busy} /></div>
+      <div class="u"><InputUnit label="LTHR" unit="bpm" decimals={0} min={80} max={230} optional={draft.method !== "lthr"} bind:value={draft.lthr} disabled={busy} /></div>
     </div>
 
     {@render table(zoneRows, draft.method === "custom")}
     {#if "missing" in preview}<p class="issue" role="status">{preview.missing}</p>{/if}
 
     <div class="foot">
-      <div class="from"><InputDate label="Starts" {today} bind:value={draft.effectiveFrom} hint="Sessions before this keep their old zones" disabled={busy} /></div>
+      <div class="from">
+        <InputDate label="Starts" {today} bind:value={draft.effectiveFrom} hint="Sessions before this keep their old zones" disabled={busy} />
+        {#if backdated}<p class="warn" role="status">{backdated}</p>{/if}
+      </div>
       <div class="acts">
         {#if error}<p class="err" role="alert">{error}</p>{/if}
         <Button small variant="ghost" type="button" disabled={busy} onclick={() => (editing = false)}>Cancel</Button>
@@ -135,10 +150,10 @@
       </button>
       {#if showHistory}
         <ol class="history">
-          {#each [...versions].reverse() as v (v.id)}
+          {#each byStart as v (v.id)}
             <li>
               <span class="mono">v{v.version}</span>
-              <span>{v.effectiveFrom}</span>
+              <span>{v.effectiveFrom}{#if v.id === current?.id}<span class="live">in effect</span>{/if}</span>
               <span>{HR_METHOD_LABEL[v.method]}</span>
               <span class="muted">{hrInputsLine(v)}</span>
             </li>
@@ -159,10 +174,10 @@
           {@const z = zones?.find((x) => x.zone === n)}
           <td class="r num">
             {#if editable && z}
-              <span class="pair">
-                <InputCell label="Zone {n} min bpm" figure width={4} value={z.min ? String(z.min) : ""} oncommit={(v) => setZone(z, "min", v)} />
+              <span class="pair" {@attach wholeNumberPad}>
+                <InputCell label="Zone {n} min bpm" figure width={4} placeholder="min" bind:value={() => (z.min ? String(z.min) : ""), (v) => setZone(z, "min", v)} />
                 <span class="dash">–</span>
-                <InputCell label="Zone {n} max bpm" figure width={4} value={z.max ? String(z.max) : ""} oncommit={(v) => setZone(z, "max", v)} />
+                <InputCell label="Zone {n} max bpm" figure width={4} placeholder="max" bind:value={() => (z.max ? String(z.max) : ""), (v) => setZone(z, "max", v)} />
               </span>
             {:else if z}
               {z.min}–{z.max}
@@ -205,7 +220,20 @@
   .toggle { align-self: flex-start; border: 0; background: none; padding: 0; font: 500 12px var(--font-ui); color: var(--blue); cursor: pointer; }
   .toggle:hover { text-decoration: underline; }
   .history { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 12px; }
-  .history li { display: grid; grid-template-columns: 3ch 10ch 18ch 1fr; gap: 8px; }
+  .history li { display: grid; grid-template-columns: 3ch 20ch 18ch 1fr; gap: 8px; }
+  .live { margin-left: 6px; color: var(--blue); font-weight: 600; }
+  .warn { margin: 6px 0 0; max-width: 46ch; font-size: 12px; color: var(--warn); }
+  /* Touch has no hover to reveal a quiet cell: show the empty ones as fields. */
+  @media (max-width: 720px), (pointer: coarse) {
+    .pair :global(.cell:not(:focus):not([aria-invalid='true'])) { border-color: var(--line); background: var(--surface); }
+  }
+  /* A finger on an iPad: the desk's 23px quiet cells grow to a tappable height, apart from each other. */
+  @media (pointer: coarse) {
+    .pair { gap: 2px; }
+    .zones td.r { padding-inline: 4px; }
+    /* InputCell bleeds 6px each side for the desk's hover; here that hides the dash. */
+    .pair :global(.cell) { min-height: 40px; font-size: 16px; margin: 0; width: 100%; }
+  }
   .mono { font-family: var(--font-mono); }
   @media (max-width: 640px) {
     .zones { font-size: 12px; }

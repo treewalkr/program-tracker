@@ -50,7 +50,9 @@
   let form = $state<AssessmentForm>(emptyAssessmentForm(today, member.weightKg));
   let busy = $state(false);
   let error = $state<string | null>(null);
-  let saved = $state<string | null>(null);
+  /** The test just saved; its note shows only while that row is still there (deleting it clears the note). */
+  let saved = $state<{ id: string; text: string } | null>(null);
+  const savedNote = $derived(saved && assessments?.some((a) => a.id === saved!.id) ? saved.text : null);
 
   const options: SelectOption<Vo2Protocol>[] = VO2_PROTOCOLS.map((p) => ({ value: p, label: PROTOCOL_LABEL[p], description: PROTOCOL_HINT[p] }));
   const estimate = $derived(liveEstimate(form, member));
@@ -67,7 +69,7 @@
     error = null;
     try {
       const row = await oncreate({ protocol: form.protocol, testedOn: form.testedOn, inputs, notes: form.notes.trim() || null });
-      saved = `Saved: ${row.result} ml/kg/min on ${dayMonth(row.testedOn)}.`;
+      saved = { id: row.id, text: `Saved: ${row.result} ml/kg/min on ${dayMonth(row.testedOn)}.` };
       picked = row.protocol;
       form = { ...emptyAssessmentForm(today, member.weightKg, form.protocol) };
     } catch (e) {
@@ -126,7 +128,7 @@
       </div>
 
       <div class="acts">
-        {#if error}<p class="err" role="alert">{error}</p>{:else if saved}<p class="ok" role="status">{saved}</p>{/if}
+        {#if error}<p class="err" role="alert">{error}</p>{:else if savedNote}<p class="ok" role="status">{savedNote}</p>{/if}
         <Button variant="primary" type="button" disabled={busy || !estimate?.ok} onclick={save}>{busy ? "Saving…" : "Save assessment"}</Button>
       </div>
       <p class="caveat">{VO2_FORMULAS[form.protocol].population}</p>

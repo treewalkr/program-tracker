@@ -21,3 +21,25 @@ export function loggedBlockWeeks(program: SignalProgram, logs: SignalLog[]): num
   }
   return [...weeks].sort((a, b) => a - b);
 }
+
+/** A drafted message open in the editor, with the trainer's edits. */
+export interface OpenDraft<M> {
+  msg: M;
+  text: string;
+}
+
+/**
+ * Switch the message editor from week `from` to `to`. A draft still awaiting
+ * approval is set aside under its week (it cost an AI call and isn't in
+ * history yet) and `to`'s own parked draft, if any, comes back.
+ */
+export function switchDraftWeek<M extends { status: string }>(
+  parked: Record<number, OpenDraft<M>>,
+  from: number | null,
+  open: OpenDraft<M> | null,
+  to: number
+): { parked: Record<number, OpenDraft<M>>; open: OpenDraft<M> | null } {
+  const { [to]: back, ...rest } = parked;
+  const keep = open?.msg.status === "validated" && from != null;
+  return { parked: keep ? { ...rest, [from]: open } : rest, open: back ?? null };
+}
