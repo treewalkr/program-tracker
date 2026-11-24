@@ -1,3 +1,4 @@
+import { beforeNavigate } from "$app/navigation";
 import { createLeaveGuard, type Asker } from "$lib/leaveGuard.svelte";
 
 export interface LibraryGuardOptions {
@@ -5,6 +6,11 @@ export interface LibraryGuardOptions {
   dirty: () => boolean;
   /** What would be lost, as a singular noun phrase: "Your new rule", "Your edit to Deload policy". */
   what: () => string;
+  /**
+   * The page keeps its filters in the query string and stays mounted when they
+   * change: a navigation to the same path isn't leaving.
+   */
+  queryStays?: boolean;
 }
 
 export interface LibraryGuard {
@@ -23,8 +29,13 @@ export interface LibraryGuard {
  * Call during component init.
  */
 export function createLibraryGuard(opts: LibraryGuardOptions): LibraryGuard {
+  // Runs before the leave guard's own hook (registration order), so it can see where this navigation goes.
+  let staying = false;
+  beforeNavigate((nav) => {
+    staying = !!opts.queryStays && !!nav.from && !!nav.to && nav.from.url.pathname === nav.to.url.pathname;
+  });
   const asker = createLeaveGuard({
-    dirty: opts.dirty,
+    dirty: () => !staying && opts.dirty(),
     prompt: () => ({ title: "Leave without saving?", body: `${opts.what()} isn't saved. Leaving drops it.` }),
   });
   return {
