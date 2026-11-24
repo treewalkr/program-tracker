@@ -30,6 +30,7 @@
   import ConfirmButton from "$lib/ui/ConfirmButton.svelte";
   import Note from "$lib/ui/Note.svelte";
   import Icon from "$lib/ui/Icon.svelte";
+  import InputSearch from "$lib/ui/InputSearch.svelte";
   import SkeletonPanel from "$lib/ui/SkeletonPanel.svelte";
   import SignalRow from "$lib/components/SignalRow.svelte";
   import OutboxHealth from "$lib/components/OutboxHealth.svelte";
@@ -257,13 +258,7 @@
     <Panel class="messages" title="Messages" count={shown.length === all.length ? all.length : `${shown.length} of ${all.length}`}>
       <div class="bar">
         <Tabs items={tabs} value={tab} idPrefix="outbox" label="Filter messages" onchange={(id) => (filter = id as OutboxFilter)} />
-        <input
-          class="input search"
-          type="search"
-          bind:value={query}
-          placeholder="Name or ticket (FB-12)"
-          aria-label="Search by recipient name or ticket"
-        />
+        <div class="search"><InputSearch label="Search by recipient name or ticket" placeholder="Name or ticket (FB-12)" bind:value={query} /></div>
       </div>
       {#if FILTER_NAME[filter]}
         <p class="scope">
