@@ -12,6 +12,7 @@
   import Verdict from "$lib/components/Verdict.svelte";
   import DirChip from "$lib/components/DirChip.svelte";
   import Note from "$lib/ui/Note.svelte";
+  import InputNote from "$lib/ui/InputNote.svelte";
   import Icon from "$lib/ui/Icon.svelte";
   import Button from "$lib/ui/Button.svelte";
   import ConfirmButton from "$lib/ui/ConfirmButton.svelte";
@@ -142,7 +143,6 @@
   }
 
   const stats = $derived(draftMsg?.stats ?? null);
-  const charCount = $derived(`${text.length}/${CLIENT_MESSAGE_MAX_CHARS}`);
 </script>
 
 {#if loading}
@@ -218,17 +218,15 @@
       <div>
         <Panel title="Draft message" count="what {firstName} reads">
           <div class="panel-body">
-            <textarea
-              class="msg-edit"
+            <InputNote
+              label="Message text — edit before approving"
+              hideLabel
               bind:value={text}
               maxlength={CLIENT_MESSAGE_MAX_CHARS}
-              rows="10"
-              aria-label="Message text — edit before approving"
-            ></textarea>
-            <div class="edit-foot">
-              <span class="char-count">{charCount}</span>
-              <span class="edit-hint">edits become the final text on approve</span>
-            </div>
+              rows={10}
+              maxRows={24}
+              hint="Edits become the final text on approve"
+            />
             <div class="actions">
               <Button variant="primary" onclick={approve} disabled={approving || !text.trim()}>
                 {approving ? "Approving…" : "Approve"}
@@ -355,29 +353,6 @@
     align-items: start;
   }
 
-  .msg-edit {
-    width: 100%;
-    box-sizing: border-box;
-    font: 400 14px/1.55 var(--font-body);
-    padding: 11px 13px;
-    border: 1px solid var(--line);
-    border-radius: 6px;
-    background: var(--canvas);
-    color: inherit;
-    resize: vertical;
-  }
-  .msg-edit:focus-visible {
-    outline: 2px solid var(--accent, var(--green-btn));
-    outline-offset: 1px;
-  }
-  .edit-foot {
-    display: flex;
-    justify-content: space-between;
-    gap: 10px;
-    margin-top: 6px;
-    font: 400 12px/1.3 var(--font-ui);
-    color: var(--faint);
-  }
   .actions {
     display: flex;
     flex-wrap: wrap;
