@@ -214,6 +214,10 @@
 
   const plannedWeeks = $derived(current?.phasing?.plannedWeeks ?? current?.weeks.length ?? 4);
   async function start() {
+    // A new draft: drop the cancelled/failed row so its age and model don't show on this one.
+    stopPolling();
+    gen = null;
+    failReason = null;
     activated = null;
     activateError = null;
     startedAtIso = new Date().toISOString();
