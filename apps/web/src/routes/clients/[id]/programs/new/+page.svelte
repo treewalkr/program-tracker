@@ -971,6 +971,11 @@
   .track { font: 500 12px/1 var(--font-mono); color: var(--muted); white-space: nowrap; }
   .track.cardio { color: var(--good); }
   .sess-name { flex: 1; min-width: 0; }
+  /* phone: the name keeps a usable row (with its tag); type and Remove wrap under it */
+  @media (max-width: 640px) {
+    .sess-head { flex-wrap: wrap; }
+    .sess-name { flex: 1 1 160px; }
+  }
 
   .sess-body { display: flex; flex-direction: column; gap: 14px; }
   .cardio { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; }
