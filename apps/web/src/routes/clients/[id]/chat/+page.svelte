@@ -340,9 +340,14 @@
       generationId: null,
       createdAt: new Date().toISOString(),
     };
+    // Sent from the composer (Safari leaves focus on body when Send is tapped): keep the trainer
+    // there. The first send can remount the composer, and Send disables itself under the finger.
+    const active = document.activeElement;
+    const fromComposer = !active || active === document.body || !!textareaEl?.closest(".dock")?.contains(active);
     messages = [...messages, optimistic];
     draft = "";
     sending = true;
+    if (fromComposer) tick().then(() => textareaEl?.focus());
     try {
       const res = await submitChatTurn(api, {
         clientId: id,
