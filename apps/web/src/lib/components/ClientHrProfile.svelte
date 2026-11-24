@@ -160,9 +160,9 @@
           <td class="r num">
             {#if editable && z}
               <span class="pair">
-                <InputCell label="Zone {n} min bpm" figure width={4} value={z.min ? String(z.min) : ""} oncommit={(v) => setZone(z, "min", v)} />
+                <InputCell label="Zone {n} min bpm" figure width={4} placeholder="min" bind:value={() => (z.min ? String(z.min) : ""), (v) => setZone(z, "min", v)} />
                 <span class="dash">–</span>
-                <InputCell label="Zone {n} max bpm" figure width={4} value={z.max ? String(z.max) : ""} oncommit={(v) => setZone(z, "max", v)} />
+                <InputCell label="Zone {n} max bpm" figure width={4} placeholder="max" bind:value={() => (z.max ? String(z.max) : ""), (v) => setZone(z, "max", v)} />
               </span>
             {:else if z}
               {z.min}–{z.max}
@@ -206,6 +206,10 @@
   .toggle:hover { text-decoration: underline; }
   .history { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 12px; }
   .history li { display: grid; grid-template-columns: 3ch 10ch 18ch 1fr; gap: 8px; }
+  /* Touch has no hover to reveal a quiet cell: show the empty ones as fields. */
+  @media (max-width: 720px), (pointer: coarse) {
+    .pair :global(.cell:not(:focus):not([aria-invalid='true'])) { border-color: var(--line); background: var(--surface); }
+  }
   .mono { font-family: var(--font-mono); }
   @media (max-width: 640px) {
     .zones { font-size: 12px; }
