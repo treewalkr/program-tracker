@@ -123,3 +123,32 @@ export async function compressImage(
 export async function dataUrlToBlob(url: string): Promise<Blob> {
   return (await fetch(url)).blob();
 }
+
+/** Most pixels a capture canvas may hold: iOS Safari refuses canvases past ~16.7M. */
+export const CAPTURE_MAX_PIXELS = 16_000_000;
+
+/**
+ * The scale to render a `width` × `height` page at: sharp (up to 2×) where the
+ * screen is, but never past CAPTURE_MAX_PIXELS for a very long page.
+ */
+export function captureScale(width: number, height: number, dpr: number): number {
+  const cap = Math.sqrt(CAPTURE_MAX_PIXELS / Math.max(1, width * height));
+  return Math.min(Math.max(1, Math.min(dpr, 2)), cap);
+}
+
+/**
+ * The part of a captured page the trainer was looking at, in page px: the
+ * viewport, from where `page` (the body's on-screen box) has scrolled to.
+ * A whole multi-screen page shrinks to an unreadable strip once it fits
+ * FEEDBACK_IMAGE_MAX_SIDE; the visible screen keeps its full width.
+ */
+export function visibleSlice(
+  page: { left: number; top: number; width: number; height: number },
+  view: { width: number; height: number },
+) {
+  const width = Math.min(view.width, page.width);
+  const height = Math.min(view.height, page.height);
+  const x = Math.min(Math.max(0, -page.left), page.width - width);
+  const y = Math.min(Math.max(0, -page.top), page.height - height);
+  return { x, y, width, height };
+}

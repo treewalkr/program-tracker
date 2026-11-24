@@ -9,8 +9,11 @@
   import TicketPins from "./TicketPins.svelte";
   import AttachmentInput from "./AttachmentInput.svelte";
   import KindFields from "./KindFields.svelte";
-  import { compressImage, dataUrlToBlob } from "./images";
+  import { captureScale, compressImage, dataUrlToBlob, visibleSlice } from "./images";
   import { ImageTray } from "./tray.svelte";
+  import { placePin } from "./layout";
+  import { watchBottomBars } from "./lift";
+  import InputNote from "$lib/ui/InputNote.svelte";
   import {
     cleanReport,
     feedbackHandle,
@@ -26,7 +29,7 @@
    * handlers) and pins a comment form to the clicked element.
    */
 
-  const FORM_W = 340;
+  const NOTE_ID = "fb-pin-comment";
 
   let hovered = $state<Element | null>(null);
   let selected = $state<Element | null>(null);
@@ -44,7 +47,12 @@
   let sending = $state(false);
   let error = $state<string | null>(null);
   let toast = $state<string | null>(null);
-  let textarea = $state<HTMLTextAreaElement>();
+  /** The pin's rendered height and the Feedback bar's top edge, to keep the pin on screen. */
+  let pinH = $state(0);
+  let barEl = $state<HTMLElement>();
+  let barTop = $state<number | null>(null);
+  /** How far a fixed or sticky bar under the pill lifts it (see lift.ts). */
+  let autoLift = $state(0);
   /** Existing-item pins: which popover is open, which items could not be placed. */
   let pinOpen = $state<string | null>(null);
   let unplaced = $state<FeedbackItem[]>([]);
@@ -64,18 +72,14 @@
 
   const formPos = $derived.by(() => {
     if (!selRect) return null;
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    const below = vh - selRect.bottom > 280 || selRect.top < 280;
-    const left = Math.min(Math.max(8, selRect.left), vw - FORM_W - 8);
-    return below
-      ? `left:${left}px; top:${Math.min(selRect.bottom + 8, vh - 280)}px`
-      : `left:${left}px; bottom:${vh - selRect.top + 8}px`;
+    const p = placePin(selRect, pinH, { width: window.innerWidth, height: window.innerHeight, floor: barTop ?? undefined });
+    return `left:${p.left}px; top:${p.top}px; width:${p.width}px; max-height:${p.maxHeight}px`;
   });
 
   function measure() {
     hoverRect = hovered?.isConnected ? hovered.getBoundingClientRect() : null;
     selRect = selected?.isConnected ? selected.getBoundingClientRect() : null;
+    barTop = barEl ? barEl.getBoundingClientRect().top : null;
   }
 
   async function select(el: Element) {
@@ -84,7 +88,7 @@
     error = null;
     measure();
     await tick();
-    textarea?.focus();
+    document.getElementById(NOTE_ID)?.focus();
   }
 
   function widen() {
@@ -118,10 +122,18 @@
     }
     const block = (e: Event) => {
       if (isFeedbackUi(e.target as Node)) return;
-      e.preventDefault();
+      // A touch press must keep its default, or the finger can't scroll to what
+      // it wants to pick (and WebKit may drop the tap's click). The app still
+      // never sees it, and only a stationary tap clicks, which `onClick` takes.
+      // Only the press itself: Chromium's click is a touch PointerEvent too.
+      const touchPress =
+        e instanceof PointerEvent && e.pointerType === "touch" && (e.type === "pointerdown" || e.type === "pointerup");
+      if (!touchPress) e.preventDefault();
       e.stopImmediatePropagation();
     };
     const onMove = (e: PointerEvent) => {
+      // A finger has no hover: a moving touch is a scroll, not a pick.
+      if (e.pointerType === "touch") return;
       const t = e.target as Element | null;
       if (!t || isFeedbackUi(t) || t === document.documentElement || t === document.body) {
         hovered = null;
@@ -175,11 +187,17 @@
     return () => document.removeEventListener("keydown", onKey, true);
   });
 
-  // Navigating away drops a half-written pin on a stale element.
+  // Navigating away drops a half-written pin on a stale element. While picking,
+  // every app click is blocked, so a route change means Back / Forward: leave
+  // picking too, or the previous page would stay hijacked. "Use app" survives.
+  let lastHere = untrack(() => here);
   $effect(() => {
-    void here;
+    const now = here;
     untrack(() => {
-      close();
+      if (now === lastHere) return;
+      lastHere = now;
+      if (feedbackMode.picking) exit();
+      else close();
       hovered = null;
     });
   });
@@ -198,18 +216,35 @@
     }
   }
 
-  /** A capture, re-encoded like any other image (webp, ≤ 2000px, ≤ 2 MB). */
-  async function shoot(node: HTMLElement, kind: "element" | "page"): Promise<File | undefined> {
+  /**
+   * A capture, re-encoded like any other image (webp, ≤ 2000px, ≤ 2 MB). The
+   * page shot is the screen the trainer was looking at, not the whole page.
+   * Fixed overlays (toasts, banners, docks) are left out: the capture paints
+   * them from the top of the page, so they'd land on whatever is up there,
+   * often the very thing being reported. One holding `target` stays.
+   */
+  async function shoot(node: HTMLElement, kind: "element" | "page", target: Element): Promise<File | undefined> {
     try {
-      const { domToPng, domToJpeg } = await import("modern-screenshot");
-      const filter = (n: Node) => !isFeedbackUi(n);
+      const { domToPng, domToCanvas } = await import("modern-screenshot");
+      const filter = (n: Node) =>
+        !isFeedbackUi(n) && !(n instanceof Element && !n.contains(target) && getComputedStyle(n).position === "fixed");
       // Capture on the page canvas so dark-theme shots don't get a white backdrop.
       const backgroundColor = getComputedStyle(document.body).backgroundColor;
-      const url =
-        kind === "element"
-          ? await domToPng(node, { scale: Math.min(window.devicePixelRatio, 2), backgroundColor, filter })
-          : await domToJpeg(node, { scale: 1, quality: 0.85, backgroundColor, filter });
-      return await compressImage(await dataUrlToBlob(url), { name: `${kind}.png` });
+      let blob: Blob;
+      if (kind === "element") {
+        blob = await dataUrlToBlob(await domToPng(node, { scale: Math.min(window.devicePixelRatio, 2), backgroundColor, filter }));
+      } else {
+        const box = node.getBoundingClientRect();
+        const scale = captureScale(box.width, box.height, window.devicePixelRatio);
+        const full = await domToCanvas(node, { scale, backgroundColor, filter });
+        const cut = visibleSlice(box, { width: window.innerWidth, height: window.innerHeight });
+        const out = document.createElement("canvas");
+        out.width = Math.round(cut.width * scale);
+        out.height = Math.round(cut.height * scale);
+        out.getContext("2d")?.drawImage(full, cut.x * scale, cut.y * scale, out.width, out.height, 0, 0, out.width, out.height);
+        blob = await new Promise<Blob>((ok, fail) => out.toBlob((b) => (b ? ok(b) : fail(new Error("encode failed"))), "image/jpeg", 0.85));
+      }
+      return await compressImage(blob, { name: `${kind}.png` });
     } catch {
       // A failed (or too large) screenshot never blocks the comment itself.
       return undefined;
@@ -244,8 +279,10 @@
       // A small element (a heading, a chip) is shot inside a roomier ancestor, outlined.
       const frame = closeUpFrame(target);
       const elementShot =
-        frame === target ? await shoot(target, "element") : await outlined(target, () => shoot(frame, "element"));
-      const pageShot = includePage ? await outlined(target, () => shoot(document.body, "page")) : undefined;
+        frame === target
+          ? await shoot(target, "element", target)
+          : await outlined(target, () => shoot(frame, "element", target));
+      const pageShot = includePage ? await outlined(target, () => shoot(document.body, "page", target)) : undefined;
       const shots: CapturedShot[] = [
         ...(elementShot ? [{ kind: "element" as const, file: elementShot }] : []),
         ...(pageShot ? [{ kind: "page" as const, file: pageShot }] : []),
@@ -305,6 +342,7 @@
       class="pin"
       class:dropping={tray.dragging}
       style={formPos}
+      bind:offsetHeight={pinH}
       aria-label="Leave feedback on this element"
       {@attach tray.zone}
       onsubmit={(e) => {
@@ -321,15 +359,17 @@
       {#if selVia.length}
         <p class="via">in {selVia.join(" ← ")}</p>
       {/if}
-      <textarea
-        bind:this={textarea}
+      <InputNote
+        id={NOTE_ID}
+        label="Your feedback"
+        hideLabel
         bind:value={comment}
         onkeydown={onFormKey}
-        rows="4"
-        maxlength="5000"
+        rows={4}
+        maxRows={8}
+        maxlength={5000}
         placeholder="What should change here?"
-        aria-label="Your feedback"
-      ></textarea>
+      />
       <KindFields
         bind:kind
         bind:report
@@ -340,14 +380,14 @@
       />
       <label class="check">
         <input type="checkbox" bind:checked={includePage} />
-        Attach a screenshot of the whole page
+        Attach a screenshot of the screen
       </label>
       <AttachmentInput {tray} disabled={sending} label="this feedback" />
       {#if error}
         <p class="err" role="alert">{error}</p>
       {/if}
       <div class="pin-actions">
-        <span class="hint">⌘↵ to send · Esc to cancel</span>
+        <span class="hint"><span class="mouse">⌘↵ to send · Esc to cancel</span></span>
         <button type="button" class="btn small" onclick={close}>Cancel</button>
         <button
           type="submit"
@@ -361,7 +401,15 @@
     </form>
   {/if}
 
-  <div class="bar" class:on={feedbackMode.on} role="toolbar" aria-label="Feedback mode">
+  <div
+    class="bar"
+    bind:this={barEl}
+    class:on={feedbackMode.on}
+    style:--feedback-auto-lift="{autoLift}px"
+    {@attach (el) => watchBottomBars(el, (px) => (autoLift = px))}
+    role="toolbar"
+    aria-label="Feedback mode"
+  >
     {#if feedbackMode.on}
       <span class="live" aria-hidden="true"></span>
       <span class="title">Feedback</span>
@@ -377,9 +425,9 @@
         {#if toast}
           <strong>{toast}</strong>
         {:else if feedbackMode.browsing || onReviewPage}
-          Clicks work normally
+          <span class="mouse">Clicks work normally</span><span class="touch">Taps work normally</span>
         {:else}
-          Click anything to comment
+          <span class="mouse">Click anything to comment</span><span class="touch">Tap anything to comment</span>
         {/if}
       </span>
       {#if feedbackMode.sent}
@@ -411,7 +459,8 @@
       <button type="button" class="x" onclick={exit} aria-label="Leave feedback mode">
         <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" /></svg>
       </button>
-    {:else}
+    {:else if !onReviewPage}
+      <!-- The review page is the feedback tool itself: no launcher there. -->
       <button type="button" class="start" onclick={() => feedbackMode.set(true)}>
         <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z" /></svg>
         Feedback
@@ -465,10 +514,13 @@
     margin: 4px 0 0;
   }
 
+  /* Width, place and max height come from placePin; past that it scrolls, so Send stays reachable. */
   .pin {
     position: fixed;
     z-index: 9999;
-    width: 340px;
+    box-sizing: border-box;
+    overflow-y: auto;
+    overscroll-behavior: contain;
     background: var(--surface);
     border: 1px solid var(--line);
     border-radius: 8px;
@@ -519,23 +571,6 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  textarea {
-    width: 100%;
-    box-sizing: border-box;
-    resize: vertical;
-    min-height: 84px;
-    font: inherit;
-    padding: 6px 8px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    background: var(--bg);
-    color: var(--ink);
-  }
-  textarea:focus {
-    outline: none;
-    border-color: var(--blue);
-    box-shadow: 0 0 0 3px var(--focus);
-  }
   .check {
     display: flex;
     align-items: center;
@@ -548,7 +583,17 @@
     font-size: 12px;
     color: var(--bad);
   }
+  /* A scrolling flex column must not squash its rows. */
+  .pin > :global(*) {
+    flex: none;
+  }
+  /* Send and Cancel stay pinned to the bottom edge while the form scrolls. */
   .pin-actions {
+    position: sticky;
+    bottom: -12px;
+    margin: 0 -12px -12px;
+    padding: 8px 12px 12px;
+    background: var(--surface);
     display: flex;
     align-items: center;
     gap: 6px;
@@ -562,8 +607,8 @@
   .bar {
     position: fixed;
     right: 16px;
-    /* A page with a sticky bottom bar (the log sheet's Save) sets the lift. */
-    bottom: calc(16px + var(--feedback-lift, 0px));
+    /* Rides above a bar docked to the bottom: found by watchBottomBars, or set by the page (lift.ts). */
+    bottom: calc(16px + max(var(--feedback-lift, 0px), var(--feedback-auto-lift, 0px)));
     z-index: 9999;
     display: flex;
     align-items: center;
@@ -623,6 +668,7 @@
   .seg button {
     background: none;
     border: 0;
+    white-space: nowrap;
     color: color-mix(in srgb, var(--on-ink) 75%, transparent);
     font: 500 12px/1 var(--font-ui);
     padding: 5px 10px;
@@ -634,7 +680,17 @@
   }
   .status {
     color: color-mix(in srgb, var(--on-ink) 75%, transparent);
-    min-width: 150px;
+  }
+  .touch {
+    display: none;
+  }
+  @media (hover: none) {
+    .mouse {
+      display: none;
+    }
+    .touch {
+      display: inline;
+    }
   }
   .status strong {
     color: var(--on-ink);
@@ -660,7 +716,7 @@
     position: absolute;
     right: 0;
     bottom: calc(100% + 8px);
-    width: 320px;
+    width: min(320px, calc(100vw - 16px));
     max-height: 50vh;
     overflow: auto;
     margin: 0;
@@ -706,6 +762,44 @@
   }
   .x:hover {
     background: color-mix(in srgb, var(--on-ink) 24%, transparent);
+  }
+  @media (pointer: coarse) {
+    .x {
+      width: 40px;
+      height: 40px;
+    }
+    .seg button {
+      padding: 10px 12px;
+    }
+    .start {
+      min-height: 40px;
+      padding: 0 14px;
+    }
+  }
+  /* A phone: the bar spans the screen and the status takes a second row. */
+  @media (max-width: 640px) {
+    .bar.on {
+      left: 8px;
+      right: 8px;
+      max-width: calc(100vw - 16px);
+      box-sizing: border-box;
+      flex-wrap: wrap;
+      row-gap: 6px;
+      border-radius: 20px;
+      padding: 6px 6px 8px 14px;
+    }
+    .bar.on .x {
+      margin-left: auto;
+    }
+    .bar.on .status {
+      order: 1;
+      flex: 1 0 100%;
+      font-size: 12px;
+      line-height: 1.3;
+    }
+    .unplaced {
+      right: -6px;
+    }
   }
   button:focus-visible,
   a:focus-visible {

@@ -185,6 +185,12 @@
     outline: none;
     border-color: var(--blue);
   }
+  /* 16px stops iOS Safari zooming in when the editor focuses the box. */
+  @media (max-width: 720px), (pointer: coarse) {
+    textarea {
+      font-size: 16px;
+    }
+  }
   .actions {
     display: flex;
     flex-wrap: wrap;
