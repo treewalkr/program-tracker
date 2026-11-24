@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { PortalSession } from "$lib/api/portalTypes";
-import { isPortalPath, portalRedirect, portalReturnTo } from "./gate";
+import { gateSession, isPortalPath, parseCachedSession, portalRedirect, portalReturnTo } from "./gate";
 
 const out: PortalSession = { kind: "signedOut" };
 const inn: PortalSession = { kind: "signedIn", me: { client: { id: "c1", name: "Nok" }, trainer: { name: "Ploy" } } };
@@ -33,5 +33,39 @@ describe("portal gate", () => {
     expect(portalReturnTo("//evil.test/me")).toBe("/me");
     expect(portalReturnTo("/messages")).toBe("/me");
     expect(portalReturnTo(null)).toBe("/me");
+  });
+});
+
+describe("portal gate offline", () => {
+  const memory = (v: string | null = null) => {
+    let value = v;
+    return { get: () => value, set: (x: string | null) => void (value = x), peek: () => value };
+  };
+
+  test("a signed-in check is remembered; a 401 forgets it", async () => {
+    const store = memory();
+    expect(await gateSession(async () => inn, store)).toEqual({ session: inn, offline: false });
+    expect(parseCachedSession(store.peek())).toEqual(inn);
+    expect(await gateSession(async () => out, store)).toEqual({ session: out, offline: false });
+    expect(store.peek()).toBeNull();
+  });
+
+  test("a failed check falls back to the last signed-in session on this phone", async () => {
+    const store = memory(JSON.stringify(inn));
+    const failing = async (): Promise<PortalSession> => {
+      throw new Error("portal session check failed: 503");
+    };
+    expect(await gateSession(failing, store)).toEqual({ session: inn, offline: true });
+    // the copy stays for the next tap
+    expect(parseCachedSession(store.peek())).toEqual(inn);
+  });
+
+  test("a failed check with nothing (or junk) remembered has no session", async () => {
+    const failing = async (): Promise<PortalSession> => {
+      throw new TypeError("Failed to fetch");
+    };
+    expect(await gateSession(failing, memory())).toEqual({ session: null, offline: true });
+    expect(await gateSession(failing, memory("{junk"))).toEqual({ session: null, offline: true });
+    expect(await gateSession(failing, memory(JSON.stringify(out)))).toEqual({ session: null, offline: true });
   });
 });

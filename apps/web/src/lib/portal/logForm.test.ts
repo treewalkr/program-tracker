@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { PortalSession } from "@pt/shared";
 import { EMPTY_READINESS, setFlagNote, toggleFlag } from "$lib/logFlags";
 import { setSkipReason, skipExercise } from "$lib/logSheet";
-import { buildPortalLog, cachedSession, cardioFormOf, defaultLogDate, extraRow, formOfSession, parsePortalDraft, portalWeekCacheJson, portalDraftJson, rowsOfSession, sameForm, saveSummary, setLoad, setsMissingKg, touchedExercises, type PortalLogForm, type PortalRow } from "./logForm";
+import { buildPortalLog, cachedSession, cachedWeekDto, cardioFormOf, defaultLogDate, extraRow, formOfSession, parsePortalDraft, portalWeekCacheJson, portalDraftJson, rowsOfSession, sameForm, saveSummary, setLoad, setsMissingKg, touchedExercises, type PortalLogForm, type PortalRow } from "./logForm";
 
 const exerciseSession: PortalSession = {
   id: "ps1", name: "Lower", kind: "exercises", seq: 1, weekday: 1, order: 0, cardio: null, log: null,
@@ -139,12 +139,62 @@ describe("portal log form", () => {
     });
   });
 
-  test("a draft round-trips, and one that no longer fits the session is dropped", () => {
+  test("a draft round-trips; junk is dropped", () => {
     const f = form(exerciseSession, { notes: "knee ok", readiness: { energy: 6, sleep: null, soreness: 2 } });
     const back = parsePortalDraft(portalDraftJson(f), rowsOfSession(exerciseSession));
     expect(back).toMatchObject({ notes: "knee ok", readiness: { energy: 6, sleep: null, soreness: 2 }, date: "2026-11-16" });
-    expect(parsePortalDraft(portalDraftJson(f), rowsOfSession({ ...exerciseSession, exercises: exerciseSession.exercises.slice(0, 1) }))).toBeNull();
+    expect(back?.merged).toBe(false);
     expect(parsePortalDraft("{junk", rowsOfSession(exerciseSession))).toBeNull();
+  });
+
+  test("a coach edit keeps what still matches by row key, plus notes, readiness and flags", () => {
+    const f = form(exerciseSession, { notes: "half way", readiness: { energy: 6, sleep: null, soreness: 2 }, flags: toggleFlag({}, "pe1", "pain") });
+    f.rows[0] = { ...f.rows[0], weight: 105, reps: 7, planned: undefined };
+    f.rows = [...f.rows, extraRow(f.rows[2], 2)];
+    f.rows[3] = { ...f.rows[3], weight: "", reps: 60 };
+    // the coach adds a third squat set and drops nothing
+    const sq = exerciseSession.exercises[0];
+    const edited: PortalSession = { ...exerciseSession, exercises: [{ ...sq, prescribedSets: [...sq.prescribedSets, { ...sq.prescribedSets[1], setNumber: 3 }] }, exerciseSession.exercises[1]] };
+    const back = parsePortalDraft(portalDraftJson(f), rowsOfSession(edited))!;
+    expect(back.merged).toBe(true);
+    expect(back).toMatchObject({ notes: "half way", readiness: { energy: 6, soreness: 2 }, flags: { pe1: { kind: "pain" } } });
+    expect(back.rows.map((r) => [r.key, r.weight, r.reps])).toEqual([
+      ["pe1:1", 105, 7],
+      ["pe1:2", 100, 6],
+      ["pe1:3", 100, 6],
+      ["pe2:1", "", 45],
+      ["pe2:x2", "", 60],
+    ]);
+  });
+
+  test("a coach edit that drops an exercise drops its sets, extras and flags, never the draft", () => {
+    const f = form(exerciseSession, { notes: "knee ok", flags: toggleFlag({}, "pe2", "pain") });
+    f.rows[0] = { ...f.rows[0], reps: 5 };
+    const fewer = rowsOfSession({ ...exerciseSession, exercises: exerciseSession.exercises.slice(0, 1) });
+    const back = parsePortalDraft(portalDraftJson(f), fewer)!;
+    expect(back.merged).toBe(true);
+    expect(back.notes).toBe("knee ok");
+    expect(back.flags).toEqual({});
+    expect(back.rows.map((r) => [r.key, r.reps])).toEqual([["pe1:1", 5], ["pe1:2", 6]]);
+  });
+
+  test("a changed target: a set left as planned takes the new target, a typed one keeps the entry", () => {
+    const f = form(exerciseSession);
+    f.rows[1] = { ...f.rows[1], weight: 102.5, planned: undefined };
+    const sq = exerciseSession.exercises[0];
+    const heavier: PortalSession = { ...exerciseSession, exercises: [{ ...sq, prescribedSets: sq.prescribedSets.map((p) => ({ ...p, targetWeightKg: 110 })) }, exerciseSession.exercises[1]] };
+    const back = parsePortalDraft(portalDraftJson(f), rowsOfSession(heavier))!;
+    expect(back.merged).toBe(true);
+    expect(back.rows.slice(0, 2).map((r) => r.weight)).toEqual([110, 102.5]);
+    expect(back.rows[1].planned).toBeUndefined();
+  });
+
+  test("a whole-exercise skip covers sets the coach added to it", () => {
+    const f = form(exerciseSession, { rows: setSkipReason(skipExercise(rowsOfSession(exerciseSession), "pe1"), "pe1", "time") });
+    const sq = exerciseSession.exercises[0];
+    const edited: PortalSession = { ...exerciseSession, exercises: [{ ...sq, prescribedSets: [...sq.prescribedSets, { ...sq.prescribedSets[1], setNumber: 3 }] }, exerciseSession.exercises[1]] };
+    const back = parsePortalDraft(portalDraftJson(f), rowsOfSession(edited))!;
+    expect(back.rows.filter((r) => r.programExerciseId === "pe1").every((r) => r.exerciseSkip?.reason === "time")).toBe(true);
   });
 
   test("an untouched prefill is the same form; any edit is not", () => {
@@ -306,6 +356,13 @@ describe("offline: the opened week is kept on this phone", () => {
     expect(cachedSession(raw, "ps1", "2026-11-23")).toBeNull();
     expect(cachedSession("{junk", "ps1", "2026-11-18")).toBeNull();
     expect(cachedSession(null, "ps1", "2026-11-18")).toBeNull();
+  });
+  test("the whole week page opens from this phone while its week lasts", () => {
+    const dto = { program: { id: "p1", name: "Base" }, currentWeek: 2, weeks: [week, { ...week, week: 3, loggable: false }], cardio: null };
+    expect(cachedWeekDto(JSON.stringify(dto), "2026-11-20")?.weeks).toHaveLength(2);
+    expect(cachedWeekDto(JSON.stringify(dto), "2026-11-23")).toBeNull();
+    expect(cachedWeekDto(JSON.stringify({ ...dto, weeks: [] }), "2026-11-20")).toBeNull();
+    expect(cachedWeekDto("{junk", "2026-11-20")).toBeNull();
   });
 });
 

@@ -58,7 +58,8 @@ export interface PortalApi {
   week(): Promise<PortalWeekDto>;
   /** The Progress tab; `protocol` picks which field test's VO₂max trend (default: the newest test's). */
   progress(protocol?: Vo2Protocol | null): Promise<PortalProgressDto>;
-  log(input: PortalLogInput): Promise<PortalSavedLog>;
+  /** `signal` aborts a save that hangs (the page gives up after a timeout and keeps the draft). */
+  log(input: PortalLogInput, opts?: { signal?: AbortSignal }): Promise<PortalSavedLog>;
   /** The member's own settings: display units (the language lives in the URL). */
   settings(): Promise<{ units: DisplayUnits }>;
   saveSettings(units: DisplayUnits): Promise<{ units: DisplayUnits }>;

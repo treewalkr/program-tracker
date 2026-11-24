@@ -20,9 +20,12 @@
     notLogged?: boolean;
     /** Remove the client's own log (this week only); absent = not removable here. */
     onremove?: (logId: string) => Promise<void>;
+    /** A half-logged draft of this session waits on this phone: "Continue", not "Log it". */
+    draft?: boolean;
   }
 
-  let { session, logHref, focus = false, notLogged = false, onremove }: Props = $props();
+  let { session, logHref, focus = false, notLogged = false, onremove, draft = false }: Props = $props();
+  const logLabel = $derived(draft && !session.log ? t("session.continue") : t("session.log"));
 
   /**
    * Two taps to remove: the first arms it for a few seconds. A second tap
@@ -88,7 +91,7 @@
       {/if}
     </div>
     {#if logHref && !lead && (!session.log || !byCoach)}
-      <a class="btn side" href={logHref}>{session.log ? t("session.edit") : t("session.log")}</a>
+      <a class="btn side" href={logHref}>{session.log ? t("session.edit") : logLabel}</a>
     {/if}
   </div>
   {#if notLogged && !session.log}
@@ -120,7 +123,7 @@
   {/if}
 
   {#if lead}
-    <a class="btn primary act" href={logHref}>{t("session.log")}</a>
+    <a class="btn primary act" href={logHref}>{logLabel}</a>
   {/if}
 
   {#if session.notes}

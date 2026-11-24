@@ -1,6 +1,7 @@
 <script lang="ts">
   import { i18n } from "$lib/portal/i18n.svelte";
   import { portalApi } from "$lib/api/portal";
+  import PortalError from "$lib/portal/PortalError.svelte";
   import { applyUnits, PORTAL_UNITS_KEY, restoreUnits } from "$lib/units.svelte";
 
   let { children, data } = $props();
@@ -10,7 +11,7 @@
   const signedIn = $derived(data.portal.kind === "signedIn");
   $effect(() => {
     restoreUnits(PORTAL_UNITS_KEY);
-    if (signedIn) portalApi.settings().then((s) => applyUnits(s.units, PORTAL_UNITS_KEY), () => {});
+    if (signedIn && !data.offline) portalApi.settings().then((s) => applyUnits(s.units, PORTAL_UNITS_KEY), () => {});
     return () => restoreUnits();
   });
 
@@ -24,7 +25,12 @@
 </script>
 
 <div class="portal">
-  {@render children()}
+  {#if data.unreachable}
+    <!-- no connection and never signed in on this phone: nothing to show but the way back -->
+    <PortalError kind="offline" toProgram={false} />
+  {:else}
+    {@render children()}
+  {/if}
 </div>
 
 <style>
