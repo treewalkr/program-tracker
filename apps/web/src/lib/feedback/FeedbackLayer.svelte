@@ -175,11 +175,17 @@
     return () => document.removeEventListener("keydown", onKey, true);
   });
 
-  // Navigating away drops a half-written pin on a stale element.
+  // Navigating away drops a half-written pin on a stale element. While picking,
+  // every app click is blocked, so a route change means Back / Forward: leave
+  // picking too, or the previous page would stay hijacked. "Use app" survives.
+  let lastHere = untrack(() => here);
   $effect(() => {
-    void here;
+    const now = here;
     untrack(() => {
-      close();
+      if (now === lastHere) return;
+      lastHere = now;
+      if (feedbackMode.picking) exit();
+      else close();
       hovered = null;
     });
   });
