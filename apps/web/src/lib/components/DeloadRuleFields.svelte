@@ -96,7 +96,8 @@
     gap: 10px 12px;
     align-items: end;
   }
-  .knobs :global(.label) { font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 4px; }
+  /* the same label as the select fields beside it */
+  .knobs :global(.label) { display: block; font: 500 12px var(--font-ui); color: var(--ink); margin-bottom: 4px; }
   /* the two-option switch needs two columns or "Week 1" is clipped */
   .knobs > :global(:has(> .seg)) { grid-column: span 2; }
 
