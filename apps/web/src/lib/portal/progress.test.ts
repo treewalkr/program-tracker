@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { PortalCardioLog } from "@pt/shared";
 import { en, format, th, type MessageKey } from "./messages";
-import { cardioSummary, hoursMinutes, logLine, reviewDay, trendAxis, trendPath, vo2Delta, vo2Tone } from "./progress";
+import { cardioSummary, hoursMinutes, logLine, reviewDay, trendAxis, trendPath, vo2Delta, vo2Shown, vo2Tone } from "./progress";
 import { localDateOf } from "@pt/shared";
 
 const tEn = (k: MessageKey, v?: Record<string, string | number>) => format(en[k], v);
@@ -32,8 +32,13 @@ describe("portal progress", () => {
   });
 
   test("VO₂max change is the newest test against the one before", () => {
-    expect(vo2Delta([{ value: 41.3 }, { value: 44.2 }, { value: 45.9 }])).toBe(2);
-    expect(vo2Delta([{ value: 45.2 }, { value: 46.1 }])).toBe(1);
+    // +1.7 shows as +2 but isn't the 2 ml/kg/min real change, so no green badge
+    const d = vo2Delta([{ value: 41.3 }, { value: 44.2 }, { value: 45.9 }])!;
+    expect(d).toBe(1.7);
+    expect(vo2Shown(d)).toBe(2);
+    expect(vo2Tone(d)).toBe("neutral");
+    expect(vo2Delta([{ value: 45.2 }, { value: 46.1 }])).toBe(0.9);
+    expect(vo2Tone(vo2Delta([{ value: 44.2 }, { value: 46.2 }])!)).toBe("good");
     expect(vo2Tone(1)).toBe("neutral");
     expect(vo2Tone(2)).toBe("good");
     expect(vo2Tone(-3)).toBe("neutral");

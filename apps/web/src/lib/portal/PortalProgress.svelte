@@ -4,7 +4,7 @@
   import Segmented from "$lib/ui/Segmented.svelte";
   import { fmtShortDate, i18n, latinLang, t } from "./i18n.svelte";
   import { modalityName } from "./modality";
-  import { cardioDistance, cardioSummary, hoursMinutes, logLine, reviewDay, trendAxis, trendPath, vo2Delta, vo2Tone } from "./progress";
+  import { cardioDistance, cardioSummary, hoursMinutes, logLine, reviewDay, trendAxis, trendPath, vo2Delta, vo2Shown, vo2Tone } from "./progress";
 
   /**
    * The Progress tab: this week's cardio, the VO₂max trend, the coach's
@@ -59,8 +59,8 @@
     <section class="card" aria-labelledby="pg-vo2">
       <h3 id="pg-vo2">
         {t("progress.vo2")}
-        {#if delta != null && delta !== 0}
-          <span class={["pill", vo2Tone(delta)]}>{delta > 0 ? "+" : "−"}{Math.abs(delta)}</span>
+        {#if delta != null && vo2Shown(delta) !== 0}
+          <span class={["pill", vo2Tone(delta)]}>{delta > 0 ? "+" : "−"}{Math.abs(vo2Shown(delta))}</span>
         {/if}
       </h3>
       <p class="vo2"><span class="big tnum">≈ {Math.round(last.value)}</span> <span class="unit">ml/kg/min · {t(`vo2.${vo2.protocol}`)} · {fmtShortDate(last.testedOn)}</span></p>

@@ -18,14 +18,17 @@ export function hoursMinutes(minutes: number, t: T): string {
 /** "11.4 km" / "7.08 mi", in the member's unit. */
 export const cardioDistance = (km: number, t: T): string => distanceText(km, t);
 
-/** The newest test against the one before, to one decimal; null with fewer than two. */
+/** The newest test against the one before, unrounded (to 0.1, past float noise); null with fewer than two.
+ *  Round only to show it (`vo2Shown`): the "real change" rule reads this. */
 export function vo2Delta(points: readonly { value: number }[]): number | null {
   if (points.length < 2) return null;
-  // whole ml/kg/min: a field test isn't precise past that
-  return Math.round(points[points.length - 1].value - points[points.length - 2].value);
+  return Math.round((points[points.length - 1].value - points[points.length - 2].value) * 10) / 10;
 }
 
-/** A change worth the green badge: at least 2 ml/kg/min up, on the same protocol (the trend is one protocol). */
+/** The change as shown: whole ml/kg/min, since a field test isn't precise past that. */
+export const vo2Shown = (delta: number): number => Math.sign(delta) * Math.round(Math.abs(delta));
+
+/** A change worth the green badge: at least 2 ml/kg/min up (unrounded: +1.7 isn't), on the same protocol. */
 export const VO2_REAL_CHANGE = 2;
 export const vo2Tone = (delta: number): "good" | "neutral" => (delta >= VO2_REAL_CHANGE ? "good" : "neutral");
 
