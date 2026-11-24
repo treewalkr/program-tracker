@@ -11,7 +11,10 @@
   import PageHead from "$lib/ui/PageHead.svelte";
   import Panel from "$lib/ui/Panel.svelte";
   import Pill from "$lib/ui/Pill.svelte";
-  import Field from "$lib/ui/Field.svelte";
+  import InputField from "$lib/ui/InputField.svelte";
+  import InputNote from "$lib/ui/InputNote.svelte";
+  import InputSearch from "$lib/ui/InputSearch.svelte";
+  import SelectCombobox from "$lib/ui/SelectCombobox.svelte";
   import EmptyState from "$lib/ui/EmptyState.svelte";
   import LeaveGuard from "$lib/ui/LeaveGuard.svelte";
   import { createLeaveGuard } from "$lib/leaveGuard.svelte";
@@ -28,6 +31,7 @@
 
   const trainerPref = $derived(prefs.find((p) => p.clientId === null) ?? null);
   const clientPrefs = $derived(prefs.filter((p) => p.clientId !== null));
+  const clientOptions = $derived(clients.map((c) => ({ value: c.id, label: c.name })));
   const pickedClient = $derived(clients.find((c) => c.id === pickedClientId) ?? null);
 
   let newName = $state("");
@@ -255,7 +259,7 @@
 <div class="lib">
   <aside class="rail">
   <div class="bar">
-    <input class="input" type="search" placeholder="Search names and rules" bind:value={q} aria-label="Search names and rules" />
+    <InputSearch label="Search names and rules" bind:value={q} />
     <Button variant="primary" onclick={startNew}>New template</Button>
   </div>
 
@@ -295,25 +299,21 @@
           create();
         }}
       >
-        <Field label="Name" htmlFor="t-name">
-          <input class="input" id="t-name" placeholder="e.g. Deload policy" bind:value={newName} maxlength="80" />
-        </Field>
-        <Field label="Body" htmlFor="t-content">
-          <textarea
-            class="textarea mono-body"
-            id="t-content"
-            rows="10"
-            placeholder={"Rules:\n- Cap main lifts at RPE 8.\n- Progress by 2.5 kg when all sets hit target reps."}
-            bind:value={newContent}
-            maxlength="4000"
-          ></textarea>
-        </Field>
+        <InputField label="Name" placeholder="e.g. Deload policy" bind:value={newName} maxlength={80} />
+        <InputNote
+          label="Body"
+          mono
+          rows={10}
+          maxRows={24}
+          placeholder={"Rules:\n- Cap main lifts at RPE 8.\n- Progress by 2.5 kg when all sets hit target reps."}
+          bind:value={newContent}
+          maxlength={4000}
+        />
         {#if error}<p class="err" role="alert">{error}</p>{/if}
         <div class="form-foot">
           <Button variant="primary" type="submit" disabled={saving || !newName.trim() || !newContent.trim()}>
             {saving ? "Saving…" : "Create template"}
           </Button>
-          <span class="subtle mono">{newContent.length}/4000</span>
         </div>
       </form>
     {:else if !loaded}
@@ -329,18 +329,13 @@
             saveEdit(picked.id);
           }}
         >
-          <Field label="Name" htmlFor="e-name">
-            <input class="input" id="e-name" bind:value={editName} maxlength="80" />
-          </Field>
-          <Field label="Body" htmlFor="e-content">
-            <textarea class="textarea mono-body" id="e-content" rows="12" bind:value={editContent} maxlength="4000"></textarea>
-          </Field>
+          <InputField label="Name" bind:value={editName} maxlength={80} />
+          <InputNote label="Body" mono rows={12} maxRows={24} bind:value={editContent} maxlength={4000} />
           <div class="row-actions">
             <Button variant="primary" type="submit" disabled={savingEdit || !editName.trim() || !editContent.trim()}>
               {savingEdit ? "Saving…" : "Save"}
             </Button>
             <Button variant="ghost" type="button" onclick={() => (editingId = null)}>Cancel</Button>
-            <span class="subtle mono rd-count">{editContent.length}/4000</span>
           </div>
         </form>
       {:else}
@@ -451,12 +446,15 @@
         {/each}
 
         <div class="picker">
-          <select class="select" bind:value={pickedClientId} aria-label="Client to distill for">
-            <option value="" disabled>Choose a client…</option>
-            {#each clients as c (c.id)}
-              <option value={c.id}>{c.name}</option>
-            {/each}
-          </select>
+          <div class="pick">
+            <SelectCombobox
+              label="Client to distill for"
+              placeholder="Choose a client…"
+              options={clientOptions}
+              bind:value={pickedClientId}
+              emptyText="No clients match"
+            />
+          </div>
           <Button small onclick={() => pickedClient && distill(pickedClient.id)} disabled={!pickedClient || distillingClient}>
             {distillingClient ? "Distilling…" : "Distill for client"}
           </Button>
@@ -487,7 +485,6 @@
     white-space: pre-wrap;
     overflow-wrap: anywhere;
   }
-  .mono-body { font: 12px/1.65 var(--font-mono); }
 
   .row-actions { display: flex; gap: 8px; align-items: center; }
 
@@ -511,7 +508,7 @@
   .pref-empty p { margin: 0; }
   /* Wraps rather than pushing the card wide on a phone: the button drops under the select. */
   .picker { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-  .picker .select { flex: 1 1 220px; width: auto; min-width: 0; max-width: 320px; }
+  .picker .pick { flex: 1 1 220px; min-width: 0; max-width: 320px; }
 
 
   /* ---- library: sticky list rail + reader ---- */
@@ -557,7 +554,6 @@
   .rd-raw summary { cursor: pointer; font-size: 13px; color: var(--muted); margin-bottom: 8px; }
   .rd-raw summary:hover { color: var(--ink); }
   .rd-form { max-width: 720px; }
-  .rd-count { margin-left: auto; }
 
   @media (max-width: 1060px) {
     .rd-grid { grid-template-columns: minmax(0, 1fr); }
