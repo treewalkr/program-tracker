@@ -210,7 +210,7 @@
     </div>
   </div>
 
-  <div class="tablewrap">
+  <div class="tablewrap x-scroll">
   <table class="settable">
     <thead>
       <tr>

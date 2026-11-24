@@ -686,7 +686,7 @@
 
   {#if program.weeks.length > 1}
     <div class="weeks-row">
-      <div class="week-tabs" bind:this={weekStrip}>
+      <div class="week-tabs x-scroll" bind:this={weekStrip}>
         {#each program.weeks as w, wi (w.week)}
           {@const logged = weekLogCount(w, wi)}
           {@const loggedText = `${logged} ${logged === 1 ? "session" : "sessions"} logged`}

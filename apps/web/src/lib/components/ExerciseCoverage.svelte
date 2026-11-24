@@ -67,7 +67,7 @@
   </div>
   {#if open}
     <div id="cov-body">
-      <div class="mapwrap">
+      <div class="mapwrap x-scroll">
         <table class="map">
           <thead>
             <tr>

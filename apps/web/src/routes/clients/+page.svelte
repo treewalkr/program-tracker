@@ -213,7 +213,7 @@
         {#snippet actions()}<Button onclick={() => list.clear(["sort"])}>Clear filters</Button>{/snippet}
       </EmptyState>
     {:else}
-      <div class="rows" class:stale={loading}>
+      <div class="rows x-scroll" class:stale={loading}>
         <table class="sheet roster">
           <thead>
             <tr>

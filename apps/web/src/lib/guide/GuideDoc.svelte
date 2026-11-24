@@ -43,7 +43,7 @@
 <div class="doc" {lang}>
   <nav class="toc" aria-label={onThisPage}>
     <p class="toc-title">{onThisPage}</p>
-    <ul>
+    <ul class="x-scroll">
       {#each toc as [id, label] (id)}
         <li><a href="#{id}" aria-current={shown === id ? "true" : undefined}>{label}</a></li>
       {/each}

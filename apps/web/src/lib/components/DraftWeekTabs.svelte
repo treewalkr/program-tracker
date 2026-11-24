@@ -19,7 +19,7 @@
   let { weeks, value, onchange, changed, label = "Draft week" }: Props = $props();
 </script>
 
-<div class="week-tabs" role="tablist" aria-label={label}>
+<div class="week-tabs x-scroll" role="tablist" aria-label={label}>
   {#each weeks as w (w.week)}
     <button
       type="button"
