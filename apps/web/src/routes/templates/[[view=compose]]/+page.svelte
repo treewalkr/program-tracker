@@ -307,6 +307,9 @@
     if (page.state.tplNew) replaceState(listPath(), narrow ? { tplOpen: true } : {});
     await open();
     await tick();
+    // wide on touch the list grows with the page: a row far down opens a reader scrolled off the top
+    const reader = document.querySelector<HTMLElement>(".reader");
+    if (!narrow && reader && reader.getBoundingClientRect().top < 0) reader.scrollIntoView({ block: "start" });
     document.getElementById("rd-title")?.focus({ preventScroll: true });
   }
   async function startNew() {
@@ -702,7 +705,7 @@
   .row-n { flex: none; padding-top: 1px; font: 400 12px/1.35 var(--font-mono); font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap; }
   .go { display: none; flex: none; align-self: center; color: var(--faint); transform: rotate(-90deg); }
 
-  .reader { min-width: 0; }
+  .reader { min-width: 0; scroll-margin-top: 16px; }
   .reader :global(#rd-title:focus) { outline: none; }
   .notice { display: flex; align-items: center; gap: 6px; margin: 0; font: 500 13px var(--font-ui); color: var(--good); }
   .notice:not(:empty) { margin-bottom: 12px; }
@@ -738,6 +741,14 @@
   .tpl-back .back:hover { background: var(--well-2); }
   .tpl-back .back:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
   .tpl-back .back :global(svg) { transform: rotate(90deg); }
+
+  /* Touch (iPad landscape): an inner scroller under a sticky rail is a small box
+     a page swipe never moves, cut off above Learned preferences. The list grows
+     with the page instead. */
+  @media (pointer: coarse) {
+    .rail { position: static; max-height: none; }
+    .shelves { overflow: visible; }
+  }
 
   @container lib (max-width: 1000px) {
     .rd-grid { grid-template-columns: minmax(0, 1fr); }
