@@ -64,7 +64,7 @@
   import { cardioLine } from "$lib/cardioLine";
   import { extraSets, logDateLabel, loggedSetLabel, programLogView, setsForExercise, timedIdsOfWeek } from "$lib/programLogs";
   import { exerciseIssue, validateProgramDoc } from "$lib/programDoc";
-  import { copyNotice, copyTargetLabel, currentWeekIndex as openingWeekIndex, endedNote, forwardNotice, matchNotice, programSubline, snapshot, weekLine, weekRangeLabel, weekTabDates } from "$lib/programEdit";
+  import { copyNotice, copyTargetLabel, currentWeekIndex as openingWeekIndex, endedNote, forwardNotice, matchNotice, programSubline, sameProgramDoc, snapshot, weekLine, weekRangeLabel, weekTabDates } from "$lib/programEdit";
   import { isDeloaded, toggleDeload, type DeloadUndo } from "$lib/deloadUndo";
   import { clientDeload } from "$lib/draftReview";
   import { patternTitle } from "$lib/exerciseLibrary";
@@ -460,14 +460,29 @@
     if (!program || !validation.ok) return;
     saving = true;
     saveError = null;
+    const saved = () => {
+      baseline = snapshot(program!);
+      savedAt = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    };
     try {
       program = await api.saveProgram(program.id, program.weeks, program.phasing ?? null, program.version);
-      baseline = snapshot(program);
-      savedAt = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      saved();
     } catch (e) {
       // The edits stay on screen either way; a 409 means only a reload can get past it.
       saveError = (e as Error).message;
       stale = (e as { status?: unknown }).status === 409;
+      if (stale) {
+        // A save whose reply was lost (gym Wi-Fi) already landed: the server holds exactly these edits.
+        const latest = await api.program(program.id).catch(() => null);
+        if (latest && program && sameProgramDoc(latest, program)) {
+          program = latest;
+          saved();
+          saveError = null;
+          stale = false;
+        } else if (latest) {
+          saveError = "This program was saved elsewhere since you opened it. Reload to see the latest.";
+        }
+      }
     } finally {
       saving = false;
     }

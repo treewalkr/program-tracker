@@ -1,4 +1,4 @@
-import { TEMPO_PATTERN, blockAnchorDate, blockEditText, type WeightUnit, blockWeekStart, type CopyTarget, type ForwardResult, type ForwardSkipReason, type Rotation, type SignalProgram, type WeekEdit } from "@pt/shared";
+import { ProgramWeeksWrite, TEMPO_PATTERN, blockAnchorDate, blockEditText, type WeightUnit, blockWeekStart, type CopyTarget, type ForwardResult, type ForwardSkipReason, type Rotation, type SignalProgram, type WeekEdit } from "@pt/shared";
 import type { PrescribedSetDto, ProgramDto } from "./api/types";
 import { showWeight, storeWeight } from "./units.svelte";
 
@@ -129,6 +129,22 @@ export function snapshot(p: Pick<ProgramDto, "weeks" | "phasing">): string {
       ? Object.fromEntries(Object.keys(value).sort().map((k) => [k, value[k]]))
       : value
   );
+}
+
+/** The weeks as the API stores them (its write schema), without the exercise names a read joins back on. */
+function storedWeeks(weeks: ProgramDto["weeks"]): unknown {
+  const parsed = ProgramWeeksWrite.safeParse(weeks);
+  const ws = parsed.success ? parsed.data : weeks;
+  return ws.map((w) => ({
+    ...w,
+    sessions: w.sessions.map((s) => ({ ...s, exercises: s.exercises.map(({ exerciseName: _name, ...e }) => e) })),
+  }));
+}
+
+/** The server's program holds exactly this doc: a save whose reply was lost already landed (409 on the retry). */
+export function sameProgramDoc(a: Pick<ProgramDto, "weeks" | "phasing">, b: Pick<ProgramDto, "weeks" | "phasing">): boolean {
+  const norm = (p: Pick<ProgramDto, "weeks" | "phasing">) => snapshot({ weeks: storedWeeks(p.weeks) as ProgramDto["weeks"], phasing: p.phasing });
+  return norm(a) === norm(b);
 }
 
 /** Sub-line under the title: version, origin, when Week 1 started, and save time — never contradicting the status pill. */

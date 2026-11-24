@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { WeekEdit } from "@pt/shared";
 import type { PrescribedSetDto, ProgramDto } from "./api/types";
-import { copyNotice, copyTargetLabel, currentWeekIndex, endedNote, forwardNotice, weekSpan, matchNotice, isUniform, parseRange, patchAll, programSubline, setMode, snapshot, weekLine, weekRangeLabel, weekTabDates, withMode, withSetCount } from "./programEdit";
+import { copyNotice, copyTargetLabel, currentWeekIndex, endedNote, forwardNotice, weekSpan, matchNotice, isUniform, parseRange, patchAll, programSubline, sameProgramDoc, setMode, snapshot, weekLine, weekRangeLabel, weekTabDates, withMode, withSetCount } from "./programEdit";
 
 const set = (o: Partial<PrescribedSetDto> = {}): PrescribedSetDto => ({
   setNumber: 1,
@@ -110,6 +110,60 @@ describe("snapshot", () => {
   test("still sees a real change", () => {
     const a = { weeks: [], phasing: { plannedWeeks: 2, phase: "acc" } };
     expect(snapshot(a)).not.toBe(snapshot({ ...a, phasing: { ...a.phasing, phase: "int" } }));
+  });
+});
+
+describe("sameProgramDoc", () => {
+  const doc = (reps = 5) => ({
+    weeks: [
+      {
+        week: 1,
+        sessions: [
+          {
+            id: "s1",
+            name: "Session 1",
+            seq: 1,
+            weekday: 1,
+            order: 0,
+            kind: "exercises" as const,
+            cardio: null,
+            exercises: [
+              {
+                id: "e1",
+                exerciseId: "ex-squat",
+                exerciseName: "Back Squat",
+                order: 0,
+                prescribedSets: [{ setNumber: 1, type: "working" as const, reps, amrap: false, targetRpe: 8 }],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+    phasing: null,
+  });
+
+  test("the server's copy of what we sent is the same doc", () => {
+    expect(sameProgramDoc(doc(6), doc(6))).toBe(true);
+  });
+
+  test("ignores key order and the names the read adds back", () => {
+    const sent = doc(6);
+    const s = sent.weeks[0].sessions[0];
+    const e = s.exercises[0];
+    const stored = {
+      phasing: null,
+      weeks: [{ sessions: [{ ...s, exercises: [{ prescribedSets: e.prescribedSets, order: 0, exerciseId: e.exerciseId, id: e.id }] }], week: 1 }],
+    };
+    expect(sameProgramDoc(stored, sent)).toBe(true);
+  });
+
+  test("a changed rep count is a different doc", () => {
+    expect(sameProgramDoc(doc(5), doc(6))).toBe(false);
+  });
+
+  test("a changed phasing is a different doc", () => {
+    expect(sameProgramDoc(doc(6), { ...doc(6), phasing: { plannedWeeks: 1, phase: "acc" } } as never)).toBe(false);
   });
 });
 
