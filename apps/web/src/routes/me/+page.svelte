@@ -353,6 +353,10 @@
   .wk { position: sticky; top: 0; z-index: 2; background: var(--bg); align-items: center; }
   .wk button { min-height: 44px; font-size: 16px; }
   .range { margin-left: auto; font-size: 13px; color: var(--muted); white-space: nowrap; }
+  /* a zoomed-in phone: every tab in sight (wrapped) rather than one cut off with no scrollbar or fade */
+  @media (max-width: 359px) {
+    .wk { flex-wrap: wrap; }
+  }
 
   .next-up { display: grid; gap: 10px; margin-bottom: 20px; }
   .next-up h2 { padding: 0; }

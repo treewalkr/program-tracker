@@ -186,8 +186,9 @@
     border-radius: var(--radius);
   }
   .card.focus:not(.done) { border-color: var(--line-strong); }
-  .head { display: flex; align-items: flex-start; gap: 12px; }
-  .title { flex: 1; min-width: 0; }
+  /* the Log button drops under the title rather than push the card past a zoomed phone's edge */
+  .head { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px 12px; }
+  .title { flex: 1 1 7em; min-width: 0; }
   h3 {
     margin: 0;
     font: 600 16px/1.3 var(--font-ui);

@@ -38,10 +38,12 @@
 </header>
 
 <style>
+  /* wraps rather than side-scrolls at 200 % zoom: the coach keeps the first line, language and settings drop under it */
   .bar {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 10px;
+    gap: 4px 10px;
     min-height: 48px;
   }
   .mark {
@@ -57,6 +59,7 @@
   }
   /* who this program is from: the coach's name is the clearest thing on the bar */
   .coach {
+    flex: 1 1 6em;
     display: flex;
     align-items: baseline;
     gap: 6px;

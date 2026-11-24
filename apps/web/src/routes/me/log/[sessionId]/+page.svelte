@@ -913,7 +913,7 @@
   .sk :global(.skeleton) { display: block; }
 
   /* the narrow log sheet: LogStepper's 44px steppers key off this container */
-  .log { container: logform / inline-size; display: grid; gap: 18px; margin-top: 8px; padding-bottom: 96px; }
+  .log { container: logform / inline-size; display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; margin-top: 8px; padding-bottom: 96px; }
   .head { display: grid; gap: 12px; }
   h1 { margin: 0; font: 600 24px/1.25 var(--font-ui); letter-spacing: -0.01em; text-wrap: balance; }
   .date { display: flex; align-items: center; gap: 12px; font-size: 14px; color: var(--muted); }
@@ -1068,6 +1068,11 @@
   .rm :global(svg) { width: 16px; height: 16px; }
   /* both heads are one label line tall (the BW switch sits on the load label's baseline), so the fields line up */
   .cells { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 10px 12px; }
+  /* too narrow for two steppers side by side (an SE, or any phone at 175 % zoom and up): kg over reps, full width */
+  @container logform (max-width: 299px) {
+    .cells { grid-template-columns: minmax(0, 1fr); }
+    .ex { padding-inline: 10px; }
+  }
   @container logform (min-width: 520px) {
     .cells { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   }
