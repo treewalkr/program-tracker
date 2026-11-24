@@ -289,10 +289,10 @@ export function parsePortalDraft(raw: string | null, fresh: PortalRow[], freshCa
   }
   if (!d || !Array.isArray(d.rows) || typeof d.notes !== "string" || typeof d.date !== "string" || !d.cardio) return null;
   const stored = d.rows.filter((row): row is PortalRow => !!row && typeof row.key === "string").map((row) => draftLoad(row, fresh));
-  const { rows, merged } = mergeDraftRows(stored, fresh);
+  const { rows, merged, swapped } = mergeDraftRows(stored, fresh);
   const r = (d.readiness ?? {}) as Record<string, unknown>;
   const peIds = new Set(fresh.map((x) => x.programExerciseId));
-  const flags = Object.fromEntries(Object.entries(parseFlags(d.flags)).filter(([pe]) => fresh.length === 0 || peIds.has(pe)));
+  const flags = Object.fromEntries(Object.entries(parseFlags(d.flags)).filter(([pe]) => (fresh.length === 0 || peIds.has(pe)) && !swapped.has(pe)));
   return {
     flags,
     startedAt: typeof d.startedAt === "string" && !Number.isNaN(Date.parse(d.startedAt)) ? d.startedAt : null,
@@ -312,6 +312,8 @@ const rxSig = (r: PortalRow) => JSON.stringify([r.name, r.type, r.prescribedReps
 
 /** One stored row's entries on the fresh row: a set left as planned takes the coach's new target. */
 function overlay(fresh: PortalRow, was: PortalRow): PortalRow {
+  // the coach swapped the exercise in this slot (same program-exercise id): a new slot, nothing carries
+  if (swappedIn(fresh, was)) return fresh;
   if (rxSig(fresh) === rxSig(was)) return was;
   const kept = { exerciseId: was.exerciseId, rpe: was.rpe, skipped: was.skipped, exerciseSkip: was.exerciseSkip, loadPicked: was.loadPicked, load: was.loadPicked ? was.load : fresh.load };
   const asPlanned = !!was.planned && String(was.weight) === was.planned.weight && String(was.reps) === was.planned.reps;
@@ -319,15 +321,25 @@ function overlay(fresh: PortalRow, was: PortalRow): PortalRow {
   return { ...fresh, ...kept, load: was.load, weight: was.weight, reps: was.reps, copied: was.copied, planned: undefined };
 }
 
-/** Stored rows over fresh ones by key; extras on exercises still there follow their exercise. */
-export function mergeDraftRows(stored: PortalRow[], fresh: PortalRow[]): { rows: PortalRow[]; merged: boolean } {
+/**
+ * The coach put another exercise in this row's slot. The portal has no swap of its own, so
+ * a stored row's exercise is always its slot's: any difference is the coach's.
+ */
+const swappedIn = (fresh: PortalRow, was: PortalRow) => !!was.exerciseId && fresh.exerciseId !== was.exerciseId;
+
+/**
+ * Stored rows over fresh ones by key; extras on exercises still there follow their exercise.
+ * `swapped`: program-exercise ids whose exercise the coach changed (their skips, extras and flags go).
+ */
+export function mergeDraftRows(stored: PortalRow[], fresh: PortalRow[]): { rows: PortalRow[]; merged: boolean; swapped: Set<string> } {
   const byKey = new Map(stored.filter((r) => !r.extra).map((r) => [r.key, r]));
   const base = stored.filter((r) => !r.extra);
   const sameShape = base.length === fresh.length && fresh.every((r) => byKey.has(r.key));
   const changed = !sameShape || fresh.some((r) => rxSig(r) !== rxSig(byKey.get(r.key)!));
-  if (!changed) return { rows: stored, merged: false };
+  if (!changed) return { rows: stored, merged: false, swapped: new Set() };
+  const swapped = new Set(fresh.filter((f) => byKey.has(f.key) && swappedIn(f, byKey.get(f.key)!)).map((f) => f.programExerciseId));
   // a whole-exercise skip covers the coach's new sets on that exercise too
-  const skipOf = new Map(base.filter((r) => r.exerciseSkip).map((r) => [r.programExerciseId, r.exerciseSkip]));
+  const skipOf = new Map(base.filter((r) => r.exerciseSkip && !swapped.has(r.programExerciseId)).map((r) => [r.programExerciseId, r.exerciseSkip]));
   let rows = fresh.map((f) => {
     const was = byKey.get(f.key);
     const row = was ? overlay(f, was) : f;
@@ -335,10 +347,10 @@ export function mergeDraftRows(stored: PortalRow[], fresh: PortalRow[]): { rows:
     return skip && !row.exerciseSkip ? { ...row, exerciseSkip: skip } : row;
   });
   const peIds = new Set(fresh.map((r) => r.programExerciseId));
-  for (const x of stored.filter((r) => r.extra && peIds.has(r.programExerciseId))) {
+  for (const x of stored.filter((r) => r.extra && peIds.has(r.programExerciseId) && !swapped.has(r.programExerciseId))) {
     rows = withExtraSet(rows, x.programExerciseId, (n) => ({ ...x, key: `${x.programExerciseId}:x${n}`, setNumber: n }));
   }
-  return { rows, merged: true };
+  return { rows, merged: true, swapped };
 }
 
 // ---------------------------------------------------------------------------

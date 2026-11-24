@@ -189,6 +189,29 @@ describe("portal log form", () => {
     expect(back.rows[1].planned).toBeUndefined();
   });
 
+  test("a coach swap in a slot: the new exercise, its own targets, nothing carried from the old one", () => {
+    const f = form(exerciseSession, { flags: toggleFlag({}, "pe1", "pain") });
+    f.rows[0] = { ...f.rows[0], weight: 105, reps: 7, rpe: 9, planned: undefined };
+    f.rows = setSkipReason(skipExercise(f.rows, "pe1"), "pe1", "time");
+    const sq = exerciseSession.exercises[0];
+    // same program-exercise id, a new exercise: the coach swapped Back Squat for Leg Press
+    const swapped: PortalSession = {
+      ...exerciseSession,
+      exercises: [{ ...sq, exerciseId: "ex-legpress", exerciseName: "Leg Press", prescribedSets: sq.prescribedSets.map((p) => ({ ...p, targetWeightKg: 60 })) }, exerciseSession.exercises[1]],
+    };
+    const back = parsePortalDraft(portalDraftJson(f), rowsOfSession(swapped))!;
+    expect(back.merged).toBe(true);
+    const lp = back.rows.filter((r) => r.programExerciseId === "pe1");
+    expect(lp.map((r) => [r.exerciseId, r.slotExerciseId, r.name, r.weight, r.reps, r.rpe, r.exerciseSkip ?? null])).toEqual([
+      ["ex-legpress", "ex-legpress", "Leg Press", 60, 6, "", null],
+      ["ex-legpress", "ex-legpress", "Leg Press", 60, 6, "", null],
+    ]);
+    // the pain was on the squat, not the leg press
+    expect(back.flags).toEqual({});
+    const built = buildPortalLog(swapped, back, false);
+    expect("input" in built && built.input.sets.filter((x) => x.programExerciseId === "pe1").every((x) => x.exerciseId === "ex-legpress")).toBe(true);
+  });
+
   test("a whole-exercise skip covers sets the coach added to it", () => {
     const f = form(exerciseSession, { rows: setSkipReason(skipExercise(rowsOfSession(exerciseSession), "pe1"), "pe1", "time") });
     const sq = exerciseSession.exercises[0];
