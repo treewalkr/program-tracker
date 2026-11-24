@@ -14,6 +14,10 @@
   import Pill from "$lib/ui/Pill.svelte";
   import SelectField from "$lib/ui/SelectField.svelte";
   import SkeletonRows from "$lib/ui/SkeletonRows.svelte";
+  import LeaveGuard from "$lib/ui/LeaveGuard.svelte";
+  import { createLibraryGuard } from "$lib/libraryGuard.svelte";
+  import { editChanged, hasDraft } from "$lib/libraryDraft";
+  import { revealRow } from "$lib/revealRow";
 
   /**
    * Glossary: shorthand, techniques and equipment words the trainer uses.
@@ -54,14 +58,33 @@
     if (!draft.term.trim() || !draft.meaning.trim() || adding) return;
     adding = true;
     await run(async () => {
-      await api.createGlossaryTerm({ ...draft });
+      const made = await api.createGlossaryTerm({ ...draft });
       await reload();
+      added = `Added ${made.term}.`;
+      void revealRow(made.id);
       draft = { term: "", meaning: "", kind: draft.kind };
     });
     adding = false;
   }
 
+  /** Set after an add, cleared when the form is typed in again. */
+  let added = $state<string | null>(null);
+  $effect(() => {
+    if (draft.term || draft.meaning) added = null;
+  });
+  const editDirty = $derived(editChanged(edit, editingId ? list.find((g) => g.id === editingId) : null));
+  const guard = createLibraryGuard({
+    dirty: () => editDirty || hasDraft(draft.term, draft.meaning),
+    what: () => (editDirty ? "Your edit to a term" : "Your new term"),
+  });
+  /** Cancel, Esc, or Edit on another term: asks first when the open edit changed. */
+  async function closeEdit() {
+    if (!editDirty || (await guard.discard())) editingId = null;
+    return editingId === null;
+  }
+
   async function startEdit(g: GlossaryTermDto) {
+    if (editingId !== g.id && !(await closeEdit())) return;
     editingId = g.id;
     edit = { term: g.term, meaning: g.meaning, kind: g.kind };
     await tick();
@@ -113,6 +136,7 @@
       {adding ? "Adding…" : "Add term"}
     </Button>
   </form>
+  <p class="added" role="status">{added ?? ""}</p>
 
   <div class="search"><InputSearch label="Search the glossary" placeholder="Search terms, meanings or kinds" bind:value={query} /></div>
 
@@ -130,7 +154,7 @@
   {:else}
     <ul class="rows">
       {#each shown as g (g.id)}
-        <li class="row">
+        <li class="row" data-row={g.id}>
           {#if editingId === g.id}
             <form class="edit" onsubmit={(e) => { e.preventDefault(); save(g); }} aria-label="Edit {g.term}">
               <div class="term"><InputField label="Term" hideLabel bind:input={editInput} bind:value={edit.term} maxlength={GLOSSARY_TERM_MAX} /></div>
@@ -140,12 +164,12 @@
                   hideLabel
                   bind:value={edit.meaning}
                   maxlength={GLOSSARY_MEANING_MAX}
-                  onkeydown={(e) => { if (e.key === "Escape") editingId = null; }}
+                  onkeydown={(e) => { if (e.key === "Escape") void closeEdit(); }}
                 />
               </div>
               {@render kindSelect(edit.kind, (k) => (edit.kind = k), "Kind")}
               <Button small variant="primary" type="submit" disabled={!edit.term.trim() || !edit.meaning.trim()}>Save</Button>
-              <Button small variant="ghost" type="button" onclick={() => (editingId = null)}>Cancel</Button>
+              <Button small variant="ghost" type="button" onclick={closeEdit}>Cancel</Button>
             </form>
           {:else}
             <span class="term-text">{g.term}</span>
@@ -166,7 +190,11 @@
   {/if}
 </Panel>
 
+<LeaveGuard guard={guard.asker} />
+
 <style>
+  .added { margin: 0; padding: 0 16px; font-size: 13px; font-weight: 500; color: var(--good); }
+  .added:not(:empty) { padding-block: 8px; border-bottom: 1px solid var(--line-soft); }
   .err { margin-bottom: 12px; }
 
   .add { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; border-bottom: 1px solid var(--line-soft); }

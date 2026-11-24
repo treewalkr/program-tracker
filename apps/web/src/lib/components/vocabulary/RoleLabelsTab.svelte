@@ -11,6 +11,10 @@
   import Panel from "$lib/ui/Panel.svelte";
   import Pill from "$lib/ui/Pill.svelte";
   import SelectField from "$lib/ui/SelectField.svelte";
+  import LeaveGuard from "$lib/ui/LeaveGuard.svelte";
+  import { createLibraryGuard } from "$lib/libraryGuard.svelte";
+  import { editChanged, hasDraft } from "$lib/libraryDraft";
+  import { revealRow } from "$lib/revealRow";
 
   /**
    * Role labels: the built-ins and the trainer's own, in rank order (the
@@ -55,14 +59,36 @@
       // the API sorts a new label after another; "first" is a move once it exists
       const first = draft.after === "" ? rankToMove(roleLabels.all, created.key, "") : null;
       if (first !== null) await roleLabels.update(created.id!, { rank: first });
+      added = `Added ${created.name}.`;
+      void revealRow(created.key);
       draft = { name: "", chip: "", description: "", after: null };
     });
     adding = false;
   }
 
+  /** Set after an add, cleared when the form is typed in again. */
+  let added = $state<string | null>(null);
+  $effect(() => {
+    if (draft.name || draft.chip || draft.description) added = null;
+  });
+  /** The edit as it opened, to tell a changed one from a glance. */
+  let editBase = $state<Edit | null>(null);
+  const editDirty = $derived(editingKey !== null && editChanged(edit, editBase));
+  const guard = createLibraryGuard({
+    dirty: () => editDirty || hasDraft(draft.name, draft.chip, draft.description),
+    what: () => (editDirty ? "Your edit to a role label" : "Your new role label"),
+  });
+  /** Cancel, Esc, or Edit on another label: asks first when the open edit changed. */
+  async function closeEdit() {
+    if (!editDirty || (await guard.discard())) editingKey = null;
+    return editingKey === null;
+  }
+
   async function startEdit(l: RoleLabel) {
+    if (editingKey !== l.key && !(await closeEdit())) return;
     editingKey = l.key;
     edit = { name: l.name, chip: l.chip === l.name ? "" : l.chip, description: l.description, after: labelBefore(roleLabels.all, l.key) };
+    editBase = { ...edit };
     await tick();
     firstField?.focus();
   }
@@ -120,13 +146,14 @@
       {adding ? "Adding…" : "Add label"}
     </Button>
   </form>
+  <p class="added" role="status">{added ?? ""}</p>
 
   <ol class="rows">
     {#each ordered.active as l (l.key)}
-      <li class="row">
+      <li class="row" data-row={l.key}>
         {#if editingKey === l.key}
           <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-          <form class="edit" onsubmit={(e) => { e.preventDefault(); save(l); }} aria-label="Edit {l.name}" onkeydown={(e) => { if (e.key === "Escape") editingKey = null; }}>
+          <form class="edit" onsubmit={(e) => { e.preventDefault(); save(l); }} aria-label="Edit {l.name}" onkeydown={(e) => { if (e.key === "Escape") void closeEdit(); }}>
             {#if l.builtinKey}
               <span class="name-text">{l.name}</span>
               <div class="chip"><InputField label="Chip" hideLabel bind:input={firstField} bind:value={edit.chip} maxlength={ROLE_LABEL_CHIP_MAX} placeholder={l.name} /></div>
@@ -147,7 +174,7 @@
             </div>
             {@render afterSelect(edit.after, (v) => (edit.after = v), l.key, "Position")}
             <Button small variant="primary" type="submit">Save</Button>
-            <Button small variant="ghost" type="button" onclick={() => (editingKey = null)}>Cancel</Button>
+            <Button small variant="ghost" type="button" onclick={closeEdit}>Cancel</Button>
           </form>
         {:else}
           <span class="chip-text" title="Chip">{l.chip}</span>
@@ -190,7 +217,11 @@
   {/if}
 </Panel>
 
+<LeaveGuard guard={guard.asker} />
+
 <style>
+  .added { margin: 0; padding: 0 16px; font-size: 13px; font-weight: 500; color: var(--good); }
+  .added:not(:empty) { padding-block: 8px; border-bottom: 1px solid var(--line-soft); }
   .err { margin-bottom: 12px; }
   .mono { font-family: var(--font-mono); }
   .hint { margin: 0; padding: 10px 16px; font-size: 13px; color: var(--muted); border-bottom: 1px solid var(--line-soft); background: var(--well); }
