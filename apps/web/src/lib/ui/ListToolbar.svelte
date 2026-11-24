@@ -52,6 +52,10 @@
 		color: var(--muted);
 		white-space: nowrap;
 	}
+	/* An empty count stays in the DOM as a live region; cancel its gap so the row's last control reaches the edge. */
+	.count:empty {
+		margin-left: -8px;
+	}
 	@container main (max-width: 700px) {
 		.search {
 			max-width: none;
