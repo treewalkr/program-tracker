@@ -9,7 +9,7 @@
       docs: {
         description: {
           component:
-            'Two-step destructive action: first click arms, second click within `ms` (default 4s) confirms; the armed state auto-resets. Idle, the button is only as wide as its label. Armed, it grows to the confirm label but never shrinks, so the pointer stays on it for the second click; in a narrow row the confirm label wraps instead of overflowing. Replaces the divergent armDelete/armedDelete patterns.',
+            'Two-step destructive action: first click arms, second click within `ms` (default 4s) confirms; the armed state auto-resets. Idle, the button is only as wide as its label. Armed, it grows to the confirm label but never shrinks, so the pointer stays on it for the second click; in a narrow row the confirm label wraps instead of overflowing. A confirming click within `guardMs` (500 ms) of arming is ignored, so a double tap only arms. Armed shows an outline on every variant, buzzes briefly where supported and announces the confirm label politely. Replaces the divergent armDelete/armedDelete patterns.',
         },
       },
     },
@@ -18,6 +18,16 @@
 
 <script lang="ts">
   let deleted = $state(0);
+
+  /** Clicks the story's button twice, `gap` ms apart, like a finger would. */
+  let guardRow = $state<HTMLDivElement>();
+  let guardConfirmed = $state(0);
+  function tapTwice(gap: number) {
+    const btn = guardRow?.querySelector<HTMLButtonElement>('button.btn');
+    if (!btn) return;
+    btn.click();
+    setTimeout(() => btn.click(), gap);
+  }
 </script>
 
 <Story name="Delete template" asChild>
@@ -47,4 +57,18 @@
 
 <Story name="Neutral until armed (small)" asChild>
   <ConfirmButton label="Turn access off" confirmLabel="Block sign-in?" variant="default" armedVariant="danger" small subject="Dana Lee" onconfirm={() => (deleted += 1)} />
+</Story>
+
+<Story name="Double tap only arms" asChild>
+  <div style="display: grid; gap: 10px; justify-items: start;">
+    <div bind:this={guardRow} style="display: flex; align-items: center; gap: 14px;">
+      <ConfirmButton label="Delete template" onconfirm={() => (guardConfirmed += 1)} />
+      <span class="subtle" data-testid="guard-count">confirmed {guardConfirmed}×</span>
+    </div>
+    <div style="display: flex; gap: 8px;">
+      <button type="button" class="btn small" onclick={() => tapTwice(120)}>Double tap (120 ms)</button>
+      <button type="button" class="btn small" onclick={() => tapTwice(600)}>Tap, then tap again (600 ms)</button>
+    </div>
+    <span class="subtle">The 120 ms pair leaves it armed; the 600 ms pair confirms.</span>
+  </div>
 </Story>

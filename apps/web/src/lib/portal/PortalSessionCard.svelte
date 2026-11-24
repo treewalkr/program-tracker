@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { PortalSession } from "@pt/shared";
   import Icon from "$lib/ui/Icon.svelte";
+  import { confirmAccepted } from "$lib/ui/confirmGuard";
   import { fmtShortDate, i18n, latinLang, t } from "./i18n.svelte";
   import { modalityName } from "./modality";
   import { cardioActualParts, cardioParts, coachIntensity, intervalLines, portalMetric, setParts } from "./rx";
@@ -23,8 +24,12 @@
 
   let { session, logHref, focus = false, notLogged = false, onremove }: Props = $props();
 
-  /** Two taps to remove: the first arms it for a few seconds. */
+  /**
+   * Two taps to remove: the first arms it for a few seconds. A second tap
+   * within the shared double-tap guard (ConfirmButton's) is ignored.
+   */
   let armed = $state(false);
+  let armedAt = 0;
   let removing = $state(false);
   let removeFailed = $state(false);
   let disarm: ReturnType<typeof setTimeout> | undefined;
@@ -35,10 +40,13 @@
     if (!session.log || !onremove || removing) return;
     if (!armed) {
       armed = true;
+      armedAt = performance.now();
+      navigator.vibrate?.(10);
       removeFailed = false;
       disarm = setTimeout(() => (armed = false), 4000);
       return;
     }
+    if (!confirmAccepted(armedAt, performance.now())) return;
     clearTimeout(disarm);
     armed = false;
     removing = true;
@@ -100,6 +108,7 @@
         <button type="button" class="remove" class:armed disabled={removing} onclick={remove}>
           {removing ? t("session.removing") : armed ? t("session.removeConfirm") : t("session.remove")}
         </button>
+        <span class="sr-only" aria-live="polite">{armed ? t("session.removeConfirm") : ""}</span>
       {/if}
     </div>
     {#if actual.length}<p class="actual tnum">{actual.join(" · ")}</p>{/if}
@@ -264,6 +273,9 @@
   .act { justify-content: center; min-height: 48px; font-size: 16px; }
   .side { flex: none; justify-content: center; min-width: 64px; min-height: 44px; padding: 0 14px; font-size: 14px; }
   .status { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; margin-top: -4px; }
+  /* The remove link's 44px hit box reaches 10px above its row; drop the row
+     so that box stays 8px clear of "Edit log" and a tap aimed there can't arm it. */
+  .status:has(.remove) { margin-top: 6px; }
   .remove {
     min-height: 44px;
     margin: -10px -4px -10px 0;
