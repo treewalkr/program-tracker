@@ -780,6 +780,11 @@
     .col-func, .col-eq { display: none; }
     .sortsel { margin-left: 0; }
   }
+  /* Phone: the three filters share one row; sort gets the next row to itself. */
+  @container main (max-width: 700px) {
+    .fbtn { flex: 1 1 0; min-width: 0; justify-content: center; }
+    .sortsel { flex: 1 1 200px; width: auto; }
+  }
   @media (prefers-reduced-motion: reduce) {
     .flash { transition: none; }
   }
