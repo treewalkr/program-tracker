@@ -107,6 +107,10 @@
   const longHistory = versionRows(revisionChain(longGens, lastId));
   const longLatest = versionView(longGens, lastId, long.length, catalogById)!;
   const longOlder = versionView(longGens, lastId, 4, catalogById)!;
+  // A twelve-week block: the week tabs overflow a phone and fade at the edge.
+  const v12 = gen({ draft: { ...baseDraft, weeks: Array.from({ length: 12 }, (_, i) => ({ week: i + 1, sessions: [session('Day A'), session('Day B')] })) } });
+  const twelveView = versionView([v12], v12.id, 1, catalogById)!;
+  const twelveHistory = versionRows(revisionChain([v12], v12.id));
   const href = '/clients/cl-maya/generate';
   const noop = () => {};
 </script>
@@ -116,6 +120,7 @@
 <Story name="Building" args={{ view: latestView, latest: 2, history, building: { next: 3, elapsed: '0:42' }, reviewHref: href, onview: noop, oncancel: noop }} />
 <Story name="With surprise" args={{ view: latestView, latest: 2, history, unproposed: surprise, reviewHref: href, onview: noop }} />
 <!-- The switcher with nine versions: open it to see who made each one and what changed. -->
+<Story name="Twelve weeks" args={{ view: twelveView, latest: 1, history: twelveHistory, reviewHref: href, onview: noop, onweek: noop }} />
 <Story name="Many versions" args={{ view: longLatest, latest: long.length, history: longHistory, reviewHref: href, onview: noop }} />
 <Story name="Many versions, older shown" args={{ view: longOlder, latest: long.length, history: longHistory, reviewHref: href, onview: noop }} />
 <Story name="Many versions, building" args={{ view: longLatest, latest: long.length, history: longHistory, building: { next: long.length + 1, elapsed: '0:18' }, reviewHref: href, onview: noop, oncancel: noop }} />

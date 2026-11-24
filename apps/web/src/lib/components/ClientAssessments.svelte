@@ -148,7 +148,7 @@
         {#if series.length}
           <LiftChart name={PROTOCOL_LABEL[shownProtocol]} {series} unit="ml/kg/min" measure="Estimated VO₂max" per="test" />
         {/if}
-        <div class="tbl-wrap"><table class="tbl">
+        <div class="tbl-wrap x-scroll"><table class="tbl">
           <thead><tr><th>Date</th><th>{inputHead[shownProtocol]}</th><th class="r">Estimate</th><th><span class="sr-only">Actions</span></th></tr></thead>
           <tbody>
             {#each rows as a (a.id)}

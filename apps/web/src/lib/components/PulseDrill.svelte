@@ -32,7 +32,7 @@
   {#if rows.length === 0}
     <p class="empty">No sets behind this number.</p>
   {:else}
-    <div class="wrap">
+    <div class="wrap x-scroll">
       <table class="sheet">
         <thead>
           <tr>
