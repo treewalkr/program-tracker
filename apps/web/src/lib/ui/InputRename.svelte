@@ -18,10 +18,11 @@
 		/** Controlled editing state (stories, tests). */
 		editing?: boolean;
 		disabled?: boolean;
+		maxlength?: number;
 		onsave?: (name: string) => void;
 	}
 
-	let { value = $bindable(), thing, size = 'heading', tag = 'span', editing = $bindable(false), disabled = false, onsave }: Props = $props();
+	let { value = $bindable(), thing, size = 'heading', tag = 'span', editing = $bindable(false), disabled = false, maxlength, onsave }: Props = $props();
 
 	const id = $props.id();
 	let draft = $state('');
@@ -82,6 +83,7 @@
 				bind:this={field}
 				class="in"
 				type="text"
+				{maxlength}
 				aria-label="Name of {thing}"
 				aria-invalid={error ? true : undefined}
 				aria-describedby={error ? `${id}-err` : undefined}

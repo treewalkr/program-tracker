@@ -40,6 +40,8 @@
   let editingEmpty = $state(true);
   let session = $state('Lower A · squat focus');
   let edited = $state('Hypertrophy phase');
+  let typeName = $state('Hypertrophy');
+  let editingType = $state(true);
 </script>
 
 <Story name="Page title at rest" asChild>
@@ -64,4 +66,8 @@
       <div class="panel-body" style="font-size: 13px; color: var(--muted)">Back squat · Romanian deadlift · Split squat · Leg curl · Plank</div>
     </Panel>
   </div>
+</Story>
+
+<Story name="Row with a length limit" asChild>
+  <div style="max-width: 420px"><InputRename bind:value={typeName} thing="session type" size="row" maxlength={40} bind:editing={editingType} /></div>
 </Story>
