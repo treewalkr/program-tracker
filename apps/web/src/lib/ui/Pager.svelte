@@ -1,4 +1,5 @@
 <script lang="ts">
+	import SelectPrefixed from './SelectPrefixed.svelte';
 	import { PAGE_LIMITS, pageRange } from '@pt/shared';
 
 	/**
@@ -31,17 +32,14 @@
 			<span class="fig">{range.from}–{range.to}</span> of <span class="fig">{total}</span>
 		</span>
 		{#if onlimit}
-			<label class="per">
-				<span>Rows</span>
-				<select
-					class="select"
-					value={limit}
-					aria-label="{noun} per page"
-					onchange={(e) => onlimit(Number(e.currentTarget.value))}
-				>
-					{#each limits as n (n)}<option value={n}>{n}</option>{/each}
-				</select>
-			</label>
+			<span class="per">
+				<SelectPrefixed
+					prefix="Rows"
+					options={limits.map((n) => ({ value: String(n), label: String(n) }))}
+					value={String(limit)}
+					onchange={(n) => onlimit(Number(n))}
+				/>
+			</span>
 		{/if}
 		<span class="of">Page <span class="fig">{range.page}</span> of <span class="fig">{range.pages}</span></span>
 		<div class="steps">
@@ -73,16 +71,6 @@
 	}
 	.range {
 		margin-right: auto;
-	}
-	.per {
-		display: inline-flex;
-		align-items: center;
-		gap: 6px;
-	}
-	.per .select {
-		width: auto;
-		padding-block: 2px;
-		min-height: 28px;
 	}
 	.steps {
 		display: flex;
