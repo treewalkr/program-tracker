@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { MediaQuery } from "svelte/reactivity";
   import { onMount } from "svelte";
   import { normalizeAlias } from "@pt/shared";
   import { api } from "$lib/api";
@@ -18,6 +19,9 @@
   import { createLibraryGuard } from "$lib/libraryGuard.svelte";
   import { hasDraft } from "$lib/libraryDraft";
   import { revealRow } from "$lib/revealRow";
+
+  /** Phones: placeholders vanish once typed in, so the fields keep visible labels. */
+  const narrow = new MediaQuery("(max-width: 720px)", false);
 
   /**
    * Aliases: the names the trainer writes (as written → exercise). Their own
@@ -112,7 +116,7 @@
 
 <Panel title="Aliases" count={list.length}>
   <form class="panel-body add" onsubmit={add} aria-label="Add an alias">
-    <div class="written"><InputField label="Alias as written" hideLabel placeholder="As you write it, e.g. SA Row" bind:value={newAlias} maxlength={200} /></div>
+    <div class="written"><InputField label="Alias as written" hideLabel={!narrow.current} placeholder="As you write it, e.g. SA Row" bind:value={newAlias} maxlength={200} /></div>
     <span class="arrow" aria-hidden="true">→</span>
     <div class="pick">
       <ExercisePicker value={newExerciseId} {catalog} label="Exercise for the new alias" onpick={(ex) => (newExerciseId = ex.id)} oncreate={createExercise} />
@@ -176,6 +180,8 @@
 <LeaveGuard guard={guard.asker} />
 
 <style>
+  /* Labelled fields on phones: buttons line up with the boxes, not the labels. */
+  @media (max-width: 720px) { .add { align-items: flex-end; } }
   .added { margin: 0; padding: 0 16px; font-size: 13px; font-weight: 500; color: var(--good); }
   .added:not(:empty) { padding-block: 8px; border-bottom: 1px solid var(--line-soft); }
   .err { margin-bottom: 12px; }

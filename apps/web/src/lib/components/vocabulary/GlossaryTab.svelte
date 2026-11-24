@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { MediaQuery } from "svelte/reactivity";
   import { onMount, tick } from "svelte";
   import { GLOSSARY_KINDS, GLOSSARY_KIND_LABELS, GLOSSARY_MEANING_MAX, GLOSSARY_TERM_MAX, type GlossaryKind } from "@pt/shared";
   import { api } from "$lib/api";
@@ -18,6 +19,9 @@
   import { createLibraryGuard } from "$lib/libraryGuard.svelte";
   import { editChanged, hasDraft } from "$lib/libraryDraft";
   import { revealRow } from "$lib/revealRow";
+
+  /** Phones: placeholders vanish once typed in, so the fields keep visible labels. */
+  const narrow = new MediaQuery("(max-width: 720px)", false);
 
   /**
    * Glossary: shorthand, techniques and equipment words the trainer uses.
@@ -120,16 +124,16 @@
 </script>
 
 {#snippet kindSelect(value: GlossaryKind, onchange: (k: GlossaryKind) => void, label: string)}
-  <div class="kind"><SelectField {label} hideLabel maxWidth="none" options={KIND_OPTIONS} {value} {onchange} /></div>
+  <div class="kind"><SelectField {label} hideLabel={!narrow.current} maxWidth="none" options={KIND_OPTIONS} {value} {onchange} /></div>
 {/snippet}
 
 {#if error}<div class="err"><Note tone="bad">{error}</Note></div>{/if}
 
 <Panel title="Glossary" count={list.length}>
   <form class="panel-body add" onsubmit={add} aria-label="Add a term">
-    <div class="term"><InputField label="Term" hideLabel placeholder="Term, e.g. LPD" bind:value={draft.term} maxlength={GLOSSARY_TERM_MAX} /></div>
+    <div class="term"><InputField label="Term" hideLabel={!narrow.current} placeholder="Term, e.g. LPD" bind:value={draft.term} maxlength={GLOSSARY_TERM_MAX} /></div>
     <div class="meaning">
-      <InputField label="Meaning" hideLabel placeholder="What it means, e.g. lat pulldown" bind:value={draft.meaning} maxlength={GLOSSARY_MEANING_MAX} />
+      <InputField label="Meaning" hideLabel={!narrow.current} placeholder="What it means, e.g. lat pulldown" bind:value={draft.meaning} maxlength={GLOSSARY_MEANING_MAX} />
     </div>
     {@render kindSelect(draft.kind, (k) => (draft.kind = k), "Kind")}
     <Button variant="primary" type="submit" disabled={adding || !draft.term.trim() || !draft.meaning.trim()}>
@@ -157,11 +161,11 @@
         <li class="row" data-row={g.id}>
           {#if editingId === g.id}
             <form class="edit" onsubmit={(e) => { e.preventDefault(); save(g); }} aria-label="Edit {g.term}">
-              <div class="term"><InputField label="Term" hideLabel bind:input={editInput} bind:value={edit.term} maxlength={GLOSSARY_TERM_MAX} /></div>
+              <div class="term"><InputField label="Term" hideLabel={!narrow.current} bind:input={editInput} bind:value={edit.term} maxlength={GLOSSARY_TERM_MAX} /></div>
               <div class="meaning">
                 <InputField
                   label="Meaning"
-                  hideLabel
+                  hideLabel={!narrow.current}
                   bind:value={edit.meaning}
                   maxlength={GLOSSARY_MEANING_MAX}
                   onkeydown={(e) => { if (e.key === "Escape") void closeEdit(); }}
@@ -193,6 +197,8 @@
 <LeaveGuard guard={guard.asker} />
 
 <style>
+  /* Labelled fields on phones: buttons line up with the boxes, not the labels. */
+  @media (max-width: 720px) { .add, .edit { align-items: flex-end; } }
   .added { margin: 0; padding: 0 16px; font-size: 13px; font-weight: 500; color: var(--good); }
   .added:not(:empty) { padding-block: 8px; border-bottom: 1px solid var(--line-soft); }
   .err { margin-bottom: 12px; }

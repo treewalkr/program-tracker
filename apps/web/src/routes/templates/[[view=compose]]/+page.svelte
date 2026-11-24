@@ -141,13 +141,15 @@
   }
 
   let copyingKey = $state<string | null>(null);
+  /** A copy's name differs from the built-in's, so Generate's Rules chips tell the two apart. */
+  const copyName = (p: InstructionPreset) => `${p.name} (yours)`.slice(0, 80);
 
   /** Built-ins are read-only; copying makes an editable one in the library. */
   async function copyPreset(p: InstructionPreset) {
     copyingKey = p.key;
     listError = null;
     try {
-      await api.createInstructionTemplate({ name: p.name, content: p.content });
+      await api.createInstructionTemplate({ name: copyName(p), content: p.content });
       await load();
     } catch (e) {
       listError = (e as Error).message;
@@ -156,12 +158,27 @@
     }
   }
 
+  /** Deleting the open template: narrow goes back to the list, wide opens its neighbour in Yours. */
   async function remove(id: string) {
     listError = null;
+    const wasOpen = picked?.id === id;
+    const ownBefore = entries.filter((e) => e.kind === "own");
+    const at = ownBefore.findIndex((e) => e.id === id);
+    const name = ownBefore[at]?.name ?? "the template";
     try {
       await api.deleteInstructionTemplate(id);
       if (editingId === id) editingId = null;
+      // narrow: back to the list first, so the reader never shows another template
+      if (wasOpen && narrow) {
+        selId = null;
+        await backToList();
+      }
       await load();
+      if (wasOpen && !narrow) {
+        const own = entries.filter((e) => e.kind === "own");
+        selId = (own[at] ?? own[at - 1] ?? entries[0])?.id ?? null;
+      }
+      announce(`Deleted ${name}.`);
     } catch (e) {
       listError = (e as Error).message;
     }
@@ -290,6 +307,9 @@
     if (page.state.tplNew) replaceState(listPath(), narrow ? { tplOpen: true } : {});
     await open();
     await tick();
+    // wide on touch the list grows with the page: a row far down opens a reader scrolled off the top
+    const reader = document.querySelector<HTMLElement>(".reader");
+    if (!narrow && reader && reader.getBoundingClientRect().top < 0) reader.scrollIntoView({ block: "start" });
     document.getElementById("rd-title")?.focus({ preventScroll: true });
   }
   async function startNew() {
@@ -308,7 +328,7 @@
   }
   async function copyAndSelect(p: InstructionPreset) {
     await copyPreset(p);
-    const mine = [...templates].reverse().find((t) => t.name === p.name);
+    const mine = [...templates].reverse().find((t) => t.name === copyName(p));
     if (!listError && mine) await pick(mine.id);
   }
 
@@ -358,7 +378,7 @@
       });
       if (a !== "confirm") return;
     }
-    if (!newName.trim() || INSTRUCTION_PRESETS.some((x) => x.name === newName)) newName = p.name;
+    if (!newName.trim() || INSTRUCTION_PRESETS.some((x) => copyName(x) === newName)) newName = copyName(p);
     newContent = p.content;
   }
 </script>
@@ -381,6 +401,7 @@
 <div class="lib-wrap" bind:clientWidth={libWidth}>
 <div class="lib" class:reading>
   <aside class="rail" aria-label="Templates">
+    {#if narrow && !reading}<p class="notice" role="status">{#if notice}<Icon name="check" size={14} />{notice}{/if}</p>{/if}
     <div class="bar">
       <div class="find"><InputSearch label="Search templates" bind:value={q} /></div>
       <Button variant="primary" onclick={startNew}>New template</Button>
@@ -485,6 +506,8 @@
               {picked.summary ?? `Updated ${fmtDate(picked.updatedAt!)}`}
             </p>
           </div>
+          <!-- keyed: a new template's buttons are new, never the last one's armed or hovered Delete -->
+          {#key picked.id}
           <div class="rd-actions">
             {#if picked.kind === "builtin"}
               <Button variant="primary" onclick={() => copyAndSelect(picked.preset!)} disabled={copyingKey === picked.preset!.key}>
@@ -495,6 +518,7 @@
               <ConfirmButton label="Delete" confirmLabel="Really delete?" onconfirm={() => remove(picked.id)} variant="ghost" class="danger" />
             {/if}
           </div>
+          {/key}
         </header>
         <div class="rd-grid">
           <div class="rd-rules">
@@ -681,10 +705,11 @@
   .row-n { flex: none; padding-top: 1px; font: 400 12px/1.35 var(--font-mono); font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap; }
   .go { display: none; flex: none; align-self: center; color: var(--faint); transform: rotate(-90deg); }
 
-  .reader { min-width: 0; }
+  .reader { min-width: 0; scroll-margin-top: 16px; }
   .reader :global(#rd-title:focus) { outline: none; }
   .notice { display: flex; align-items: center; gap: 6px; margin: 0; font: 500 13px var(--font-ui); color: var(--good); }
   .notice:not(:empty) { margin-bottom: 12px; }
+  .rail > .notice:not(:empty) { margin-bottom: 0; }
   .rd-head { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 12px 16px; margin-bottom: 22px; }
   .rd-head > div:first-child { min-width: 0; flex: 1 1 280px; }
   .rd-head h2 { margin: 0 0 6px; font-size: 20px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.25; text-wrap: balance; }
@@ -703,6 +728,8 @@
   .rd-raw { margin: 0; }
   .rd-raw summary { cursor: pointer; font-size: 13px; color: var(--muted); margin-bottom: 8px; }
   .rd-raw summary:hover { color: var(--ink); }
+  /* Touch: a 44px-tall target without moving the line (the 8px gap below stays). */
+  @media (pointer: coarse) { .rd-raw summary { padding-block: 13px; margin-block: -13px -5px; } }
   .rd-form { max-width: 720px; }
 
   /* The page's own Back, styled as BackButton: a 28px line with a 44px target. */
@@ -716,6 +743,14 @@
   .tpl-back .back:hover { background: var(--well-2); }
   .tpl-back .back:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
   .tpl-back .back :global(svg) { transform: rotate(90deg); }
+
+  /* Touch (iPad landscape): an inner scroller under a sticky rail is a small box
+     a page swipe never moves, cut off above Learned preferences. The list grows
+     with the page instead. */
+  @media (pointer: coarse) {
+    .rail { position: static; max-height: none; }
+    .shelves { overflow: visible; }
+  }
 
   @container lib (max-width: 1000px) {
     .rd-grid { grid-template-columns: minmax(0, 1fr); }

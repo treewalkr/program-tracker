@@ -44,6 +44,17 @@ describe("glossary", () => {
     expect(expandAbbreviations("CARs", map)).toBe("cars");
   });
 
+  test("Thai shorthand with vowel and tone marks reaches the matcher", () => {
+    const map = glossaryAbbreviations([
+      { term: "ดึ๊ง", meaning: "lat pulldown", kind: "abbreviation" },
+      { term: "วิดพื้น", meaning: "push-up", kind: "abbreviation" },
+      { term: "สควอท", meaning: "squat", kind: "abbreviation" },
+      { term: "LPD", meaning: "lat pulldown", kind: "abbreviation" },
+    ]);
+    expect(map).toEqual({ ดึ๊ง: "lat pulldown", วิดพื้น: "push up", สควอท: "squat", lpd: "lat pulldown" });
+    expect(expandAbbreviations("ดึ๊ง กว้าง", map)).toBe("lat pulldown กว้าง");
+  });
+
   test("input is trimmed and bounded", () => {
     expect(GlossaryTermInput.parse({ term: " LPD ", meaning: " lat pulldown ", kind: "abbreviation" })).toEqual({
       term: "LPD",

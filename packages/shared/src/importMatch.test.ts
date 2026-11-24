@@ -7,6 +7,7 @@ import {
   matchExercise,
   nameMatchParts,
   nameSimilarity,
+  legacyNormalizeAlias,
   normalizeAlias,
 } from "./importMatch";
 
@@ -25,6 +26,26 @@ describe("normalization", () => {
     expect(normalizeAlias("  SA  Row! ")).toBe("sa row");
     expect(normalizeAlias("Lat pull-down")).toBe("lat pull down");
     expect(normalizeAlias("Crossover / Dip")).toBe("crossover dip");
+  });
+
+  test("alias keys keep Thai vowel and tone marks", () => {
+    expect(normalizeAlias("วิดพื้น")).toBe("วิดพื้น");
+    expect(normalizeAlias("เดดลิฟต์")).toBe("เดดลิฟต์");
+    expect(normalizeAlias("ดึ๊ง")).toBe("ดึ๊ง");
+    expect(normalizeAlias(" ท่าดึง 1 แขน 🏋️ ")).toBe("ท่าดึง 1 แขน");
+  });
+
+  test("alias keys are NFC and drop marks left without a letter (emoji selectors, keycaps)", () => {
+    expect(normalizeAlias("Cafe\u0301 row")).toBe("caf\u00e9 row");
+    expect(normalizeAlias("1\uFE0F\u20E3 squat 💪🏽")).toBe("1 squat");
+    expect(normalizeAlias("🏋️")).toBe("");
+  });
+
+  // delete with legacyNormalizeAlias once trainers have re-saved their Thai aliases
+  test("the legacy key is the old mark-stripping form stored before 2026-11-24", () => {
+    expect(legacyNormalizeAlias("วิดพื้น")).toBe("ว ดพ น");
+    expect(legacyNormalizeAlias("เดดลิฟต์")).toBe("เดดล ฟต");
+    expect(legacyNormalizeAlias("  SA  Row! ")).toBe("sa row");
   });
 
   test("expands gym shorthand word by word", () => {
@@ -49,6 +70,17 @@ describe("normalization", () => {
 });
 
 describe("matchExercise", () => {
+  test("a Thai alias matches whether it was stored intact or in the legacy mangled form", () => {
+    const intact = [{ alias: "วิดพื้น", exerciseId: "bench", trainerId: "t1" }];
+    expect(matchExercise({ sourceName: "วิดพื้น", name: "x" }, CATALOG, intact)).toMatchObject({ kind: "alias", exerciseId: "bench" });
+    const legacy = [{ alias: "ว ดพ น", exerciseId: "curl", trainerId: "t1" }];
+    expect(matchExercise({ sourceName: "วิดพื้น", name: "x" }, CATALOG, legacy)).toMatchObject({ kind: "alias", exerciseId: "curl" });
+    // an intact alias wins over a legacy one for the same words
+    expect(matchExercise({ sourceName: "วิดพื้น", name: "x" }, CATALOG, [...legacy, ...intact])).toMatchObject({ exerciseId: "bench" });
+    const globalLegacy = [{ alias: "ว ดพ น", exerciseId: "curl", trainerId: null }];
+    expect(matchExercise({ sourceName: "วิดพื้น", name: "x" }, CATALOG, globalLegacy)).toMatchObject({ kind: "alias", exerciseId: "curl" });
+  });
+
   test("a personal alias comes first and beats a global one", () => {
     const aliases = [
       { alias: "sa row", exerciseId: "curl", trainerId: null },

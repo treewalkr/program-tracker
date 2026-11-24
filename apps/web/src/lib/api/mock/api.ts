@@ -81,6 +81,7 @@ import {
   type MuscleGroup,
   matchExercise,
   mockImportExtraction,
+  legacyNormalizeAlias,
   normalizeAlias,
   type ImportChunkOutcome,
   DEFAULT_GLOSSARY,
@@ -1994,6 +1995,9 @@ const rawMockApi: TrainerApi = {
       const alias = normalizeAlias(i.alias);
       if (!alias) throw new Error("alias is empty");
       if (!exercises.some((e) => e.id === i.exerciseId)) throw new Error("exercise not found");
+      // like the API: a re-save replaces the same words stored in the legacy mark-stripped form
+      const legacy = legacyNormalizeAlias(i.alias);
+      if (legacy !== alias) state.aliases = state.aliases.filter((a) => !(a.trainerId !== null && a.alias === legacy));
       const mine = state.aliases.find((a) => a.trainerId !== null && a.alias === alias);
       if (mine) Object.assign(mine, { exerciseId: i.exerciseId, source: i.source });
       else state.aliases.push({ id: uuid(), alias, exerciseId: i.exerciseId, trainerId: "me", source: i.source });

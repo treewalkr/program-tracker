@@ -135,7 +135,7 @@
 
   function startReuse(e: ProgramExampleDto) {
     reuseId = e.id;
-    reuseClientId = clients[0]?.id ?? "";
+    reuseClientId = ""; // the trainer picks; never a default client one tap from Create draft
     error = null;
   }
 
@@ -269,6 +269,8 @@
                   }}
                 >
                   <div class="reuse-pick">
+                    <!-- visible twin of the combobox's aria-label -->
+                    <span class="reuse-label" aria-hidden="true">Draft for</span>
                     <SelectCombobox
                       label="Client for the reused program"
                       placeholder="Choose a client…"
@@ -331,6 +333,8 @@
   .item-head h3 { font-size: 14px; }
   .prog-link { color: var(--ink); }
   .prog-link:hover { color: var(--blue); text-underline-offset: 3px; }
+  /* Touch: a 44px-tall target; inline padding doesn't move the line. */
+  @media (pointer: coarse) { .prog-link { position: relative; padding-block: 14px; } }
 
   .facts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 10px; }
   .goal { color: var(--ink); margin-right: 4px; }
@@ -344,8 +348,9 @@
   .row-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
   .edit-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
 
-  .reuse-form { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-  .reuse-pick { flex: 0 1 260px; min-width: 200px; }
+  .reuse-form { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
+  .reuse-pick { flex: 0 1 260px; min-width: 200px; display: flex; flex-direction: column; gap: 4px; }
+  .reuse-label { font: 500 12px var(--font-ui); color: var(--ink); }
   .reuse-hint { margin: 6px 0 0; }
 
   :global(.empty-panel) { max-width: var(--measure-form); }

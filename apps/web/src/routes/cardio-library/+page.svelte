@@ -321,6 +321,9 @@
     .fact { grid-column: 1; grid-row: 2; white-space: normal; }
     .metric { grid-column: 2; grid-row: 1; }
     .acts { min-width: 0; grid-column: 1 / -1; justify-content: flex-start; }
+    /* Renaming: the field takes the whole first line; pace drops beside the usage. */
+    .row:has(:global(.rn .edit)) .main { grid-column: 1 / -1; }
+    .row:has(:global(.rn .edit)) .metric { grid-row: 2; }
   }
   @media (prefers-reduced-motion: reduce) {
     .toggle :global(svg) { transition: none; }
