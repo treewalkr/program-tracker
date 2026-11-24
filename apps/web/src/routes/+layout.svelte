@@ -147,6 +147,8 @@
      on phones (≤640px), where the rail is hidden on every page. */
   const focusRoute = $derived(/^\/clients\/[^/]+\/log\/?$/.test(here));
   const sideOpen = $derived(!rail);
+  /* Phones hide the rail (and its Feedback dot): the menu button carries the unread dot. */
+  const menuUnread = $derived(phone && (!keepRail || focusRoute) && feedbackUnread.count > 0);
 
   function toggleKeepRail() {
     keepRail = !keepRail;
@@ -438,12 +440,13 @@
         class="side-toggle"
         aria-controls="sidebar"
         aria-expanded={sideOpen}
-        aria-label={sideOpen ? "Collapse menu" : "Expand menu"}
+        aria-label={(sideOpen ? "Collapse menu" : "Expand menu") + (menuUnread ? `, ${feedbackUnread.count} unread feedback` : "")}
         aria-keyshortcuts={isMac ? "Meta+B" : "Control+B"}
         title={toggleLabel}
         onclick={toggleSide}
       >
         <Icon name="sidebar" />
+        {#if menuUnread}<span class="menu-dot" aria-hidden="true"></span>{/if}
       </button>
       <!-- ⌘K's tap path: touch screens and narrow windows (CSS shows it). -->
       <button type="button" class="side-toggle search" aria-label="Search the guides" onclick={() => openGuideSearch()}>
@@ -456,10 +459,11 @@
         class="focus-menu"
         aria-controls="sidebar"
         aria-expanded="false"
-        aria-label="Open menu"
+        aria-label={menuUnread ? `Open menu, ${feedbackUnread.count} unread feedback` : "Open menu"}
         onclick={toggleSide}
       >
         <Icon name="sidebar" />
+        {#if menuUnread}<span class="menu-dot" aria-hidden="true"></span>{/if}
       </button>
     {/if}
     {#if apiMode === "mock"}
@@ -943,7 +947,19 @@
     .main { padding: 20px 16px 56px; }
   }
 
-  .side-toggle { position: relative; }
+  .side-toggle, .focus-menu { position: relative; }
+  /* Unread feedback on the menu button while the rail (and its dot) is hidden. */
+  .menu-dot {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 8px;
+    height: 8px;
+    border-radius: 99px;
+    background: var(--blue);
+    box-shadow: 0 0 0 2px var(--surface);
+  }
+  .focus-menu .menu-dot { top: 6px; right: 6px; }
   .side-toggle.search { display: none; }
   /* Touch screens (and narrow windows): a 44px target around each 28px topbar
      button, without moving the title line, and the search button ⌘K can't
