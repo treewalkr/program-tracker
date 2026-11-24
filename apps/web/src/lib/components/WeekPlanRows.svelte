@@ -64,6 +64,7 @@
             width={5}
             step={1}
             min={-100}
+            signed
             max={200}
             placeholder="±%"
             label="Week {i + 1} target change, percent"
@@ -87,6 +88,7 @@
               width={5}
               step={PROG_STEP[r.progKind]}
               min={-50}
+              signed
               max={50}
               label="Week {i + 1} progression amount"
               value={figText(r.progAmount)}

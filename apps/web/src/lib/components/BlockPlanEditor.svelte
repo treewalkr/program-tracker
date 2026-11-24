@@ -104,6 +104,7 @@
                   figure
                   width={6}
                   step={0.5}
+                  signed
                   label="Week {i + 1} target percent"
                   value={figText(w.target.deltaPercent)}
                   oncommit={(v) => setPct(w, v)}
@@ -124,6 +125,7 @@
                     figure
                     width={6}
                     step={PROGRESSION_STEP[w.progression.kind]}
+                    signed
                     label="Week {i + 1} progression amount"
                     value={figText(w.progression.amount)}
                     oncommit={(v) => setProgAmount(w, v)}
