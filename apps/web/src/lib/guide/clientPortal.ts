@@ -81,7 +81,7 @@ const en: Guide = {
       ],
       never: "They never see",
       neverList: ["Drafts or archived programs", "AI rationale, program direction, phasing", "Limitations, goals, 1RMs", "Signals, your coaching rules, other clients"],
-      after: "Next week is a preview: they can open it but log it only once that week starts. EN and ไทย are one tap in their header, and the choice stays on their phone.",
+      after: "Next week is a preview: they can open it but log it only once that week starts. EN and ไทย are one tap in their header, and that browser keeps the choice.",
     },
     clientLogs: {
       h: "How your client logs",
@@ -191,7 +191,7 @@ const th: Guide = {
       ],
       never: "ไม่เห็นเด็ดขาด",
       neverList: ["ร่างโปรแกรม หรือโปรแกรมที่เก็บเข้าคลังแล้ว", "เหตุผลจาก AI ทิศทางโปรแกรม การแบ่งเฟส", "ข้อจำกัด เป้าหมาย 1RM", "สัญญาณเตือน กฎการโค้ช และเมมเบอร์คนอื่น"],
-      after: "สัปดาห์หน้าเป็นแบบดูล่วงหน้า เปิดดูได้ แต่ต้องรอให้สัปดาห์นั้นเริ่มก่อนถึงจะบันทึกได้ เมมเบอร์สลับ EN / ไทย ได้ในแถบบนด้วยการแตะครั้งเดียว และระบบจะจำค่าไว้บนมือถือเครื่องนั้น",
+      after: "สัปดาห์หน้าเป็นแบบดูล่วงหน้า เปิดดูได้ แต่ต้องรอให้สัปดาห์นั้นเริ่มก่อนถึงจะบันทึกได้ เมมเบอร์สลับ EN / ไทย ได้ในแถบบนด้วยการแตะครั้งเดียว และระบบจะจำค่าไว้บนเบราว์เซอร์นั้น",
     },
     clientLogs: {
       h: "เมมเบอร์บันทึกอย่างไร",
