@@ -22,6 +22,11 @@
   } from "$lib/programEdit";
   import { resolveLoadKg } from "@pt/shared";
   import ConfirmButton from "$lib/ui/ConfirmButton.svelte";
+  import InputCell from "$lib/ui/InputCell.svelte";
+  import InputNote from "$lib/ui/InputNote.svelte";
+  import SelectCell from "$lib/ui/SelectCell.svelte";
+  import type { SelectOption } from "$lib/ui/select/options";
+  import { parseFigure } from "$lib/ui/input/figure";
   import ExercisePicker from "./ExercisePicker.svelte";
   import RolePicker from "./RolePicker.svelte";
   import GroupTag from "./GroupTag.svelte";
@@ -109,6 +114,12 @@
   };
 
   const num = (raw: string) => (raw.trim() === "" ? null : Number(raw));
+  /** A figure cell's text as a number field would hand it over: the number, or "" for blank or junk. */
+  const fig = (raw: string) => String(parseFigure(raw) ?? "");
+  const TYPES: SelectOption<PrescribedSetDto["type"]>[] = [
+    { value: "working", label: "working" },
+    { value: "backoff", label: "backoff" },
+  ];
 
   function reps(s: PrescribedSetDto, raw: string): PrescribedSetDto {
     const r = parseRange(raw);
@@ -167,17 +178,17 @@
 
 {#snippet effort(s: PrescribedSetDto, key: string, apply: (fn: (s: PrescribedSetDto) => PrescribedSetDto) => void)}
   {#if mode === "timed"}
-    <td><input class="input cell" type="number" min="1" max="3600" step="5" aria-label="Seconds" value={s.durationSeconds ?? ""} onchange={(e) => apply((x) => secs(x, e.currentTarget.value))} /></td>
+    <td><InputCell figure width={6} step={5} min={1} max={3600} label="Seconds" value={String(s.durationSeconds ?? "")} oncommit={(v) => apply((x) => secs(x, fig(v)))} /></td>
   {:else}
-    <td><input class="input cell" inputmode="numeric" aria-label={mode === "max" ? "Minimum reps" : "Reps"} placeholder={mode === "max" ? "any" : ""} value={mode === "max" ? (s.reps || "") : repsLabel(s)} onchange={(e) => apply((x) => reps(x, e.currentTarget.value || "0"))} /></td>
+    <td><InputCell figure width={6} label={mode === "max" ? "Minimum reps" : "Reps"} placeholder={mode === "max" ? "any" : ""} value={mode === "max" ? String(s.reps || "") : repsLabel(s)} oncommit={(v) => apply((x) => reps(x, v || "0"))} /></td>
   {/if}
-  <td><input class="input cell" inputmode="decimal" placeholder="—" aria-label="Load: {weightUnit()}, or % of 1RM like 75%" value={loadCell(s)} onchange={(e) => apply((x) => withLoad(x, e.currentTarget.value))} /></td>
-  <td><input class="input cell" inputmode="decimal" placeholder="—" aria-label={mode === "max" ? "Stop at RPE" : "RPE, or a range like 7–8"} aria-invalid={badRpe[key] != null || undefined} value={badRpe[key] ?? rpeCell(s, mode)} onchange={(e) => rpeInput(key, e.currentTarget.value, apply)} /></td>
+  <td><InputCell figure width={6} placeholder="—" label="Load: {weightUnit()}, or % of 1RM like 75%" value={loadCell(s)} oncommit={(v) => apply((x) => withLoad(x, v))} /></td>
+  <td><InputCell figure width={6} placeholder="—" label={mode === "max" ? "Stop at RPE" : "RPE, or a range like 7–8"} invalid={badRpe[key] != null} value={badRpe[key] ?? rpeCell(s, mode)} oncommit={(v) => rpeInput(key, v, apply)} /></td>
   {#if showMore}
-    <td><input class="input cell" type="number" min="0" max="10" step="0.5" placeholder="—" aria-label="Reps in reserve" value={s.targetRir ?? ""} onchange={(e) => apply((x) => withRir(x, e.currentTarget.value))} /></td>
-    <td><input class="input cell tempo" maxlength="7" placeholder="3-1-1-0" aria-label="Tempo: eccentric, pause, concentric, top" value={s.tempo ?? ""} onchange={(e) => apply((x) => withTempo(x, e.currentTarget.value))} /></td>
+    <td><InputCell figure width={6} step={0.5} min={0} max={10} placeholder="—" label="Reps in reserve" value={String(s.targetRir ?? "")} oncommit={(v) => apply((x) => withRir(x, fig(v)))} /></td>
+    <td><InputCell width={8} maxlength={7} placeholder="3-1-1-0" label="Tempo: eccentric, pause, concentric, top" value={s.tempo ?? ""} oncommit={(v) => apply((x) => withTempo(x, v))} /></td>
   {/if}
-  <td><input class="input cell" type="number" min="0" max="600" step="15" placeholder="—" aria-label="Rest seconds" aria-invalid={restIssue(s.restSeconds) != null || undefined} value={s.restSeconds ?? ""} onchange={(e) => apply((x) => rest(x, e.currentTarget.value))} /></td>
+  <td><InputCell figure width={6} step={15} min={0} max={600} placeholder="—" label="Rest seconds" invalid={restIssue(s.restSeconds) != null} value={String(s.restSeconds ?? "")} oncommit={(v) => apply((x) => rest(x, fig(v)))} /></td>
 {/snippet}
 
 <div class="exedit" class:inline={!onclose}>
@@ -219,10 +230,7 @@
           <tr>
             <td class="l n">{s.setNumber}</td>
             <td class="l">
-              <select class="select cell type" value={s.type} aria-label="Set {s.setNumber} type" onchange={(e) => setOne(i, (x) => ({ ...x, type: e.currentTarget.value as PrescribedSetDto["type"] }))}>
-                <option value="working">working</option>
-                <option value="backoff">backoff</option>
-              </select>
+              <SelectCell label="Set {s.setNumber} type" options={TYPES} value={s.type} onchange={(t) => setOne(i, (x) => ({ ...x, type: t }))} />
             </td>
             {@render effort(s, String(i), (fn) => setOne(i, fn))}
             <td>
@@ -233,9 +241,9 @@
       {:else}
         <tr>
           {#if grouped}
-            <td><span class="cell fixed" title="Rounds are set on the group">{sets.length}</span></td>
+            <td><span class="fixed" title="Rounds are set on the group">{sets.length}</span></td>
           {:else}
-            <td><input class="input cell" type="number" min="1" max="20" aria-label="Number of sets" value={sets.length} onchange={(e) => (exercise.prescribedSets = withSetCount(sets, Number(e.currentTarget.value)))} /></td>
+            <td><InputCell figure width={6} step={1} min={1} max={20} label="Number of sets" value={String(sets.length)} oncommit={(v) => (exercise.prescribedSets = withSetCount(sets, Number(fig(v))))} /></td>
           {/if}
           {@render effort(sets[0], "all", setAll)}
         </tr>
@@ -267,15 +275,16 @@
     {#if !showMore && mode !== "timed"}· <button type="button" class="link" onclick={() => (showMore = true)}>+ RIR, tempo</button>{/if}
   </p>
 
-  <textarea
-    class="textarea notes"
-    rows="1"
-    maxlength="1000"
+  <InputNote
+    label="Cue for the client"
+    hideLabel
+    rows={1}
+    maxRows={7}
+    maxlength={1000}
     placeholder="Cue for the client, e.g. 2s pause at the bottom (optional)"
-    aria-label="Cue for the client"
     value={exercise.notes ?? ""}
-    oninput={(e) => (exercise.notes = e.currentTarget.value || undefined)}
-  ></textarea>
+    oninput={(v) => (exercise.notes = v || undefined)}
+  />
 
   <div class="foot">
     <button type="button" class="btn ghost small" disabled={!canMoveUp} onclick={onmoveup} aria-label="Move exercise up">↑ Up</button>
@@ -330,21 +339,13 @@
   .tablewrap { position: relative; overflow-x: auto; margin: 0 -4px; }
   .settable { border-collapse: collapse; width: max-content; max-width: 100%; }
   /* right edge of a label = right edge of the digits below (cell padding 6 + border 1) */
-  .settable th { font: 500 11.5px var(--font-ui); color: var(--muted); text-align: right; padding: 0 11px 4px 4px; }
+  .settable th { font: 500 11.5px var(--font-ui); color: var(--muted); text-align: right; padding: 0 5px 4px 4px; }
   .settable th.l { padding-left: 4px; text-align: left; }
-  .settable th.inset { padding-left: 11px; }
+  .settable th.inset { padding-left: 5px; }
   .settable td { padding: 2px 4px; text-align: right; }
   .settable .l { text-align: left; }
   .n { color: var(--faint); font: 12px var(--font-mono); width: 28px; }
-  .cell { width: 64px; padding: 4px 6px; text-align: right; font: 12.5px var(--font-mono); }
-  .cell.fixed { display: inline-block; box-sizing: border-box; color: var(--muted); }
-  /* no spinner gutter: digits sit flush right under their label (↑↓ keys still step) */
-  .cell[type="number"] { appearance: textfield; -moz-appearance: textfield; }
-  .cell::-webkit-inner-spin-button,
-  .cell::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-  .cell.type { width: auto; text-align: left; font-family: var(--font-ui); }
-  .cell.tempo { width: 76px; }
-  .cell[aria-invalid="true"] { border-color: var(--bad); box-shadow: inset 0 0 0 1px var(--bad); }
+  .fixed { display: inline-block; box-sizing: border-box; width: 64px; padding: 4px 1px 4px 6px; text-align: right; font: 12.5px var(--font-mono); color: var(--muted); }
   .issues { margin: -6px 0 0; padding: 0; list-style: none; font-size: 12px; color: var(--bad); }
   .setsnote.pct { margin: -6px 0 0; font-variant-numeric: tabular-nums; }
   .x { border: none; background: none; color: var(--faint); cursor: pointer; font-size: 15px; padding: 0 4px; }
@@ -356,13 +357,11 @@
   .link { border: none; background: none; padding: 0; font: inherit; color: var(--blue); cursor: pointer; }
   .link:hover:not(:disabled) { text-decoration: underline; }
   .link:disabled { color: var(--faint); cursor: default; }
-  .notes { width: 100%; min-height: 32px; resize: vertical; font-size: 13px; field-sizing: content; max-height: 160px; }
   .foot { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; margin: -2px 0 -4px; }
   .foot > :global(.btn.ghost:first-child) { margin-left: -8px; }
   .grow { flex: 1; }
   @media (max-width: 600px) {
-    .cell { width: 46px; padding: 4px; }
-    .cell.type { max-width: 84px; }
+    .fixed { width: 46px; padding-left: 4px; }
     .exedit { margin: 0 -8px; padding: 10px; }
     .exedit.inline { margin: 0; padding: 0; }
   }
