@@ -415,7 +415,7 @@
     outline: none;
     background: none;
     padding: 10px 0;
-    font: 14px var(--font-ui);
+    font: var(--field-font, 14px) var(--font-ui);
     color: var(--ink);
   }
   .xp-search input::placeholder { color: var(--muted); }
