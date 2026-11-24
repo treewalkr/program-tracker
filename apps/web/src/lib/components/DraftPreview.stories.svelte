@@ -115,6 +115,8 @@
 <Story name="Older version" args={{ view: firstView, latest: 2, history, reviewHref: href, onview: noop }} />
 <Story name="Building" args={{ view: latestView, latest: 2, history, building: { next: 3, elapsed: '0:42' }, reviewHref: href, onview: noop, oncancel: noop }} />
 <Story name="With surprise" args={{ view: latestView, latest: 2, history, unproposed: surprise, reviewHref: href, onview: noop }} />
+<!-- Narrow screens: the pane opens as a capped sheet (the session list scrolls inside) so the chat's latest reply and composer stay in view. -->
+<Story name="Phone, open" args={{ view: latestView, latest: 2, history, open: true, reviewHref: href, onview: noop }} globals={{ viewport: { value: 'narrow' } }} />
 <!-- The switcher with nine versions: open it to see who made each one and what changed. -->
 <Story name="Many versions" args={{ view: longLatest, latest: long.length, history: longHistory, reviewHref: href, onview: noop }} />
 <Story name="Many versions, older shown" args={{ view: longOlder, latest: long.length, history: longHistory, reviewHref: href, onview: noop }} />

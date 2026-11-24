@@ -690,8 +690,9 @@
       {@render composer()}
     </section>
   {:else}
-    <div class="bench" bind:this={benchEl} style:height={benchHeight ? `${benchHeight}px` : null}>
-      <section class="panel col chat reading" aria-label="Conversation" style:--dock-h={dockH ? `${dockH}px` : null}>
+    <!-- --dock-h on the bench: the thread clears the floating composer, and on phones the open draft sheet caps above it. -->
+    <div class="bench" bind:this={benchEl} style:height={benchHeight ? `${benchHeight}px` : null} style:--dock-h={dockH ? `${dockH}px` : null}>
+      <section class="panel col chat reading" aria-label="Conversation">
         <div class="scroll" bind:this={scrollEl}>{@render thread()}</div>
         {@render composer()}
       </section>
