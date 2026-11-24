@@ -58,6 +58,10 @@ export const prefixed = (url: URL): string => inLang(url.pathname + url.search +
 /** The page's language: its URL prefix (the redirect makes sure there is one). */
 const current = (): Locale => splitLang(page.url.pathname).lang ?? fallbackLang();
 
+/** The language the member switched to on this visit, if they did: Back keeps it. */
+let picked: Locale | null = null;
+export const pickedLang = (): Locale | null => picked;
+
 export const i18n = {
   get locale(): Locale {
     return current();
@@ -69,6 +73,7 @@ export const i18n = {
     } catch {
       // private mode: the URL still carries the choice
     }
+    picked = next;
     if (next === current()) return;
     void goto(swapLang(page.url, next), { replaceState: true, noScroll: true, keepFocus: true });
   },

@@ -13,7 +13,7 @@
   import PrepChecklist from "$lib/components/log/PrepChecklist.svelte";
   import { cardioLogOf, type CardioFormError } from "$lib/cardioForm";
   import type { MessageKey } from "$lib/portal/messages";
-  import { fmtDay, fmtShortDate, i18n, latinLang, t, weekdayName } from "$lib/portal/i18n.svelte";
+  import { fmtDay, fmtShortDate, i18n, inLang, latinLang, t, weekdayName } from "$lib/portal/i18n.svelte";
   import { dayGroups, doneCount, focusSession } from "$lib/portal/week";
   import { modalityName, modalityStored } from "$lib/portal/modality";
   import { lastSetText, setParts, setTarget } from "$lib/portal/rx";
@@ -38,7 +38,7 @@
     type PortalRow,
   } from "$lib/portal/logForm";
   import PortalBar from "$lib/portal/PortalBar.svelte";
-  import RestTimer from "$lib/portal/RestTimer.svelte";
+  import RestTimer, { restActive } from "$lib/portal/RestTimer.svelte";
   import { restOf } from "$lib/portal/restTimer";
   import { PortalTimeoutError, SAVE_TIMEOUT_MS, withTimeout } from "$lib/portal/timeout";
   import Button from "$lib/ui/Button.svelte";
@@ -104,6 +104,8 @@
   let saved = $state<{ log: PortalSavedLog; sets: number; replaced: boolean; skipped: boolean; pain: boolean; prep?: { done: number; total: number } | null } | null>(null);
   let undoing = $state(false);
   let undone = $state(false);
+  /** The page's polite status line: "Saved", "Removed". */
+  let announce = $state("");
 
   const cardioSession = $derived(session?.kind === "cardio");
   const byCoach = $derived(session?.log?.loggedBy === "trainer");
@@ -186,6 +188,7 @@
     // the recap links straight to the next session: same page, fresh state
     saved = null;
     undone = false;
+    announce = "";
     error = null;
     restored = false;
     merged = false;
@@ -341,6 +344,14 @@
     current = i;
     issuesOpen = flaggedAt(i);
   }
+  /** The bottom "Next exercise": the reader (and the eye) start again at the new exercise's name. */
+  async function nextExercise() {
+    goTo(current + 1);
+    await tick();
+    const title = document.getElementById("ex-title");
+    title?.scrollIntoView({ block: "start" });
+    title?.focus({ preventScroll: true });
+  }
   /** A tag opens the panel at its exercise's row. */
   async function openIssue(peId: string) {
     issuesOpen = true;
@@ -429,6 +440,18 @@
     saved = { log, sets: built.sets, prep: summary?.prep ?? null, replaced: byYou, skipped: !!built.input.cardio?.skipped, pain: !!built.input.cardio?.pain?.reported || built.input.cardio?.skipped?.reason === "pain" };
     undone = false;
     window.scrollTo({ top: 0 });
+    void focusRecap();
+  }
+
+  /**
+   * The Save (or Undo) button just went away with the form: put the screen reader on what
+   * replaced it, and say it in the status line that's always there (a region born with its
+   * text often goes unread).
+   */
+  async function focusRecap() {
+    announce = undone ? t("log.undone") : savedSkipped ? t("log.savedSkipped") : t("log.saved");
+    await tick();
+    document.getElementById("recap-title")?.focus();
   }
 
   async function undo() {
@@ -437,6 +460,7 @@
     try {
       await portalApi.deleteLog(saved.log.id);
       undone = true;
+      void focusRecap();
     } catch {
       error = t("log.error");
     } finally {
@@ -551,6 +575,16 @@
     const [, ...rest] = setParts([ps], t);
     return [`${t("log.target")} ${setTarget(ps, t)}`, ...rest.filter((p) => !p.startsWith(t("rx.rest", { t: "" }).trim()))].join(" · ");
   }
+  /** "Today · Tue 24 Nov", "Yesterday · Mon 23 Nov", "Fri 21 Nov". */
+  const dateChip = $derived(date === today ? `${t("week.today")} · ${fmtDay(date)}` : date === addDays(today, -1) ? `${t("log.yesterday")} · ${fmtDay(date)}` : fmtDay(date));
+  /** A mouse click on the hidden input lands in a date segment; open the calendar instead. Touch opens it natively. */
+  function openPicker(e: MouseEvent) {
+    try {
+      (e.currentTarget as HTMLInputElement).showPicker?.();
+    } catch {
+      // not allowed here (no user gesture, or a cross-origin frame): the keyboard still works
+    }
+  }
   const feelSummary = $derived(
     (["energy", "sleep", "soreness"] as const)
       .filter((k) => readiness[k] != null)
@@ -582,7 +616,30 @@
 
 <PortalBar coach={me?.trainer.name ?? null} />
 
-<div class="back-row"><BackButton fallback="/me" label={t("log.back")} /></div>
+<div class="back-row">
+  <BackButton fallback="/me" label={t("log.back")} />
+  {#if loadState === "ready" && session && !saved}
+    <!-- the date as a chip on the back link's line: Set 1 starts on the first screen. The native
+         picker sits over it; "Today" stays in words so back-dating is never a surprise. -->
+    <label class="date-chip" class:off={byCoach}>
+      <span aria-hidden="true">{dateChip}</span>
+      <Icon name="chevron" />
+      <input
+        class="tnum"
+        type="date"
+        bind:value={date}
+        min={minDate}
+        max={maxDate}
+        lang={i18n.locale}
+        disabled={byCoach}
+        aria-label={t("log.date")}
+        onclick={openPicker}
+      />
+    </label>
+  {/if}
+</div>
+
+<p class="sr-only" role="status">{announce}</p>
 
 {#if loadState === "loading"}
   <div class="sk" aria-hidden="true">
@@ -600,16 +657,16 @@
   <div class="empty"><p class="empty-title">{t("log.notFound")}</p></div>
 {:else if saved}
   <!-- After save: one calm confirmation, Undo beside it, then back to the week. -->
-  <section class="recap" aria-live="polite">
+  <section class="recap" aria-labelledby="recap-title">
     {#if undone}
-      <h1>{t("log.undone")}</h1>
+      <h1 id="recap-title" tabindex="-1">{t("log.undone")}</h1>
       <a class="btn primary done-btn" href="/me">{t("log.done")}</a>
     {:else}
       {#if savedSkipped}
-        <h1>{t("log.savedSkipped")}</h1>
+        <h1 id="recap-title" tabindex="-1">{t("log.savedSkipped")}</h1>
       {:else}
         <span class="tick" aria-hidden="true"><Icon name="check" /></span>
-        <h1>{t("log.saved")}</h1>
+        <h1 id="recap-title" tabindex="-1">{t("log.saved")}</h1>
       {/if}
       <p class="recap-line">{session.name} · {savedLine}{#if saved.prep} · {t("log.prepRecap", { done: saved.prep.done, total: saved.prep.total })}{/if} · {fmtDay(saved.log.date)}</p>
       {#if saved.pain}<p class="safety" role="note">{t("cardio.painSafety")}</p>{/if}
@@ -618,9 +675,11 @@
           <p class="count tnum">{t("log.weekCount", { done: after.done, total: after.total })}</p>
           <div class="bar" aria-hidden="true"><span style:width={`${(after.done / Math.max(1, after.total)) * 100}%`}></span></div>
           {#if after.next}
+            <!-- the next session takes this one's place in history: "‹ This week" from there is this week, not this saved form.
+                 Prefixed, since the root layout re-follows an unprefixed link as a plain push. -->
             <p class="next-line">
               <span class="next-k">{t("log.nextUp")}</span>
-              <a href={`/me/log/${after.next.id}`} lang={latinLang(after.next.name)}>{after.next.name}</a>{#if after.when}<span class="next-when">{" · "}{after.when}</span>{/if}
+              <a href={inLang(`/me/log/${after.next.id}`)} data-sveltekit-replacestate lang={latinLang(after.next.name)}>{after.next.name}</a>{#if after.when}<span class="next-when">{" · "}{after.when}</span>{/if}
             </p>
           {:else}
             <p class="next-line">{t("log.weekDone")}</p>
@@ -640,13 +699,9 @@
   <!-- novalidate: a prescribed 12 s or 7.5 kg is off the steppers' step, and the browser would
        silently refuse it; buildPortalLog is the one gate. -->
   <form class="log" novalidate onsubmit={(e) => { e.preventDefault(); void save(); }}>
-    <header class="head">
+    <div class="head">
       <h1 lang={latinLang(session.name)}>{session.name}</h1>
-      <label class="date">
-        <span>{t("log.date")}</span>
-        <input class="input tnum" type="date" bind:value={date} min={minDate} max={maxDate} lang={i18n.locale} disabled={byCoach} />
-      </label>
-    </header>
+    </div>
 
     {#if session.notes}
       <!-- the coach's word on the whole session, before any set -->
@@ -689,10 +744,6 @@
         <PrepChecklist items={prepItems} bind:done={prepDone} variant="touch" title={t("log.prep")} tag={t("log.prepTag")} />
       {/if}
 
-      {#if !cardioSession && block}
-        <p class="warmups">{prepItems.length > 0 ? t("log.mainWork") : t("log.warmups")}</p>
-      {/if}
-
       {#if cardioSession}
         <CardioLogForm bind:value={cardio} text={cardioText} variant="touch" problem={cardioProblem} metric={modalityMetric(cardio.modality || session.cardio?.modality)} plannedSec={cardioFormOf(session.cardio).durationSec} showModality={(m) => modalityName(m, i18n.locale)} storeModality={modalityStored} notes={notesField} />
       {:else if block}
@@ -701,7 +752,7 @@
             <button type="button" class="pg" aria-label={t("log.prev")} disabled={current === 0} onclick={() => goTo(current - 1)}>
               <Icon name="chevron" />
             </button>
-            <p class="pg-pos tnum">{t("log.exercise", { n: current + 1, total: blocks.length })}</p>
+            <p class="pg-pos tnum" aria-live="polite">{t("log.exercise", { n: current + 1, total: blocks.length })}</p>
             <button type="button" class="pg next" aria-label={t("log.next")} disabled={current >= blocks.length - 1} onclick={() => goTo(current + 1)}>
               <Icon name="chevron" />
             </button>
@@ -714,7 +765,7 @@
           </div>
 
           {#if groupKicker}<p class="kicker">{groupKicker}</p>{/if}
-          <h2 id="ex-title">
+          <h2 id="ex-title" tabindex="-1">
             {#each block.memberIds as peId, i (peId)}
               {#if i > 0}<span class="plus">{" + "}</span>{/if}<span lang={latinLang(exerciseOf(peId)?.exerciseName)}>{exerciseOf(peId)?.exerciseName ?? ""}</span>
             {/each}
@@ -815,18 +866,20 @@
             </div>
           {/if}
 
-          {#if blockRest}
-            <!-- one timer for the whole session: paging to the next exercise doesn't reset a running rest -->
-            <RestTimer seconds={blockRest} />
+          {#if blockRest || restActive(session.id)}
+            <!-- one timer for the whole session: paging to an exercise without a rest keeps a running one on screen -->
+            <RestTimer seconds={blockRest ?? 0} session={session.id} />
           {/if}
 
           {#if current < blocks.length - 1}
-            <button type="button" class="btn next-ex" onclick={() => { goTo(current + 1); document.getElementById("ex-title")?.scrollIntoView({ block: "start" }); }}>
+            <button type="button" class="btn next-ex" onclick={nextExercise}>
               <span>{t("log.next")} · {blockName(blocks[current + 1])}</span>
               <Icon name="chevron" />
             </button>
           {/if}
         </section>
+        <!-- a reminder, not a gate: under the sets, so the first set is on the first screen -->
+        <p class="warmups">{prepItems.length > 0 ? t("log.mainWork") : t("log.warmups")}</p>
       {/if}
 
       {#if !cardioSession}{@render notesField()}{/if}
@@ -905,17 +958,49 @@
 
 <style>
   /* The old 44px row: the button's touch target fits inside it. */
-  .back-row { margin-top: 4px; padding: 8px 0; }
+  .back-row { margin-top: 4px; min-height: 44px; }
 
   .sk { display: grid; gap: 14px; margin-top: 12px; }
   .sk :global(.skeleton) { display: block; }
 
   /* the narrow log sheet: LogStepper's 44px steppers key off this container */
-  .log { container: logform / inline-size; display: grid; gap: 18px; margin-top: 8px; padding-bottom: 96px; }
+  .log { container: logform / inline-size; display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; margin-top: 8px; padding-bottom: 96px; }
   .head { display: grid; gap: 12px; }
+  .back-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; }
+  .date-chip {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 44px;
+    padding: 0 12px 0 14px;
+    font: 500 14px/1.2 var(--font-ui);
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+    background: var(--well);
+    border: 1px solid var(--line);
+    border-radius: 99px;
+  }
+  .date-chip :global(svg) { flex: none; width: 14px; height: 14px; color: var(--muted); }
+  .date-chip:focus-within { outline: 2px solid var(--blue); outline-offset: 2px; }
+  .date-chip.off { color: var(--muted); }
+  .date-chip.off :global(svg) { display: none; }
+  /* the real field, invisible, over the whole chip: its tap opens the phone's own picker */
+  .date-chip input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    font-size: 16px;
+    opacity: 0;
+    border: 0;
+    appearance: none;
+    cursor: pointer;
+  }
+  .date-chip input:disabled { cursor: default; }
   h1 { margin: 0; font: 600 24px/1.25 var(--font-ui); letter-spacing: -0.01em; text-wrap: balance; }
-  .date { display: flex; align-items: center; gap: 12px; font-size: 14px; color: var(--muted); }
-  .date .input { flex: 1; max-width: 220px; min-height: 44px; font-size: 16px; }
   .log :global(.draft) { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
   .link-btn {
     min-height: 44px;
@@ -978,7 +1063,7 @@
   .cue { margin: 0; font-size: 14px; }
   .session-note { margin: 0; padding: 12px 16px; font-size: 16px; background: var(--well); border-radius: var(--radius); text-wrap: pretty; }
   .session-note span { font-weight: 600; color: var(--muted); }
-  .warmups { margin: -6px 0; font-size: 13px; color: var(--muted); }
+  .warmups { margin: -6px 0 0; font-size: 13px; color: var(--muted); }
   .cue span { font-weight: 600; color: var(--muted); }
   .last { margin: 0; font-size: 14px; }
   .last > span:first-child { color: var(--muted); }
@@ -1066,6 +1151,11 @@
   .rm :global(svg) { width: 16px; height: 16px; }
   /* both heads are one label line tall (the BW switch sits on the load label's baseline), so the fields line up */
   .cells { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 10px 12px; }
+  /* too narrow for two steppers side by side (an SE, or any phone at 175 % zoom and up): kg over reps, full width */
+  @container logform (max-width: 299px) {
+    .cells { grid-template-columns: minmax(0, 1fr); }
+    .ex { padding-inline: 10px; }
+  }
   @container logform (min-width: 520px) {
     .cells { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   }

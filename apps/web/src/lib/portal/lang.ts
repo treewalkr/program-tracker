@@ -60,3 +60,14 @@ interface NavLike {
  */
 export const relinked = (nav: NavLike): boolean =>
   nav.type === "link" && !!nav.to?.route?.id && !splitLang(nav.to.url.pathname).lang;
+
+/**
+ * Back (or Forward) onto an entry from before the member switched language this
+ * visit: the same page in the language they picked, so Back doesn't undo the
+ * switch. `null` when nothing needs to change.
+ */
+export function keptLang(nav: { type: string; to: { url: URL } | null }, picked: Locale | null): string | null {
+  if (nav.type !== "popstate" || !nav.to || !picked) return null;
+  const lang = splitLang(nav.to.url.pathname).lang;
+  return lang && lang !== picked ? swapLang(nav.to.url, picked) : null;
+}

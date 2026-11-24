@@ -100,6 +100,7 @@ export const en = {
 
   "log.back": "This week",
   "log.date": "Date",
+  "log.yesterday": "Yesterday",
   "log.exercise": "Exercise {n} of {total}",
   "log.prev": "Previous exercise",
   "log.next": "Next exercise",
@@ -345,6 +346,7 @@ export const en = {
   "rpe.feel4": "hard, a few words",
   "rpe.feel5": "all-out",
   "week.cardio.lead": "{sessions} sessions · {time}",
+  "week.cardio.leadOne": "1 session · {time}",
   "progress.loadExplain": "Load = how hard × minutes. It shows your coach how heavy the week was.",
   "cardio.notesPlaceholder": "How did it go?",
 } as const;
@@ -445,6 +447,7 @@ export const th: Record<MessageKey, string> = {
 
   "log.back": "สัปดาห์นี้",
   "log.date": "วันที่",
+  "log.yesterday": "เมื่อวาน",
   "log.exercise": "ท่าที่ {n} จาก {total}",
   "log.prev": "ท่าก่อนหน้า",
   "log.next": "ท่าถัดไป",
@@ -689,6 +692,7 @@ export const th: Record<MessageKey, string> = {
   "rpe.feel4": "หนัก พูดได้ไม่กี่คำ",
   "rpe.feel5": "สุดแรง",
   "week.cardio.lead": "{sessions} เซสชัน · {time}",
+  "week.cardio.leadOne": "1 เซสชัน · {time}",
   "progress.loadExplain": "โหลด = ความเหนื่อย × นาที ใช้ให้โค้ชดูว่าสัปดาห์นี้หนักแค่ไหน",
   "cardio.notesPlaceholder": "เป็นอย่างไรบ้าง",
 };

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { clock, restOf, secondsLeft } from "./restTimer";
+import { clock, idleRest, restIn, restOf, restRunning, secondsLeft, startRest } from "./restTimer";
 
 describe("rest timer", () => {
   test("counts down from a wall-clock end, rounding up, never below zero", () => {
@@ -18,5 +18,14 @@ describe("rest timer", () => {
   test("the rest comes from the prescription, or there is none", () => {
     expect(restOf([{ restSeconds: null }, { restSeconds: 90 }])).toBe(90);
     expect(restOf([{}, { restSeconds: 0 }])).toBeNull();
+  });
+
+  test("a running rest outlives the timer, but not the session", () => {
+    const run = startRest("s1", 90, 1_000);
+    expect(restIn(run, "s1")).toBe(run);
+    expect(restRunning(restIn(run, "s1"), 31_000)).toBe(true);
+    expect(restIn(run, "s2")).toEqual(idleRest("s2"));
+    expect(restRunning(restIn(run, "s2"), 31_000)).toBe(false);
+    expect(restRunning(run, 91_000)).toBe(false);
   });
 });

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { PortalSession, PortalWeek } from "@pt/shared";
-import { dateOfWeekday, dayGroups, doneCount, earlierOpen, focusSession, focusSessionId, skippedCount } from "./week";
+import { calendarDays, dateOfWeekday, dayGroups, doneCount, earlierOpen, focusSession, focusSessionId, skippedCount } from "./week";
 
 const S = (id: string, weekday: number | null, seq: number, log: PortalSession["log"] = null): PortalSession => ({
   id, name: id, kind: "exercises", seq, weekday, order: 0, exercises: [], cardio: null, log,
@@ -52,6 +52,16 @@ describe("portal week", () => {
     expect(earlierOpen(w, "2026-11-20", "wed").map((g) => g.date)).toEqual(["2026-11-19"]);
     expect(earlierOpen({ ...w, loggable: false }, "2026-11-20")).toEqual([]);
     expect(focusSession(w, "2026-11-20")?.id).toBe("fri");
+  });
+
+  test("the calendar leaves out what Next up and Earlier already show, and days left empty", () => {
+    const done = { id: "l1", loggedBy: "client" as const, date: "2026-11-19" };
+    const w = week([S("wed", 3, 1), S("thu", 4, 2, done), S("thu2", 4, 3), S("fri", 5, 4), S("mon", 1, 5)]);
+    const shown = calendarDays(w, "2026-11-20", ["fri", ...earlierOpen(w, "2026-11-20", "fri").flatMap((g) => g.sessions.map((s) => s.id))]);
+    expect(shown.map((g) => [g.date, g.sessions.map((s) => s.id)])).toEqual([
+      ["2026-11-19", ["thu"]],
+      ["2026-11-23", ["mon"]],
+    ]);
   });
 });
 

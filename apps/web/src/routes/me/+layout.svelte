@@ -1,5 +1,7 @@
 <script lang="ts">
-  import { i18n } from "$lib/portal/i18n.svelte";
+  import { afterNavigate, goto } from "$app/navigation";
+  import { i18n, pickedLang } from "$lib/portal/i18n.svelte";
+  import { keptLang } from "$lib/portal/lang";
   import { portalApi } from "$lib/api/portal";
   import PortalError from "$lib/portal/PortalError.svelte";
   import { applyUnits, PORTAL_UNITS_KEY, restoreUnits } from "$lib/units.svelte";
@@ -15,6 +17,12 @@
     return () => restoreUnits();
   });
 
+  // Back onto a page from before a language switch: the language just picked, not the old URL's
+  afterNavigate((nav) => {
+    const to = keptLang(nav, pickedLang());
+    if (to) void goto(to, { replaceState: true, noScroll: true, keepFocus: true });
+  });
+
   // <html lang> follows the portal's language (Thai line-breaking, screen readers); the trainer app is English
   $effect(() => {
     document.documentElement.lang = i18n.locale;
@@ -24,14 +32,14 @@
   });
 </script>
 
-<div class="portal">
+<main class="portal">
   {#if data.unreachable}
     <!-- no connection and never signed in on this phone: nothing to show but the way back -->
     <PortalError kind="offline" toProgram={false} />
   {:else}
     {@render children()}
   {/if}
-</div>
+</main>
 
 <style>
   /* The client's surface: the same Primer world, one size up and one thing at a time. */

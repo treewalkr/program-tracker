@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { appPath, pickLang, relinked, samePage, splitLang, swapLang, withLang } from "./lang";
+import { appPath, keptLang, pickLang, relinked, samePage, splitLang, swapLang, withLang } from "./lang";
 
 const u = (s: string) => new URL(s, "https://pt.test");
 
@@ -93,5 +93,19 @@ describe("relinked", () => {
     expect(relinked(nav("popstate", "/me"))).toBe(false);
     expect(relinked(nav("link", "/v1/auth/google", null))).toBe(false);
     expect(relinked({ type: "leave", to: null })).toBe(false);
+  });
+});
+
+describe("keptLang", () => {
+  test("Back onto a page from before a language switch shows it in the language just picked", () => {
+    expect(keptLang({ type: "popstate", to: { url: u("/en/me") } }, "th")).toBe("/th/me");
+    expect(keptLang({ type: "popstate", to: { url: u("/th/me/log/5?x=1#s2") } }, "en")).toBe("/en/me/log/5?x=1#s2");
+  });
+
+  test("same language, no pick this visit, or a forward navigation: left alone", () => {
+    expect(keptLang({ type: "popstate", to: { url: u("/th/me") } }, "th")).toBeNull();
+    expect(keptLang({ type: "popstate", to: { url: u("/en/me") } }, null)).toBeNull();
+    expect(keptLang({ type: "link", to: { url: u("/en/me") } }, "th")).toBeNull();
+    expect(keptLang({ type: "popstate", to: null }, "th")).toBeNull();
   });
 });

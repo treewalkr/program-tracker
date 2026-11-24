@@ -75,3 +75,11 @@ export function earlierOpen(week: PortalWeek, today: string, exclude: string | n
     .map((g) => ({ ...g, sessions: g.sessions.filter((s) => !s.log && s.id !== exclude) }))
     .filter((g) => g.sessions.length > 0);
 }
+
+/** The week's days without `hidden` sessions (shown elsewhere on the page), and any day that leaves empty. */
+export function calendarDays(week: PortalWeek, today: string, hidden: Iterable<string>): DayGroup[] {
+  const skip = new Set(hidden);
+  return dayGroups(week, today)
+    .map((g) => ({ ...g, sessions: g.sessions.filter((s) => !skip.has(s.id)) }))
+    .filter((g) => g.sessions.length > 0);
+}
