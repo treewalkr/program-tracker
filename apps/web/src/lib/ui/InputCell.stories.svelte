@@ -11,7 +11,7 @@
       docs: {
         description: {
           component:
-            'Edit text or a figure inside a dense table or week row. Plain text at rest, aligned with the column; the field appears on hover and takes the full focus ring on focus — the same rhythm as Select 04, so the two share a row. `figure` makes it mono, tabular and right-aligned; with `step` (and `min`/`max`) ↑/↓ step it, Shift ×10. `maxlength` caps the text; `invalid` marks a value that cannot be saved. Enter commits, Esc reverts to the value it had on focus; `oncommit` fires only when the value changed.',
+            'Edit text or a figure inside a dense table or week row. Plain text at rest, aligned with the column; the field appears on hover and takes the full focus ring on focus — the same rhythm as Select 04, so the two share a row. `figure` makes it mono, tabular and right-aligned, and a tap selects the figure so typing replaces it; with `step` (and `min`/`max`) ↑/↓ step it, Shift ×10. `maxlength` caps the text; `invalid` marks a value that cannot be saved. Enter (Done on a phone keyboard) commits, Esc reverts to the value it had on focus; `oncommit` fires only when the value changed.',
         },
       },
     },

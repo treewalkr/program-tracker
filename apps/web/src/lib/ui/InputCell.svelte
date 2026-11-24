@@ -1,12 +1,14 @@
 <script lang="ts">
 	import { formatFigure, parseFigure, stepFigure } from './input/figure';
+	import { selectOnTap } from './input/entry';
 
 	/**
 	 * Input 04 · Quiet cell — text or a figure edited inside a dense table or
 	 * week row. Plain text at rest (aligned with the column), the field on
 	 * hover, the full focus ring on focus — the same rhythm as Select 04.
 	 * Enter commits, Esc reverts; `oncommit` fires only when the value changed.
-	 * A figure cell with `step` steps on ↑/↓ like a number field.
+	 * A figure cell with `step` steps on ↑/↓ like a number field. Tapping any
+	 * figure cell selects its figure, so typing replaces it.
 	 */
 	interface Props {
 		/** Accessible name: "Notes for Back squat". */
@@ -66,11 +68,13 @@
 	{maxlength}
 	aria-invalid={invalid || undefined}
 	autocomplete="off"
+	enterkeyhint="done"
 	style:width={width ? `calc(${width}ch + 14px)` : undefined}
 	bind:value
 	onfocus={() => (start = value)}
 	{onblur}
 	{onkeydown}
+	{@attach figure && selectOnTap}
 />
 
 <style>
