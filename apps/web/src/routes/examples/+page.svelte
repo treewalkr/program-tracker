@@ -341,8 +341,8 @@
     max-width: var(--measure-prose);
     color: var(--muted);
   }
-  .row-actions { display: flex; gap: 8px; align-items: center; }
-  .edit-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .row-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .edit-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
 
   .reuse-form { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .reuse-pick { flex: 0 1 260px; min-width: 200px; }
@@ -364,5 +364,5 @@
   .onramp h2 { margin-bottom: 6px; }
   .onramp p { margin: 0 auto 16px; max-width: 52ch; color: var(--muted); }
 
-  @media (max-width: 980px) { .cols { grid-template-columns: 1fr; } }
+  @media (max-width: 980px) { .cols { grid-template-columns: minmax(0, 1fr); } }
 </style>
