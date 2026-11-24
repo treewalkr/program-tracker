@@ -101,8 +101,14 @@ export interface LeaveGuardOptions {
 export function createLeaveGuard(opts: LeaveGuardOptions): Asker {
   const asker = createAsk();
   let leaving = false;
+  // a Back/Forward replayed after "leave": let exactly that popstate through
+  let replaying = false;
 
   beforeNavigate((nav) => {
+    if (replaying && nav.type === "popstate") {
+      replaying = false;
+      return;
+    }
     // an unprefixed link is re-sent under the language prefix: ask about that one
     if (leaving || !opts.dirty() || relinked(nav)) return;
     // switching language stays on the page, with its work
@@ -112,6 +118,7 @@ export function createLeaveGuard(opts: LeaveGuardOptions): Asker {
     const to = nav.to.url.pathname + nav.to.url.search + nav.to.url.hash;
     const { title, body, leaveLabel = "Leave without saving", danger } = opts.prompt();
     const save = opts.save;
+    const delta = nav.type === "popstate" ? nav.delta : undefined;
     void asker
       .ask({
         title,
@@ -123,6 +130,13 @@ export function createLeaveGuard(opts: LeaveGuardOptions): Asker {
       })
       .then(async (a) => {
         if (a === "cancel") return;
+        // Back/Forward was held on this entry: step the same way rather than
+        // pushing the destination again, which would trap the next Back here
+        if (delta) {
+          replaying = true;
+          history.go(delta);
+          return;
+        }
         leaving = true;
         try {
           await goto(to);

@@ -547,6 +547,18 @@
 
   onMount(load);
 
+  /** Keep the open week's tab in view: on a phone W6 sits far right of a strip that opens on W1. */
+  let weekStrip = $state<HTMLElement>();
+  $effect(() => {
+    const tab = weekStrip?.children[currentWeekIndex];
+    if (!weekStrip || !(tab instanceof HTMLElement)) return;
+    const s = weekStrip.getBoundingClientRect();
+    const t = tab.getBoundingClientRect();
+    if (t.left >= s.left - 1 && t.right <= s.right + 1) return;
+    // centre it by moving the strip only, never the page
+    weekStrip.scrollLeft += t.left - s.left - (s.width - t.width) / 2;
+  });
+
   const DAY_NAMES = ["Any day", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 </script>
 
@@ -652,7 +664,7 @@
 
   {#if program.weeks.length > 1}
     <div class="weeks-row">
-      <div class="week-tabs">
+      <div class="week-tabs" bind:this={weekStrip}>
         {#each program.weeks as w, wi (w.week)}
           {@const logged = weekLogCount(w, wi)}
           {@const loggedText = `${logged} ${logged === 1 ? "session" : "sessions"} logged`}
@@ -663,6 +675,7 @@
             class="tab-btn"
             class:active={wi === currentWeekIndex}
             class:past={dated?.state === "past"}
+            aria-pressed={wi === currentWeekIndex}
             aria-current={dated?.state === "now" ? "date" : undefined}
             aria-label={[`W${w.week}`, w.rotation && `week ${w.rotation}`, range, dated?.state === "now" && "this week", dated?.state === "past" && "ended", logged > 0 && loggedText].filter(Boolean).join(", ")}
             onclick={() => selectWeek(wi)}

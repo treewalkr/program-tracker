@@ -1,7 +1,7 @@
 import { describe, expect, mock, test } from "bun:test";
 import { render } from "svelte/server";
 
-type Nav = { type: string; from?: { url: URL } | null; to: { url: URL; route?: { id: string | null } } | null; cancel: () => void };
+type Nav = { type: string; delta?: number; from?: { url: URL } | null; to: { url: URL; route?: { id: string | null } } | null; cancel: () => void };
 let navHook: ((nav: Nav) => void) | null = null;
 const gotos: string[] = [];
 mock.module("$app/navigation", () => ({
@@ -119,6 +119,27 @@ describe("leave guard", () => {
     navHook!({ type: "goto", from: { url: url("/th/me/log/5?d=1") }, to: { url: url("/en/me/log/5?d=1#set") }, cancel: () => (cancelled = true) });
     expect(cancelled).toBe(false);
     expect(g.open).toBe(false);
+  });
+
+  test("leaving on Back steps back through history instead of pushing the page again", async () => {
+    gotos.length = 0;
+    const steps: number[] = [];
+    (globalThis as { history?: unknown }).history = { go: (d: number) => void steps.push(d) };
+    const g = createLeaveGuard({ dirty: () => true, prompt: () => ({ title: "t", body: "b" }) });
+    let cancelled = false;
+    navHook!({ type: "popstate", delta: -1, to: { url: new URL("/clients", "http://x") }, cancel: () => (cancelled = true) });
+    expect(cancelled).toBe(true);
+    await g.answer("confirm");
+    await Promise.resolve();
+    expect(gotos).toEqual([]);
+    expect(steps).toEqual([-1]);
+    // the Back it replays goes through; the next one is guarded again
+    cancelled = false;
+    navHook!({ type: "popstate", delta: -1, to: { url: new URL("/clients", "http://x") }, cancel: () => (cancelled = true) });
+    expect(cancelled).toBe(false);
+    navigate();
+    expect(g.open).toBe(true);
+    delete (globalThis as { history?: unknown }).history;
   });
 
   test("a tab close only cancels, for the browser's own prompt", () => {

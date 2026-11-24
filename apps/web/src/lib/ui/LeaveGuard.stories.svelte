@@ -10,7 +10,7 @@
       docs: {
         description: {
           component:
-            "The page's one confirm dialog, in place of the browser's confirm(). The safe choice is the primary button on the right and takes focus, Esc and backdrop clicks; the asked-about action is a quiet button on the left, red when it drops work; an optional third choice sits between.",
+            "The page's one confirm dialog, in place of the browser's confirm(). The safe choice is the primary button on the right and takes focus, Esc and backdrop clicks; the asked-about action is a quiet button on the left, red when it drops work; an optional third choice sits between. Initial focus is put on the safe choice explicitly, since Chromium would otherwise focus the first (destructive) button.",
         },
       },
     },
@@ -24,6 +24,16 @@
     answer: async () => {},
   });
 
+  /** Fails the story when the safe choice doesn't hold focus on open (Chromium picked the destructive button). */
+  async function safeFocused({ canvasElement }: { canvasElement: HTMLElement }) {
+    for (let i = 0; i < 50; i++) {
+      const safe = canvasElement.querySelector<HTMLElement>('dialog[open] [autofocus]');
+      if (safe && document.activeElement === safe) return;
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    throw new Error(`focus is on "${document.activeElement?.textContent?.trim()}", not the safe choice`);
+  }
+
   const programLeave: AskOptions = {
     title: 'Save your program changes?',
     body: "You have edits that haven't been saved. Saving creates a new version; leaving drops them.",
@@ -33,7 +43,7 @@
   };
 </script>
 
-<Story name="Leave, with save" asChild>
+<Story name="Leave, with save" asChild play={safeFocused}>
   <LeaveGuard guard={fake(programLeave)} />
 </Story>
 
@@ -41,7 +51,7 @@
   <LeaveGuard guard={fake(programLeave, true)} />
 </Story>
 
-<Story name="Leave or stay" asChild>
+<Story name="Leave or stay" asChild play={safeFocused}>
   <LeaveGuard
     guard={fake({
       title: 'Leave with unsaved chains?',
@@ -64,7 +74,7 @@
   />
 </Story>
 
-<Story name="Destructive confirm" asChild>
+<Story name="Destructive confirm" asChild play={safeFocused}>
   <LeaveGuard
     guard={fake({
       title: 'Skip Back squat?',
