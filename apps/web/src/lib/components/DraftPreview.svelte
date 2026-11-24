@@ -447,6 +447,13 @@
   }
   /* Phones: the lock note sits small beside the review button, one short row instead of three. */
   @media (max-width: 720px) {
+    /* Collapsed, the pane is one slim sticky line: head only, no week tabs. */
+    .pane:not(.open) .weeks {
+      display: none;
+    }
+    .pane:not(.open) .pane-head {
+      padding-block: 4px;
+    }
     .foot {
       flex-wrap: nowrap;
       padding: 8px 12px;
@@ -458,7 +465,7 @@
     }
   }
   /* The smallest phones: "Hide" alone and the "Draft" heading for screen readers only, so the open
-     head stays one row (version picker, Select, Hide). */
+     head stays one row (version picker, Select, Hide); the foot keeps just its button. */
   @media (max-width: 360px) {
     .pane.open .pane-head h2,
     .pane.open .toggle-noun {
@@ -468,6 +475,10 @@
       overflow: hidden;
       clip-path: inset(50%);
       white-space: nowrap;
+    }
+    /* No room for the lock note beside the button; the review page says the same before approving. */
+    .foot span {
+      display: none;
     }
   }
 </style>

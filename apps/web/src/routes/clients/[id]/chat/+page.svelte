@@ -218,6 +218,23 @@
      The model pick is remembered per device for chats with no draft to follow. */
   const textKey = (clientId: string) => `pt.chat.text.${clientId}`;
   const PICK_KEY = "pt.chat.model";
+  /** Phones show the composer's how-to line until the first send, then drop it to give the thread room. */
+  const HINT_KEY = "pt.chat.hint-seen";
+  let hintSeen = $state(false);
+  try {
+    hintSeen = typeof localStorage !== "undefined" && localStorage.getItem(HINT_KEY) === "1";
+  } catch {
+    // storage blocked: keep showing the hint
+  }
+  function markHintSeen() {
+    if (hintSeen) return;
+    hintSeen = true;
+    try {
+      localStorage.setItem(HINT_KEY, "1");
+    } catch {
+      // storage blocked: hidden for this visit only
+    }
+  }
   type Pick = { providerId: string; model: string; effort: string };
   /** Client whose saved text is in the composer; guards saving under the wrong id mid-switch. */
   let textFor = $state("");
@@ -361,6 +378,7 @@
         { messages: messages.filter((m) => m.id !== optimistic.id), gens: allGens },
         res
       ));
+      markHintSeen();
     } catch (err) {
       messages = messages.filter((m) => m.id !== optimistic.id);
       draft = text;
@@ -512,7 +530,7 @@
     {#if sendError}
       <div class="send-error"><Note tone="bad">{sendError}</Note></div>
     {/if}
-    <p class="dock-hint">
+    <p class="dock-hint" class:seen={hintSeen}>
       Return adds a new line. Tap Send, or press {modKey} Return on a keyboard.
       {#if preview.target && !openProposalId}Change requests come back as a proposal. Nothing is rebuilt until you press Build.{/if}
     </p>
@@ -1154,6 +1172,18 @@
     .send {
       margin-left: auto;
       min-height: 32px;
+    }
+  }
+  /* Phones: the sticky composer is the only chrome that must stay; keep it tight. */
+  @media (max-width: 720px) {
+    .dock {
+      padding: 8px 0;
+    }
+    .dock-row {
+      padding: 2px 8px 6px;
+    }
+    .dock-hint.seen {
+      display: none;
     }
   }
 </style>
