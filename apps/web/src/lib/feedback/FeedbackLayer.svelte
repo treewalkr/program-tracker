@@ -194,8 +194,9 @@
   // While picking, every app click is blocked, so Back / Forward is how the
   // trainer leaves: drop picking then, even when a leave guard holds the Back
   // and opens its dialog, or the dialog's buttons would be picked instead.
+  // Only Back / Forward: a Feedback-UI link ("N sent") keeps the mode on.
   beforeNavigate((nav) => {
-    if (nav.type === "popstate" && feedbackMode.picking) exit();
+    if (nav.type === "popstate" && picking) exit();
   });
 
   // Navigating away drops a half-written pin on a stale element.
@@ -205,8 +206,7 @@
     untrack(() => {
       if (now === lastHere) return;
       lastHere = now;
-      if (feedbackMode.picking) exit();
-      else close();
+      close();
       hovered = null;
     });
   });
