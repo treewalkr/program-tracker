@@ -6,6 +6,7 @@
 	import LearnedRule from './LearnedRule.svelte';
 	import Button from '$lib/ui/Button.svelte';
 	import Icon from '$lib/ui/Icon.svelte';
+	import InputField from '$lib/ui/InputField.svelte';
 	import ToggleChip from '$lib/ui/ToggleChip.svelte';
 
 	/**
@@ -191,10 +192,10 @@
 					<ToggleChip on={tags.includes(tag)} onclick={() => toggle(tag)}>{LLM_REASON_LABELS[tag]}</ToggleChip>
 				{/each}
 			</div>
-			<input
-				class="input note"
+			<InputField
+				label="What was wrong"
+				hideLabel
 				placeholder="What was wrong (optional)"
-				aria-label="What was wrong"
 				maxlength={2000}
 				bind:value={comment}
 				onkeydown={(e) => {
@@ -202,10 +203,10 @@
 					if (e.key === 'Escape') open = false;
 				}}
 			/>
-			<input
-				class="input note"
+			<InputField
+				label="What instead"
+				hideLabel
 				placeholder="What instead (optional)"
-				aria-label="What instead"
 				maxlength={2000}
 				bind:value={correction}
 				onkeydown={(e) => {
@@ -320,10 +321,6 @@
 		display: flex;
 		flex-wrap: wrap;
 		gap: 4px;
-	}
-	.note {
-		width: 100%;
-		font-size: 13px;
 	}
 	.scope {
 		display: flex;
