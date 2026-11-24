@@ -267,7 +267,30 @@ export function formOfSession(session: PortalSession, today: string): PortalLogF
 // Draft: this phone keeps the half-filled form until it's saved
 // ---------------------------------------------------------------------------
 
-export const portalDraftKey = (sessionId: string) => `pt:portal-log-draft:${sessionId}`;
+/** A draft is the member's own: kept under their id, so another member on this phone never opens it. */
+export const portalDraftKey = (clientId: string, sessionId: string) => `pt:portal-log-draft:${clientId}:${sessionId}`;
+
+/** An older build kept drafts by session alone. */
+const legacyDraftKey = (sessionId: string) => `pt:portal-log-draft:${sessionId}`;
+
+/**
+ * This member's stored draft for a session. An older build's draft (by session alone) moves
+ * to the member's key: a program session is one member's, and the page only opens sessions
+ * from that member's own week, so it can only be theirs.
+ */
+export function readPortalDraft(storage: Pick<Storage, "getItem" | "setItem" | "removeItem">, clientId: string, sessionId: string): string | null {
+  try {
+    const key = portalDraftKey(clientId, sessionId);
+    const own = storage.getItem(key);
+    const old = storage.getItem(legacyDraftKey(sessionId));
+    if (old == null) return own;
+    if (own == null) storage.setItem(key, old);
+    storage.removeItem(legacyDraftKey(sessionId));
+    return own ?? old;
+  } catch {
+    return null;
+  }
+}
 
 export function portalDraftJson(f: PortalLogForm): string {
   return JSON.stringify({ ...f, savedAt: new Date().toISOString() });
@@ -383,35 +406,39 @@ export function touchedExercises(pristine: readonly PortalRow[], rows: readonly 
 
 export const PORTAL_WEEK_CACHE_KEY = "pt:portal-week";
 
-export const portalWeekCacheJson = (w: PortalWeek): string => JSON.stringify(w);
+/** The copies are the member's: kept with their id, opened only for them. */
+export const portalWeekCacheJson = (w: PortalWeek, clientId: string): string => JSON.stringify({ clientId, data: w });
 
 /** The whole week page as last loaded on this phone, so the home page opens offline too. */
 export const PORTAL_WEEK_DTO_CACHE_KEY = "pt:portal-week-dto";
 
-/** A cached week page whose loggable week is still on; anything else → null. */
-export function cachedWeekDto(raw: string | null, today: string): PortalWeekDto | null {
-  if (!raw) return null;
-  let parsed: unknown;
+export const portalWeekDtoCacheJson = (d: PortalWeekDto, clientId: string): string => JSON.stringify({ clientId, data: d });
+
+/** A stored copy's data, when it was kept for this member; another member's (or an older build's, kept without one) → undefined. */
+function copyOf(raw: string | null, clientId: string): unknown {
+  if (!raw) return undefined;
   try {
-    parsed = JSON.parse(raw);
+    const c = JSON.parse(raw) as { clientId?: unknown; data?: unknown } | null;
+    return c && typeof c === "object" && c.clientId === clientId ? c.data : undefined;
   } catch {
-    return null;
+    return undefined;
   }
+}
+
+/** This member's cached week page whose loggable week is still on; anything else → null. */
+export function cachedWeekDto(raw: string | null, today: string, clientId: string): PortalWeekDto | null {
+  const parsed = copyOf(raw, clientId);
+  if (parsed === undefined) return null;
   const d = PortalWeekDto.safeParse(parsed);
   if (!d.success) return null;
   const on = d.data.weeks.find((w) => w.loggable);
   return on && on.endDate >= today ? d.data : null;
 }
 
-/** The cached week and one of its sessions, while that week is still on; anything else → null. */
-export function cachedSession(raw: string | null, sessionId: string, today: string): { week: PortalWeek; session: PortalSession } | null {
-  if (!raw) return null;
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return null;
-  }
+/** This member's cached week and one of its sessions, while that week is still on; anything else → null. */
+export function cachedSession(raw: string | null, sessionId: string, today: string, clientId: string): { week: PortalWeek; session: PortalSession } | null {
+  const parsed = copyOf(raw, clientId);
+  if (parsed === undefined) return null;
   const w = PortalWeek.safeParse(parsed);
   if (!w.success || !w.data.loggable || w.data.endDate < today) return null;
   const session = w.data.sessions.find((s) => s.id === sessionId);

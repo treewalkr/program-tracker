@@ -28,6 +28,7 @@
     portalDraftJson,
     portalDraftKey,
     portalWeekCacheJson,
+    readPortalDraft,
     PORTAL_WEEK_CACHE_KEY,
     sameForm,
     saveSummary,
@@ -63,6 +64,8 @@
 
   let week = $state<PortalWeek | null>(null);
   let session = $state<PortalSession | null>(null);
+  /** Where this session's draft is kept: the member's own key. */
+  const draftKey = $derived(me && session ? portalDraftKey(me.client.id, session.id) : null);
   let loadState = $state<"loading" | "ready" | "missing" | "failed">("loading");
 
   let rows = $state<PortalRow[]>([]);
@@ -205,12 +208,12 @@
       offline = false;
       // kept on this phone, so a dropped connection mid-workout can still open the session
       try {
-        if (w) localStorage.setItem(PORTAL_WEEK_CACHE_KEY, portalWeekCacheJson(w));
+        if (w && me) localStorage.setItem(PORTAL_WEEK_CACHE_KEY, portalWeekCacheJson(w, me.client.id));
       } catch {
         // storage full or private mode: no offline copy, nothing else changes
       }
     } catch {
-      const cached = cachedSession(readStored(PORTAL_WEEK_CACHE_KEY), id, today);
+      const cached = me ? cachedSession(readStored(PORTAL_WEEK_CACHE_KEY), id, today, me.client.id) : null;
       if (!cached) {
         loadState = "failed";
         return;
@@ -226,7 +229,7 @@
       return;
     }
     fresh(s);
-    const draft = parsePortalDraft(readStored(portalDraftKey(id)), rows, cardioFormOf(s.cardio));
+    const draft = parsePortalDraft(storedDraft(id), rows, cardioFormOf(s.cardio));
     if (draft && !sameForm(draft, freshForm(s))) {
       rows = draft.rows;
       cardio = draft.cardio;
@@ -243,6 +246,16 @@
     // a restored draft or a saved log may already carry a skip or pain: never hide it
     issuesOpen = flaggedAt(0);
     loadState = "ready";
+  }
+
+  /** This member's stored draft for the session (an older build's moves to their key). */
+  function storedDraft(id: string): string | null {
+    if (!me) return null;
+    try {
+      return readPortalDraft(localStorage, me.client.id, id);
+    } catch {
+      return null;
+    }
   }
 
   function readStored(key: string): string | null {
@@ -269,7 +282,8 @@
   /** Write (or clear) the stored draft now. Never clears one this page didn't restore or write. */
   function writeDraft(json: string | null | undefined) {
     if (json === undefined || !session || otherTab) return;
-    const key = portalDraftKey(session.id);
+    if (!draftKey) return;
+    const key = draftKey;
     try {
       if (json) {
         localStorage.setItem(key, json);
@@ -293,14 +307,14 @@
 
   /** Another tab wrote or cleared this session's draft: stop overwriting it, offer a reload. */
   function onStorage(e: StorageEvent) {
-    if (!session || e.key !== portalDraftKey(session.id) || e.storageArea !== localStorage) return;
+    if (!draftKey || e.key !== draftKey || e.storageArea !== localStorage) return;
     otherTab = true;
   }
 
   function startOver() {
     if (!session) return;
     try {
-      localStorage.removeItem(portalDraftKey(session.id));
+      if (draftKey) localStorage.removeItem(draftKey);
     } catch {
       // private mode: nothing was kept
     }
@@ -443,7 +457,7 @@
   function done(log: PortalSavedLog, built: { sets: number; input: PortalLogInput }, replaced: boolean) {
     if (!session) return;
     try {
-      localStorage.removeItem(portalDraftKey(session.id));
+      if (draftKey) localStorage.removeItem(draftKey);
     } catch {
       // private mode: nothing was kept
     }
