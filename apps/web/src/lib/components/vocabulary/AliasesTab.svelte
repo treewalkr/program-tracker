@@ -8,7 +8,8 @@
   import Button from "$lib/ui/Button.svelte";
   import ConfirmButton from "$lib/ui/ConfirmButton.svelte";
   import EmptyState from "$lib/ui/EmptyState.svelte";
-  import Icon from "$lib/ui/Icon.svelte";
+  import InputField from "$lib/ui/InputField.svelte";
+  import InputSearch from "$lib/ui/InputSearch.svelte";
   import Note from "$lib/ui/Note.svelte";
   import Panel from "$lib/ui/Panel.svelte";
   import Pill from "$lib/ui/Pill.svelte";
@@ -97,7 +98,7 @@
 
 <Panel title="Aliases" count={list.length}>
   <form class="panel-body add" onsubmit={add} aria-label="Add an alias">
-    <input class="input written" placeholder="As you write it, e.g. SA Row" bind:value={newAlias} maxlength="200" aria-label="Alias as written" />
+    <div class="written"><InputField label="Alias as written" hideLabel placeholder="As you write it, e.g. SA Row" bind:value={newAlias} maxlength={200} /></div>
     <span class="arrow" aria-hidden="true">→</span>
     <div class="pick">
       <ExercisePicker value={newExerciseId} {catalog} label="Exercise for the new alias" onpick={(ex) => (newExerciseId = ex.id)} oncreate={createExercise} />
@@ -107,10 +108,7 @@
     </Button>
   </form>
 
-  <div class="search">
-    <Icon name="search" />
-    <input bind:value={query} type="search" placeholder="Search aliases or exercises" aria-label="Search aliases" autocomplete="off" />
-  </div>
+  <div class="search"><InputSearch label="Search aliases" placeholder="Search aliases or exercises" bind:value={query} /></div>
 
   {#if loaded && personalCount === 0 && !query.trim()}
     <p class="hint">
@@ -169,10 +167,7 @@
   .add .pick { flex: 2 1 240px; min-width: 220px; }
   .arrow { color: var(--muted); }
 
-  .search { display: flex; align-items: center; gap: 8px; padding: 0 16px; border-bottom: 1px solid var(--line-soft); color: var(--muted); }
-  .search :global(svg) { width: 14px; height: 14px; flex: none; }
-  .search input { flex: 1; border: none; outline: none; background: none; padding: 10px 0; font: 14px var(--font-ui); color: var(--ink); }
-  .search:focus-within { color: var(--blue); }
+  .search { padding: 8px 16px; border-bottom: 1px solid var(--line-soft); }
 
   .hint { margin: 0; padding: 10px 16px; font-size: 13px; color: var(--muted); border-bottom: 1px solid var(--line-soft); background: var(--well); }
 
