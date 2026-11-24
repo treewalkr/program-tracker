@@ -1076,6 +1076,12 @@
   .dock > :global(.savebar) { position: static; margin-top: 0; }
   /* 16 px from Save changes with the bar's 8 px gap. */
   .savebar :global(.discard) { margin-right: 8px; }
+  /* Phones: the message takes its own line, so the armed "Discard all edits?" never squeezes it. */
+  @media (max-width: 560px) {
+    .dock .savebar { flex-wrap: wrap; }
+    .dock .savemsg { flex-basis: 100%; }
+    .savebar :global(.discard) { margin-left: auto; }
+  }
   @media (max-width: 700px) { .dock { bottom: 60px; } }
   /* Same look as the draft edit dock's toast. */
   .copy-toast {
