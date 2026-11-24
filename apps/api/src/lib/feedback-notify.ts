@@ -9,6 +9,7 @@ import {
 } from "@pt/shared";
 import { adminEmailFromEnv } from "./auth";
 import { appUrl, ensureEmailToken, unsubscribeUrl, type EmailEvent, type UnsubscribeScope } from "./email-links";
+import { markdownEmailHtml, markdownEmailText } from "./email-markdown";
 import { emailConfigured, sendEmail, type Email, type SendResult } from "./mailer";
 
 /**
@@ -92,6 +93,8 @@ function emailDocument(body: string): string {
     ".pt-canvas{background:#0d1117 !important;color:#e6edf3 !important}",
     ".pt-muted,.pt-muted a{color:#9198a1 !important}",
     ".pt-quote{border-color:#3d444d !important}",
+    ".pt-code{background:#161b22 !important;color:#e6edf3 !important}",
+    ".pt-canvas a.pt-link{color:#4493f8 !important}",
   ].join("");
   return [
     `<!doctype html><html lang="en"><head><meta charset="utf-8">`,
@@ -115,6 +118,8 @@ const EVENT_PREF: Record<FeedbackEvent["kind"], { pref: EmailEvent; label: strin
 interface Parts {
   lead: string;
   quote?: string;
+  /** The quote is a thread reply, written in markdown: render it like the app does. */
+  markdown?: boolean;
   after?: string;
 }
 
@@ -130,9 +135,10 @@ function compose(snap: FeedbackSnapshot, kind: FeedbackEvent["kind"], to: Person
     { label: "Unsubscribe from all", href: unsub({ kind: "all" }) },
     { label: "Manage in Settings", href: settings },
   ].filter((l): l is { label: string; href: string } => l.href !== null);
+  const quoteText = parts.quote && parts.markdown ? markdownEmailText(parts.quote) : (parts.quote ?? "");
   const text = [
     parts.lead,
-    ...(parts.quote ? ["", ...parts.quote.split("\n").map((l) => `  ${l}`)] : []),
+    ...(parts.quote ? ["", ...quoteText.split("\n").map((l) => `  ${l}`)] : []),
     ...(parts.after ? ["", parts.after] : []),
     "",
     `Open ${handle}: ${link}`,
@@ -144,9 +150,11 @@ function compose(snap: FeedbackSnapshot, kind: FeedbackEvent["kind"], to: Person
   const html = emailDocument(
     [
       `<p style="margin:0 0 12px">${esc(parts.lead)}</p>`,
-      parts.quote
-        ? `<blockquote class="pt-quote" style="margin:0 0 12px;padding:2px 0 2px 12px;border-left:3px solid #d0d7de;white-space:pre-wrap">${esc(parts.quote)}</blockquote>`
-        : "",
+      parts.quote && parts.markdown
+        ? `<div class="pt-quote" style="margin:0 0 12px;padding:2px 0 2px 12px;border-left:3px solid #d0d7de">${markdownEmailHtml(parts.quote)}</div>`
+        : parts.quote
+          ? `<blockquote class="pt-quote" style="margin:0 0 12px;padding:2px 0 2px 12px;border-left:3px solid #d0d7de;white-space:pre-wrap">${esc(parts.quote)}</blockquote>`
+          : "",
       parts.after ? `<p style="margin:0 0 12px;white-space:pre-wrap">${esc(parts.after)}</p>` : "",
       // 12px + 20px line + 12px = a 44px tap target
       `<p style="margin:16px 0"><a href="${esc(link)}" style="display:inline-block;padding:12px 20px;border-radius:8px;background:#1f883d;color:#ffffff;text-decoration:none;font-size:16px;line-height:20px;font-weight:600">Open ${handle}</a></p>`,
@@ -206,6 +214,7 @@ export function feedbackEmails(kind: FeedbackEvent["kind"], snap: FeedbackSnapsh
     return send(`[${handle}] AI answer to your feedback`, {
       lead: `The AI assistant answered ${handle} ("${clip(item.comment, 80)}"):`,
       quote: snap.comment.body?.trim() ?? "",
+      markdown: true,
       after: "This answer was written by an AI that read the app's code. If it's wrong or doesn't help, reply on the ticket to correct it and a person will take a look.",
     }, "AI answer");
   }
@@ -214,6 +223,7 @@ export function feedbackEmails(kind: FeedbackEvent["kind"], snap: FeedbackSnapsh
     return send(`[${handle}] ${actorName} replied`, {
       lead: `${actorName} replied on ${handle} ("${clip(item.comment, 80)}"):`,
       quote: snap.comment?.body?.trim() ?? "",
+      markdown: true,
     }, "Reply");
   }
 

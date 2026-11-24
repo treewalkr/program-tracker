@@ -127,6 +127,17 @@ describe("feedbackEmails", () => {
     expect(e.html).toMatch(/padding:12px 20px;[^"]*line-height:20px[^"]*">Open FB-012</);
   });
 
+  test("a reply's markdown renders in the HTML and reads clean in the text", () => {
+    const body = "Use `Pause` — **not** delete.\n\n```\nweek = 3\n```";
+    const [e] = feedbackEmails("reply", snap({ actor: boss, comment: { body, status: null, authorKind: "human" } }));
+    expect(e.html).toContain("<strong>not</strong>");
+    expect(e.html).toContain("<code>week = 3</code></pre>");
+    expect(e.html).not.toContain("```");
+    expect(e.text).toContain("  Use Pause — not delete.");
+    expect(e.text).toContain("      week = 3");
+    expect(e.text).not.toContain("```");
+  });
+
   test("the master switch off silences every event", () => {
     const off = (p: Person) => ({ ...p, feedbackEmails: false });
     expect(feedbackEmails("created", snap({ admin: off(boss) }))).toEqual([]);
