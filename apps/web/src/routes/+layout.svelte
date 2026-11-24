@@ -11,8 +11,6 @@
   import Note from "$lib/ui/Note.svelte";
   import Tooltip from "$lib/ui/Tooltip.svelte";
   import Icon, { type IconName } from "$lib/ui/Icon.svelte";
-  import FeedbackLayer from "$lib/feedback/FeedbackLayer.svelte";
-  import GuideSearch from "$lib/guide/GuideSearch.svelte";
   import { searchShortcut } from "$lib/guide/searchState.svelte";
   import { feedbackUnread } from "$lib/feedback/unread.svelte";
   import { installRuntimeCapture, runtime } from "$lib/feedback/runtime";
@@ -469,9 +467,10 @@
   </main>
 </div>
 
-<GuideSearch />
+<!-- Both load after first paint, off every route's preload list (the portal and sign-in never fetch them). -->
+{#await import("$lib/guide/GuideSearch.svelte") then m}<m.default />{/await}
 <!-- Hidden while viewing as a trainer: a ticket filed there would be filed as them. -->
-{#if !viewAs.live}<FeedbackLayer />{/if}
+{#if !viewAs.live}{#await import("$lib/feedback/FeedbackLayer.svelte") then m}<m.default />{/await}{/if}
 <DraftNotice
   notices={generationWatch.notices}
   onopen={(n) => generationWatch.dismiss(n.id)}
