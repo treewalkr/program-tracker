@@ -9,7 +9,7 @@
       docs: {
         description: {
           component:
-            'Plain text until hover or focus, then the field appears and the chevron fades in. Keeps dense tables scannable. Use for inline edits in session and week tables.',
+            'Plain text until hover or focus, then the field appears and the chevron fades in. Keeps dense tables scannable. Use for inline edits in session and week tables. On a touch screen or a narrow window it reads app.css `--field-font`/`--field-h`: 16px type and a 40px row.',
         },
       },
     },

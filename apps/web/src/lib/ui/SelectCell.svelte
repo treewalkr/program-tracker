@@ -71,7 +71,8 @@
 		border-radius: var(--radius);
 		background: transparent;
 		color: var(--ink);
-		font: 400 14px var(--font-ui);
+		font: 400 var(--field-font, 14px) var(--font-ui);
+		min-height: var(--field-h, auto);
 		cursor: pointer;
 	}
 	.sel :global(svg) { width: 14px; height: 14px; color: var(--muted); opacity: 0; transition: opacity 0.12s; }
@@ -80,7 +81,6 @@
 	.sel:focus-visible { border-color: var(--blue); outline: none; box-shadow: 0 0 0 3px var(--focus-ring); }
 	.sel:disabled { cursor: default; }
 	@media (prefers-reduced-motion: reduce) { .sel :global(svg) { transition: none; } }
-	@media (max-width: 720px) { .sel { min-height: 40px; font-size: 16px; } }
 	/* No hover on touch: show the resting frame and chevron so the cell reads as tappable. */
 	@media (hover: none) { .sel { border-color: var(--line-soft); } .sel :global(svg) { opacity: 1; } }
 </style>

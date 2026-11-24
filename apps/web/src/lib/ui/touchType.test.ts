@@ -12,8 +12,8 @@ import { join } from "node:path";
 const UI = import.meta.dir;
 const APP_CSS = join(UI, "../../app.css");
 
-// Owned by another session mid-edit; drop each once it reads `--field-font`.
-const PENDING = new Set(["InputCell.svelte", "SelectCell.svelte"]);
+// Components to skip while they move to `--field-font`; empty once all read it.
+const PENDING = new Set<string>([]);
 
 /** Every `@media <query> { … }` block in the source, braces matched. */
 function mediaBlocks(src: string): { query: string; body: string }[] {
