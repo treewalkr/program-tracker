@@ -43,6 +43,8 @@
   import Icon from "$lib/ui/Icon.svelte";
   import BackButton from "$lib/ui/BackButton.svelte";
   import Note from "$lib/ui/Note.svelte";
+  import InputField from "$lib/ui/InputField.svelte";
+  import InputNote from "$lib/ui/InputNote.svelte";
   import Pill from "$lib/ui/Pill.svelte";
   import Skeleton from "$lib/ui/Skeleton.svelte";
   import { showLoad, units, weightCells, weightStepIn } from "$lib/units.svelte";
@@ -727,11 +729,12 @@
                     </div>
                   {/if}
                   {#if hurt}
-                    <label class="hurt">
-                      <span>{t("log.hurtWhere")}</span>
-                      <input class="input" type="text" maxlength={FLAG_NOTE_MAX} value={flags[peId]?.note ?? ""} oninput={(e) => (flags = setFlagNote(flags, peId, e.currentTarget.value))} />
-                      <span class="hint">{t("log.hurtHint")}</span>
-                    </label>
+                    <InputField
+                      label={t("log.hurtWhere")}
+                      hint={t("log.hurtHint")}
+                      maxlength={FLAG_NOTE_MAX}
+                      bind:value={() => flags[peId]?.note ?? "", (v) => (flags = setFlagNote(flags, peId, v))}
+                    />
                   {/if}
                 </div>
               {/each}
@@ -823,10 +826,7 @@
 {/snippet}
 
 {#snippet notesField()}
-  <label class="notes">
-    <span class="sub-h">{t("log.notes")}</span>
-    <textarea class="input" rows="3" maxlength="2000" placeholder={cardioSession ? t("cardio.notesPlaceholder") : t("log.notesPlaceholder")} bind:value={notes}></textarea>
-  </label>
+  <InputNote label={t("log.notes")} rows={3} maxlength={2000} placeholder={cardioSession ? t("cardio.notesPlaceholder") : t("log.notesPlaceholder")} bind:value={notes} />
 {/snippet}
 
 <style>
@@ -951,9 +951,6 @@
   .chip.sm { min-height: 40px; padding: 0 12px; }
   .reasons-k { width: 100%; font-size: 13px; color: var(--muted); }
   .issue-note { margin: 0; font-size: 14px; color: var(--muted); }
-  .hurt { display: grid; gap: 6px; font-size: 14px; }
-  .hurt .input { min-height: 44px; font-size: 16px; }
-  .hint { font-size: 13px; color: var(--muted); }
   /* 44px to hit, pulled into the row's margins so it sits on the name's line and its word
      lines up with the fields' right edge */
   .missed-btn {
@@ -1039,8 +1036,6 @@
   .feel :global(.readiness) { padding: 4px 16px 16px; }
   .sub-h { margin: 0; font: 600 16px/1.3 var(--font-ui); }
   .opt { font-weight: 400; color: var(--muted); }
-  .notes { display: grid; gap: 8px; }
-  .notes textarea { min-height: 88px; font-size: 16px; resize: vertical; }
 
   /* one green action, always in reach: sticky over the safe area */
   .savebar {
