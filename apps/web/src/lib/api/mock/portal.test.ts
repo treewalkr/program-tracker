@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { localDateOf, MEMBER_EDIT_CLEARS_REVIEW } from "@pt/shared";
-import { mockApi } from "./api";
+import { mockApi, mockState } from "./api";
 import { EXPIRED_TOKEN, SIGNED_IN_TOKEN, mockPortalApi, mockPortalProgress, mockPortalWeek } from "./portal";
 import { PortalDuplicateError } from "../portalTypes";
 
@@ -62,6 +62,56 @@ describe("mock portal (the demo client over the trainer mock)", () => {
     expect(trainerSees.trainerFeedback).toBe("Good depth");
     expect(trainerSees.reviewedBy === null).toBe(MEMBER_EDIT_CLEARS_REVIEW);
     await mockPortalApi.deleteLog(edited.id);
+  });
+
+  test("a session the coach logged reads back as a summary: figures and feedback, not the coach's notes", async () => {
+    const dto = mockPortalWeek();
+    const session = dto.weeks[0].sessions.find((s) => s.kind === "exercises" && !s.log)!;
+    const program = mockState.programs.find((p) => p.id === dto.program!.id)!;
+    const real = program.weeks.find((w) => w.week === dto.currentWeek)!.sessions.find((s) => s.name === session.name)!;
+    const ex = session.exercises[0];
+    const saved = await mockApi.logSession({
+      clientId: "cl-nat",
+      programId: program.id,
+      programSessionId: real.id,
+      date: localDateOf(Date.now()),
+      notes: "coach only: watch the knee",
+      perceivedEnergy: 3,
+      sets: [{ programExerciseId: ex.id, exerciseId: ex.exerciseId, setNumber: 1, type: "working", weightKg: 90, reps: 6 }],
+    });
+    await mockApi.reviewSessionLog(saved.id, { reviewed: true, feedback: "Strong bar path." });
+    const log = mockPortalWeek().weeks[0].sessions.find((s) => s.id === session.id)!.log!;
+    expect(log.loggedBy).toBe("trainer");
+    expect(log.entry).toMatchObject({
+      sets: [{ programExerciseId: ex.id, setNumber: 1, weightKg: 90, reps: 6 }],
+      notes: null,
+      perceivedEnergy: null,
+      trainerFeedback: "Strong bar path.",
+    });
+    // still the coach's: the member can neither replace nor remove it
+    await expect(
+      mockPortalApi.log({ programSessionId: session.id, date: localDateOf(Date.now()), onDuplicate: "replace", sets: [{ exerciseId: ex.exerciseId, setNumber: 1, type: "working", reps: 8 }] }),
+    ).rejects.toBeInstanceOf(PortalDuplicateError);
+    await expect(mockPortalApi.deleteLog(saved.id)).rejects.toBeDefined();
+    mockState.logs = mockState.logs.filter((l) => l.sessionLogId !== saved.id);
+  });
+
+  test("a stale replace (it names a log that's since been replaced) is a 409 with the newer log, like the API", async () => {
+    const session = mockPortalWeek().weeks[0].sessions.find((s) => s.kind === "exercises" && !s.log)!;
+    const ex = session.exercises[0];
+    const body = (reps: number) => ({
+      programSessionId: session.id,
+      date: localDateOf(Date.now()),
+      sets: [{ programExerciseId: ex.id, exerciseId: ex.exerciseId, setNumber: 1, type: "working" as const, reps }],
+    });
+    const first = await mockPortalApi.log(body(8));
+    const resend = await mockPortalApi.log({ ...body(9), onDuplicate: "replace", expectedLogId: first.id });
+    const late = await mockPortalApi.log({ ...body(7), onDuplicate: "replace", expectedLogId: first.id }).catch((e) => e);
+    expect(late).toBeInstanceOf(PortalDuplicateError);
+    expect((late as PortalDuplicateError).existing).toMatchObject({ id: resend.id, loggedBy: "client" });
+    const log = mockPortalWeek().weeks[0].sessions.find((s) => s.id === session.id)!.log!;
+    expect([log.id, log.entry?.sets[0].reps]).toEqual([resend.id, 9]);
+    await mockPortalApi.deleteLog(resend.id);
   });
 
   test("a client's low readiness and note show on the coach's Overview feed", async () => {

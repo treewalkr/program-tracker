@@ -120,7 +120,10 @@ export const PortalSessionLog = z.object({
   date: z.string(),
   /** A cardio log marked "didn't do it": the session is resolved but not done (optional: older API builds don't send it). */
   skipped: z.boolean().optional(),
-  /** Only on the client's own log: what they entered. A coach's log never carries it. */
+  /**
+   * What was logged. The client's own log: what they entered. A coach's log (`loggedBy: "trainer"`):
+   * a read-only summary from `portalCoachLogEntry` (optional: older API builds send neither).
+   */
   entry: PortalLogEntry.optional(),
 });
 export type PortalSessionLog = z.infer<typeof PortalSessionLog>;
@@ -299,6 +302,25 @@ export function portalLogEntry(
     prepDone: [...(log.prepDone ?? [])],
     trainerFeedback: log.trainerFeedback ?? null,
     reviewedAt: log.reviewedAt instanceof Date ? log.reviewedAt.toISOString() : (log.reviewedAt ?? null),
+  };
+}
+
+/**
+ * A coach's log as the client may read it: the sets, the cardio figures, any skip and the
+ * coach's feedback. The coach's session notes, the readiness they noted and every free-text
+ * aside (flag and pain notes) stay with the coach.
+ */
+export function portalCoachLogEntry(log: Parameters<typeof portalLogEntry>[0], sets: Parameters<typeof portalLogEntry>[1]): PortalLogEntry {
+  const entry = portalLogEntry(log, sets);
+  const cardio = entry.cardio?.pain ? { ...entry.cardio, pain: { reported: entry.cardio.pain.reported } } : entry.cardio;
+  return {
+    ...entry,
+    cardio,
+    notes: null,
+    perceivedEnergy: null,
+    readiness: null,
+    flags: entry.flags?.map(({ note: _note, ...f }) => f) ?? null,
+    prepDone: [],
   };
 }
 

@@ -90,8 +90,9 @@
         <p class="meta">{session.typeName}</p>
       {/if}
     </div>
-    {#if logHref && !lead && (!session.log || !byCoach)}
-      <a class="btn side" href={logHref}>{session.log ? t("session.edit") : logLabel}</a>
+    {#if logHref && !lead}
+      <!-- a coach's log opens read-only: see it, never edit it -->
+      <a class="btn side" href={logHref}>{byCoach ? t("session.view") : session.log ? t("session.edit") : logLabel}</a>
     {/if}
   </div>
   {#if notLogged && !session.log}
@@ -115,6 +116,8 @@
       {/if}
     </div>
     {#if actual.length}<p class="actual tnum">{actual.join(" · ")}</p>{/if}
+    <!-- removing takes the coach's note with it (a re-log starts without one): say so before the second tap -->
+    <p class="remove-note" role="status">{#if armed && feedback}{t("session.removeNote")}{/if}</p>
     {#if removeFailed}<p class="remove-err" role="alert">{t("session.removeFailed")}</p>{/if}
     {#if feedback}
       <!-- the coach's word on this log, once they've reviewed it -->
@@ -294,6 +297,8 @@
   }
   .remove.armed { color: var(--bad); font-weight: 600; }
   .remove:disabled { cursor: default; opacity: 0.7; }
+  .remove-note { margin: -4px 0 0; font-size: 14px; color: var(--bad); }
+  .remove-note:empty { display: none; }
   .remove-err { margin: -4px 0 0; font-size: 14px; color: var(--bad); }
   .when { font-weight: 400; }
   .feedback { margin: 0; padding: 10px 12px; font-size: 15px; background: var(--good-bg); border-radius: var(--radius); text-wrap: pretty; }

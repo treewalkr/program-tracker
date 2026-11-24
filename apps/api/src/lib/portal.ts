@@ -11,6 +11,7 @@ import {
   latestLogBySession,
   localDateOf,
   portalLogEntry,
+  portalCoachLogEntry,
   portalCardio,
   portalSessions,
   portalWeekLabel,
@@ -98,7 +99,7 @@ export async function loadPortalWeek(clientId: string, now = Date.now()): Promis
     })
     .from(sessionLogs)
     .where(and(eq(sessionLogs.clientId, clientId), eq(sessionLogs.programId, program.id)));
-  const done = await withClientEntries(latestLogBySession(logs));
+  const done = await withEntries(latestLogBySession(logs));
   const hrVersions = await db.select().from(clientHrProfiles).where(eq(clientHrProfiles.clientId, clientId));
   const loads = { ...(await loadContext(clientId, program, startDate)), hrZones: profileOn(hrVersions, localDateOf(now))?.zones ?? null };
 
@@ -187,9 +188,12 @@ async function cardioThisWeek(clientId: string, target: CardioTarget | null, now
   return portalCardio(target, logs, now);
 }
 
-/** The client's own logs get what they entered (sets, cardio, readiness, flags, notes); a coach's log stays bare. */
-async function withClientEntries(done: Map<string, PortalSessionLog>): Promise<Map<string, PortalSessionLog>> {
-  const ids = [...done.values()].filter((l) => l.loggedBy === "client").map((l) => l.id);
+/**
+ * Each log carries what was logged: the client's own logs what they entered (sets, cardio,
+ * readiness, flags, notes); a coach's log a read-only summary (figures and feedback only).
+ */
+async function withEntries(done: Map<string, PortalSessionLog>): Promise<Map<string, PortalSessionLog>> {
+  const ids = [...done.values()].map((l) => l.id);
   if (ids.length === 0) return done;
   const [rows, sets] = await Promise.all([
     db.select().from(sessionLogs).where(inArray(sessionLogs.id, ids)),
@@ -198,8 +202,9 @@ async function withClientEntries(done: Map<string, PortalSessionLog>): Promise<M
   const out = new Map(done);
   for (const [sessionId, log] of done) {
     const row = rows.find((r) => r.id === log.id);
-    if (!row || row.loggedBy !== "client") continue;
-    out.set(sessionId, { ...log, entry: portalLogEntry(row, sets.filter((s) => s.sessionLogId === log.id)) });
+    if (!row) continue;
+    const own = sets.filter((s) => s.sessionLogId === log.id);
+    out.set(sessionId, { ...log, entry: row.loggedBy === "client" ? portalLogEntry(row, own) : portalCoachLogEntry(row, own) });
   }
   return out;
 }

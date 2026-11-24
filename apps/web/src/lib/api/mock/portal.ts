@@ -9,6 +9,7 @@ import {
   localDateOf,
   nowOfDate,
   portalLogEntry,
+  portalCoachLogEntry,
   portalToday,
   portalCardio,
   portalSessions,
@@ -133,10 +134,10 @@ export function mockPortalWeek(now = Date.now(), scenario = mockScenario()): Por
   const done = latestLogBySession(
     mine.map((l) => ({ id: l.sessionLogId, programSessionId: l.programSessionId ?? null, date: l.date, loggedBy: l.loggedBy ?? "trainer", cardio: l.cardio ?? null })),
   );
-  // the client's own log carries what they entered, like the API
+  // like the API: the client's own log carries what they entered; a coach's log, a read-only summary
   for (const [sid, log] of done) {
     const row = mine.find((l) => l.sessionLogId === log.id);
-    if (row && log.loggedBy === "client") done.set(sid, { ...log, entry: portalLogEntry(row, row.sets) });
+    if (row) done.set(sid, { ...log, entry: log.loggedBy === "client" ? portalLogEntry(row, row.sets) : portalCoachLogEntry(row, row.sets) });
   }
   const loads = {
     isBodyweight: (id: string) => loadStep(exercises.find((e) => e.id === id)?.equipment as Equipment | undefined) === null,
@@ -268,7 +269,9 @@ const rawMockPortalApi: PortalApi = {
       (l) => l.clientId === CLIENT_ID && l.programId === ctx.program.id && l.programSessionId === input.programSessionId,
     );
     const theirs = dupes.find((l) => (l.loggedBy ?? "trainer") !== "client");
-    if (theirs || (dupes.length > 0 && (input.onDuplicate ?? "reject") === "reject")) {
+    // like the API: a replace that names a log no longer there (a stale save landing late) is a 409
+    const stale = input.onDuplicate === "replace" && !!input.expectedLogId && dupes.length > 0 && !dupes.some((l) => l.sessionLogId === input.expectedLogId);
+    if (theirs || stale || (dupes.length > 0 && (input.onDuplicate ?? "reject") === "reject")) {
       const latest = theirs ?? dupes[0];
       throw new PortalDuplicateError({ id: latest.sessionLogId, date: latest.date, loggedBy: latest.loggedBy ?? "trainer" });
     }

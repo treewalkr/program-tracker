@@ -40,10 +40,11 @@
     type PortalRow,
   } from "$lib/portal/logForm";
   import PortalBar from "$lib/portal/PortalBar.svelte";
+  import CoachLogSummary from "$lib/portal/CoachLogSummary.svelte";
   import RestTimer, { restActive } from "$lib/portal/RestTimer.svelte";
   import { restOf } from "$lib/portal/restTimer";
   import { PortalTimeoutError, SAVE_TIMEOUT_MS, withTimeout } from "$lib/portal/timeout";
-  import { duplicateAction, mayHaveLanded } from "$lib/portal/saveRetry";
+  import { duplicateAction, mayHaveLanded, replacingLog } from "$lib/portal/saveRetry";
   import Button from "$lib/ui/Button.svelte";
   import Icon from "$lib/ui/Icon.svelte";
   import BackButton from "$lib/ui/BackButton.svelte";
@@ -435,7 +436,9 @@
     // the draft is on the phone before the request leaves: a 401 redirect or a closed tab keeps every entry
     flushDraft();
     saving = true;
-    let input = built.input;
+    // over the member's own log: replace the one this page saw, never a newer one a late save would overwrite
+    let input = byYou && session.log ? replacingLog(built.input, session.log.id) : built.input;
+    let resent = false;
     try {
       for (;;) {
         try {
@@ -444,8 +447,9 @@
           return;
         } catch (e) {
           // the earlier attempt may have landed: its log is the member's own, and what's on screen wins
-          if (e instanceof PortalDuplicateError && duplicateAction(e.existing, { lastSaveLost, replacing: input.onDuplicate === "replace" }) === "replace") {
-            input = { ...input, onDuplicate: "replace" };
+          if (e instanceof PortalDuplicateError && duplicateAction(e.existing, { lastSaveLost, resent }) === "replace") {
+            input = replacingLog(input, e.existing.id);
+            resent = true;
             continue;
           }
           saveFailed(e);
@@ -666,10 +670,10 @@
 
 <div class="back-row">
   <BackButton fallback="/me" label={t("log.back")} />
-  {#if loadState === "ready" && session && !saved}
+  {#if loadState === "ready" && session && !saved && !byCoach}
     <!-- the date as a chip on the back link's line: Set 1 starts on the first screen. The native
          picker sits over it; "Today" stays in words so back-dating is never a surprise. -->
-    <label class="date-chip" class:off={byCoach}>
+    <label class="date-chip">
       <span aria-hidden="true">{dateChip}</span>
       <Icon name="chevron" />
       <input
@@ -679,7 +683,6 @@
         min={minDate}
         max={maxDate}
         lang={i18n.locale}
-        disabled={byCoach}
         aria-label={t("log.date")}
         onclick={openPicker}
       />
@@ -757,7 +760,8 @@
     {/if}
 
     {#if byCoach}
-      <Note tone="warn" role="note">{t("log.byCoach")}</Note>
+      <!-- the coach's log, read back: theirs to change, so no form and no save -->
+      <CoachLogSummary {session} coach={me?.trainer.name ?? null} />
     {:else if byYou && session.log}
       <!-- D5: the member's edit clears the coach's reviewed mark; the coach's note stays -->
       <Note tone="warn" role="note">{t(session.log.entry?.reviewedAt ? "log.byYouReviewed" : "log.byYou", { date: fmtShortDate(session.log.date) })}</Note>
@@ -1032,8 +1036,6 @@
   }
   .date-chip :global(svg) { flex: none; width: 14px; height: 14px; color: var(--muted); }
   .date-chip:focus-within { outline: 2px solid var(--blue); outline-offset: 2px; }
-  .date-chip.off { color: var(--muted); }
-  .date-chip.off :global(svg) { display: none; }
   /* the real field, invisible, over the whole chip: its tap opens the phone's own picker */
   .date-chip input {
     position: absolute;
