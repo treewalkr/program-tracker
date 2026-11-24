@@ -55,6 +55,11 @@ export const SessionLogFields = z.object({
     .optional(),
   /** When this program session is already logged: 409 (reject), swap it (replace), or keep both (add). */
   onDuplicate: z.enum(["reject", "replace", "add"]).default("reject"),
+  /**
+   * Replace only this log: when the session's newest log is another one (a stale save landing
+   * late, after a newer save), it's a 409 with that log instead. Optional: absent, replace as before.
+   */
+  expectedLogId: z.string().uuid().optional(),
   sets: z
     .array(
       z.object({
@@ -250,7 +255,9 @@ export async function createSessionLog({
       : [];
     // Under "own", a log someone else entered is never replaced (nor added beside): it's a 409.
     const locked = replacePolicy === "own" ? duplicates.find((d) => d.loggedBy !== loggedBy) : undefined;
-    if ((duplicates.length > 0 && input.onDuplicate === "reject") || locked) {
+    // A replace that names the log it saw: a newer log there now wins over this (stale) save.
+    const stale = input.onDuplicate === "replace" && input.expectedLogId && duplicates.length > 0 && !duplicates.some((d) => d.id === input.expectedLogId);
+    if ((duplicates.length > 0 && input.onDuplicate === "reject") || locked || stale) {
       const latest = locked ?? duplicates[0];
       const [{ setCount }] = await tx.select({ setCount: count() }).from(setLogs).where(eq(setLogs.sessionLogId, latest.id));
       return { conflict: { id: latest.id, date: latest.date, setCount, loggedBy: latest.loggedBy } } as const;

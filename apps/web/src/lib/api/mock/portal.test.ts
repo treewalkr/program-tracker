@@ -96,6 +96,24 @@ describe("mock portal (the demo client over the trainer mock)", () => {
     mockState.logs = mockState.logs.filter((l) => l.sessionLogId !== saved.id);
   });
 
+  test("a stale replace (it names a log that's since been replaced) is a 409 with the newer log, like the API", async () => {
+    const session = mockPortalWeek().weeks[0].sessions.find((s) => s.kind === "exercises" && !s.log)!;
+    const ex = session.exercises[0];
+    const body = (reps: number) => ({
+      programSessionId: session.id,
+      date: localDateOf(Date.now()),
+      sets: [{ programExerciseId: ex.id, exerciseId: ex.exerciseId, setNumber: 1, type: "working" as const, reps }],
+    });
+    const first = await mockPortalApi.log(body(8));
+    const resend = await mockPortalApi.log({ ...body(9), onDuplicate: "replace", expectedLogId: first.id });
+    const late = await mockPortalApi.log({ ...body(7), onDuplicate: "replace", expectedLogId: first.id }).catch((e) => e);
+    expect(late).toBeInstanceOf(PortalDuplicateError);
+    expect((late as PortalDuplicateError).existing).toMatchObject({ id: resend.id, loggedBy: "client" });
+    const log = mockPortalWeek().weeks[0].sessions.find((s) => s.id === session.id)!.log!;
+    expect([log.id, log.entry?.sets[0].reps]).toEqual([resend.id, 9]);
+    await mockPortalApi.deleteLog(resend.id);
+  });
+
   test("a client's low readiness and note show on the coach's Overview feed", async () => {
     const session = mockPortalWeek().weeks[0].sessions.find((s) => s.kind === "exercises" && !s.log)!;
     const ex = session.exercises[0];

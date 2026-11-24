@@ -44,7 +44,7 @@
   import RestTimer, { restActive } from "$lib/portal/RestTimer.svelte";
   import { restOf } from "$lib/portal/restTimer";
   import { PortalTimeoutError, SAVE_TIMEOUT_MS, withTimeout } from "$lib/portal/timeout";
-  import { duplicateAction, mayHaveLanded } from "$lib/portal/saveRetry";
+  import { duplicateAction, mayHaveLanded, replacingLog } from "$lib/portal/saveRetry";
   import Button from "$lib/ui/Button.svelte";
   import Icon from "$lib/ui/Icon.svelte";
   import BackButton from "$lib/ui/BackButton.svelte";
@@ -436,7 +436,9 @@
     // the draft is on the phone before the request leaves: a 401 redirect or a closed tab keeps every entry
     flushDraft();
     saving = true;
-    let input = built.input;
+    // over the member's own log: replace the one this page saw, never a newer one a late save would overwrite
+    let input = byYou && session.log ? replacingLog(built.input, session.log.id) : built.input;
+    let resent = false;
     try {
       for (;;) {
         try {
@@ -445,8 +447,9 @@
           return;
         } catch (e) {
           // the earlier attempt may have landed: its log is the member's own, and what's on screen wins
-          if (e instanceof PortalDuplicateError && duplicateAction(e.existing, { lastSaveLost, replacing: input.onDuplicate === "replace" }) === "replace") {
-            input = { ...input, onDuplicate: "replace" };
+          if (e instanceof PortalDuplicateError && duplicateAction(e.existing, { lastSaveLost, resent }) === "replace") {
+            input = replacingLog(input, e.existing.id);
+            resent = true;
             continue;
           }
           saveFailed(e);

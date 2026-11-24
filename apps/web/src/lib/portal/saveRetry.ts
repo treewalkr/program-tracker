@@ -1,4 +1,4 @@
-import { PortalDuplicateError } from "$lib/api/portalTypes";
+import { PortalDuplicateError, type PortalLogInput } from "$lib/api/portalTypes";
 import { PortalTimeoutError } from "./timeout";
 
 /**
@@ -24,11 +24,20 @@ export function mayHaveLanded(e: unknown, online: boolean): boolean {
 /**
  * A 409 on save. After a save that may have landed, the member's own log is most likely
  * that save, but it may as well be an earlier real log: never adopt it as this one.
- * Resend once with replace, so what's on screen wins. Anything else is shown to the member.
+ * Resend once, replacing that log by id, so what's on screen wins. Anything else is shown
+ * to the member. A replace can 409 too: it named a log that a newer save has since replaced.
  */
 export function duplicateAction(
   existing: PortalDuplicateError["existing"],
-  ctx: { lastSaveLost: boolean; replacing: boolean },
+  ctx: { lastSaveLost: boolean; resent: boolean },
 ): "replace" | "refuse" {
-  return ctx.lastSaveLost && !ctx.replacing && existing.loggedBy === "client" ? "replace" : "refuse";
+  return ctx.lastSaveLost && !ctx.resent && existing.loggedBy === "client" ? "replace" : "refuse";
+}
+
+/**
+ * A save over the member's own log: replace exactly the log this page saw. A timed-out
+ * attempt that lands after a newer save then gets a 409 instead of overwriting it.
+ */
+export function replacingLog<I extends PortalLogInput>(input: I, logId: string): I {
+  return { ...input, onDuplicate: "replace", expectedLogId: logId };
 }

@@ -30,6 +30,8 @@ export interface PortalLogInput {
   prepDone?: string[];
   /** Already logged by the client: 409 (reject) or swap it (replace). */
   onDuplicate?: "reject" | "replace";
+  /** With replace: the log this save means to replace. A newer one there now answers 409 instead. */
+  expectedLogId?: string;
   sets: LogSetInput[];
   /** Minutes from the first entry to Save, for a session logged live. */
   durationMin?: number;

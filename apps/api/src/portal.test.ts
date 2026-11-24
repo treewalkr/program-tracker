@@ -486,6 +486,23 @@ describe.skipIf(!dbUp)("portal week and logs", () => {
     expect((await call("DELETE", `/v1/portal/logs/${trainerLog.id}`, { token })).status).toBe(404);
   });
 
+  test("a stale replace (it names a log that's since been replaced) is a 409 with the newer log", async () => {
+    const ofS1 = () => db.select().from(sessionLogs).where(and(eq(sessionLogs.clientId, clientId), eq(sessionLogs.programSessionId, s1)));
+    const [before] = await ofS1();
+    // the resend lands first and replaces the log both attempts saw
+    const resend = await call("POST", "/v1/portal/logs", { token, body: logBody(s1, { onDuplicate: "replace", expectedLogId: before.id, perceivedEnergy: 8 }) });
+    expect(resend.status).toBe(201);
+    // the timed-out attempt lands late: it may not overwrite the newer log
+    const late = await call("POST", "/v1/portal/logs", { token, body: logBody(s1, { onDuplicate: "replace", expectedLogId: before.id, perceivedEnergy: 2 }) });
+    expect(late.status).toBe(409);
+    expect(late.body.existing).toMatchObject({ id: resend.body.id, loggedBy: "client" });
+    const rows = await ofS1();
+    expect(rows.map((r) => [r.id, r.perceivedEnergy])).toEqual([[resend.body.id, 8]]);
+    // without the field a replace is as before (the trainer app never sends it)
+    const plain = await call("POST", "/v1/portal/logs", { token, body: logBody(s1, { onDuplicate: "replace" }) });
+    expect(plain.status).toBe(201);
+  });
+
   test("editing a log the coach reviewed keeps the coach's note; the reviewed mark clears (D5)", async () => {
     const ofS1 = () => db.select().from(sessionLogs).where(and(eq(sessionLogs.clientId, clientId), eq(sessionLogs.programSessionId, s1)));
     const [reviewed] = await ofS1();
