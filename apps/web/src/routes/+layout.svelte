@@ -512,6 +512,8 @@
     /* below the view-as bar when there is one */
     top: var(--view-bar-h, 0px);
     height: calc(100vh - var(--view-bar-h, 0px));
+    /* dvh: iOS Safari's 100vh runs under its toolbar, hiding the foot. */
+    height: calc(100dvh - var(--view-bar-h, 0px));
     overflow: hidden; /* labels clip at the edge while the column animates; only the nav scrolls */
   }
 
@@ -527,6 +529,7 @@
     z-index: 5;
     width: 12px;
     height: calc(100vh - var(--view-bar-h, 0px));
+    height: calc(100dvh - var(--view-bar-h, 0px));
     margin-right: -6px;
     padding: 0;
     border: 0;
@@ -899,6 +902,10 @@
        full width. Icons sit at x=20 in both layouts, so they hold still while
        the labels are uncovered. The end inset goes negative to let the shadow out. */
     --rail-w: 56px;
+    /* Clear the notch and home indicator when the app runs edge to edge. */
+    padding-top: max(8px, env(safe-area-inset-top, 0px));
+    padding-bottom: max(8px, env(safe-area-inset-bottom, 0px));
+    padding-left: max(8px, env(safe-area-inset-left, 0px));
     animation: drawer-unfold 280ms cubic-bezier(0.16, 1, 0.3, 1);
   }
   .drawer.closing .side {
