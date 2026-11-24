@@ -925,10 +925,11 @@ a.rowlink { color: var(--ink); font-weight: 600; }
 .tabs button.on { color: var(--ink); font-weight: 600; border-bottom-color: var(--tab-on); }
 .tabs button:disabled { opacity: 0.5; cursor: default; }
 
-/* Sideways scrollers (tab bars, phone action rows, .x-scroll): touch screens
-   swipe and show no bar; a mouse keeps a thin one, its only way across. */
+/* Sideways scrollers (tab bars, phone action rows, .x-scroll): phone widths
+   and touch screens show no bar (the edge fade says the row scrolls); a wide
+   window with a mouse keeps a thin one. */
 .tabs, .head-actions, .x-scroll { scrollbar-width: thin; }
-@media (hover: none) and (pointer: coarse) {
+@media (max-width: 720px), (hover: none) and (pointer: coarse) {
   .tabs, .head-actions, .x-scroll { scrollbar-width: none; }
   .tabs::-webkit-scrollbar, .head-actions::-webkit-scrollbar, .x-scroll::-webkit-scrollbar { display: none; }
 }
@@ -972,6 +973,10 @@ a.rowlink { color: var(--ink); font-weight: 600; }
     margin: -4px;
     padding: 4px;
   }
+  /* A plain block, so the actions row can clear the menu toggle floated
+     beside the title (a flex head would sit wholly to its right). */
+  .page-head:has(> .head-actions) { display: block; }
+  .page-head > .head-actions { clear: left; margin: 12px -4px -4px; }
   .head-actions > * { flex: none; }
   .head-actions > .primary,
   .head-actions > .skeleton { order: -1; }
