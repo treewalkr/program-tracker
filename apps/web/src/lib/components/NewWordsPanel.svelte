@@ -4,6 +4,8 @@
   import { newWordInput, newWordRows, shownNewWords, type NewWordRow } from "$lib/vocabulary";
   import Button from "$lib/ui/Button.svelte";
   import Counter from "$lib/ui/Counter.svelte";
+  import InputField from "$lib/ui/InputField.svelte";
+  import SelectField from "$lib/ui/SelectField.svelte";
 
   /**
    * "New words" in an import's review: shorthand and technique words the
@@ -11,6 +13,8 @@
    * glossary (it applies from the next "Read it"); Dismiss hides it for this
    * import only. Mount it once per import (key it on the import id).
    */
+  const KIND_OPTIONS = GLOSSARY_KINDS.map((k) => ({ value: k as GlossaryKind, label: GLOSSARY_KIND_LABELS[k] }));
+
   let { terms, onjump }: { terms: ImportNewTerm[] | undefined; onjump?: (line: number) => void } = $props();
 
   // seeded once per import; the component is keyed on the import id
@@ -53,20 +57,22 @@
             <span class="kind-text">{GLOSSARY_KIND_LABELS[row.kind]}</span>
             <span class="done" role="status">added</span>
           {:else}
-            <label class="meaning">
-              <span class="lbl">{row.suggested ? "suggested" : "meaning"}</span>
-              <input
-                class="input"
-                bind:value={row.meaning}
-                maxlength={GLOSSARY_MEANING_MAX}
-                placeholder="What it means"
-                aria-label="Meaning of {row.term}"
-                disabled={row.status === "saving"}
-              />
-            </label>
-            <select class="select kind" bind:value={row.kind} aria-label="Kind of {row.term}" disabled={row.status === "saving"}>
-              {#each GLOSSARY_KINDS as k (k)}<option value={k as GlossaryKind}>{GLOSSARY_KIND_LABELS[k]}</option>{/each}
-            </select>
+            <div class="meaning">
+              <span class="lbl" aria-hidden="true">{row.suggested ? "suggested" : "meaning"}</span>
+              <div class="in">
+                <InputField
+                  label="Meaning of {row.term}"
+                  hideLabel
+                  bind:value={row.meaning}
+                  maxlength={GLOSSARY_MEANING_MAX}
+                  placeholder="What it means"
+                  disabled={row.status === "saving"}
+                />
+              </div>
+            </div>
+            <div class="kind">
+              <SelectField label="Kind of {row.term}" hideLabel maxWidth="none" options={KIND_OPTIONS} bind:value={row.kind} disabled={row.status === "saving"} />
+            </div>
             <div class="acts">
               <Button small variant="primary" onclick={() => add(row)} disabled={row.status === "saving" || !newWordInput(row)}>
                 {row.status === "saving" ? "Adding…" : "Add"}
@@ -108,9 +114,9 @@
   }
   .lref:hover { color: var(--blue); background: var(--well); }
   .meaning { display: flex; align-items: center; gap: 8px; min-width: 0; }
-  .meaning .input { flex: 1; min-width: 0; }
+  .meaning .in { flex: 1; min-width: 0; }
   .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); white-space: nowrap; }
-  .kind { width: 140px; font-size: 13px; }
+  .kind { width: 140px; }
   .acts { display: flex; gap: 4px; justify-content: flex-end; }
   .meaning-text { font-size: 14px; color: var(--ink); }
   .kind-text { font-size: 12px; color: var(--muted); }
