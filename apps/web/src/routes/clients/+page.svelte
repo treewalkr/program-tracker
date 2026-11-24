@@ -334,7 +334,8 @@
     .sort { width: 156px; }
   }
 
-  .rows { overflow-x: auto; transition: opacity 120ms ease-out; }
+  /* Relative: the sr-only spans inside the table must clip to this scroller, not push the page sideways. */
+  .rows { position: relative; overflow-x: auto; transition: opacity 120ms ease-out; }
   .rows.stale { opacity: 0.55; pointer-events: none; }
 
   .roster th:first-child, .roster td:first-child { padding-left: 16px; }
