@@ -11,9 +11,18 @@ import { REQUEST_ID_HEADER } from "./request-log";
 
 export const INTERNAL_ERROR = "Something went wrong on our side";
 
-/** Whether an error is ours to hide: no 4xx status of its own, not one Elysia already maps. */
+/** Codes Elysia maps to its own response (422, 404, 400, …); everything else is a string some library chose. */
+const ELYSIA_CODES = new Set(["VALIDATION", "NOT_FOUND", "PARSE", "INVALID_COOKIE_SIGNATURE", "INVALID_FILE_TYPE"]);
+
+/**
+ * Whether an error is ours to hide: not one Elysia already maps, not a status a
+ * route threw, and no 4xx status of its own. Elysia copies a thrown error's own
+ * `code` (postgres `CONNECT_TIMEOUT`, `ECONNREFUSED`, a SQLSTATE), so those count too.
+ */
 export function isInternalError(code: unknown, error: unknown): boolean {
-  if (code !== "UNKNOWN" && code !== "INTERNAL_SERVER_ERROR") return false;
+  if (typeof code === "string" && ELYSIA_CODES.has(code)) return false;
+  // a thrown `status(4xx/5xx)`; DOMException codes (AbortError = 20) are below 100
+  if (typeof code === "number" && code >= 400 && code < 600) return false;
   const status = (error as { status?: unknown } | null)?.status;
   return !(typeof status === "number" && status < 500);
 }
