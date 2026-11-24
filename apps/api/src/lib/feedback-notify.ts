@@ -79,6 +79,33 @@ const clip = (s: string, n: number) => {
   return t.length > n ? `${t.slice(0, n - 1)}…` : t;
 };
 
+const MUTED = "color:#656d76";
+
+/**
+ * The HTML shell every feedback email shares: a real document that declares
+ * light and dark (so dark-mode clients don't guess), an explicit white canvas
+ * for clients that invert, and a full-width content cell that wraps long URLs
+ * and code instead of widening the message past a phone screen.
+ */
+function emailDocument(body: string): string {
+  const dark = [
+    ".pt-canvas{background:#0d1117 !important;color:#e6edf3 !important}",
+    ".pt-muted,.pt-muted a{color:#9198a1 !important}",
+    ".pt-quote{border-color:#3d444d !important}",
+  ].join("");
+  return [
+    `<!doctype html><html lang="en"><head><meta charset="utf-8">`,
+    `<meta name="viewport" content="width=device-width,initial-scale=1">`,
+    `<meta name="color-scheme" content="light dark"><meta name="supported-color-schemes" content="light dark">`,
+    `<style>:root{color-scheme:light dark;supported-color-schemes:light dark}@media (prefers-color-scheme:dark){${dark}}</style>`,
+    `</head><body class="pt-canvas" style="margin:0;padding:0;background:#ffffff">`,
+    `<table role="presentation" class="pt-canvas" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;background:#ffffff">`,
+    `<tr><td class="pt-canvas" style="padding:16px;font:14px/1.5 -apple-system,'Segoe UI',Helvetica,Arial,sans-serif;color:#1f2328;background:#ffffff;overflow-wrap:anywhere;word-break:break-word">`,
+    `<div style="max-width:560px;overflow-wrap:anywhere;word-break:break-word">${body}</div>`,
+    `</td></tr></table></body></html>`,
+  ].join("");
+}
+
 const EVENT_PREF: Record<FeedbackEvent["kind"], { pref: EmailEvent; label: string }> = {
   created: { pref: "newTickets", label: "new-ticket" },
   reply: { pref: "replies", label: "reply" },
@@ -114,20 +141,22 @@ function compose(snap: FeedbackSnapshot, kind: FeedbackEvent["kind"], to: Person
     "Program Tracker feedback.",
     ...footer.map((l) => `${l.label}: ${l.href}`),
   ].join("\n");
-  const muted = "color:#656d76";
-  const html = [
-    `<div style="font:14px/1.5 -apple-system,'Segoe UI',Helvetica,Arial,sans-serif;color:#1f2328;max-width:560px">`,
-    `<p style="margin:0 0 12px">${esc(parts.lead)}</p>`,
-    parts.quote
-      ? `<blockquote style="margin:0 0 12px;padding:2px 0 2px 12px;border-left:3px solid #d0d7de;white-space:pre-wrap">${esc(parts.quote)}</blockquote>`
-      : "",
-    parts.after ? `<p style="margin:0 0 12px;white-space:pre-wrap">${esc(parts.after)}</p>` : "",
-    `<p style="margin:16px 0"><a href="${esc(link)}" style="display:inline-block;padding:6px 14px;border-radius:6px;background:#1f883d;color:#fff;text-decoration:none;font-weight:600">Open ${handle}</a></p>`,
-    `<p style="margin:24px 0 0;font-size:12px;${muted}">Program Tracker feedback · ${footer
-      .map((l) => `<a href="${esc(l.href)}" style="${muted}">${esc(l.label)}</a>`)
-      .join(" · ")}</p>`,
-    `</div>`,
-  ].join("");
+  const html = emailDocument(
+    [
+      `<p style="margin:0 0 12px">${esc(parts.lead)}</p>`,
+      parts.quote
+        ? `<blockquote class="pt-quote" style="margin:0 0 12px;padding:2px 0 2px 12px;border-left:3px solid #d0d7de;white-space:pre-wrap">${esc(parts.quote)}</blockquote>`
+        : "",
+      parts.after ? `<p style="margin:0 0 12px;white-space:pre-wrap">${esc(parts.after)}</p>` : "",
+      // 12px + 20px line + 12px = a 44px tap target
+      `<p style="margin:16px 0"><a href="${esc(link)}" style="display:inline-block;padding:12px 20px;border-radius:8px;background:#1f883d;color:#ffffff;text-decoration:none;font-size:16px;line-height:20px;font-weight:600">Open ${handle}</a></p>`,
+      `<div class="pt-muted" style="margin:24px 0 0;font-size:13px;line-height:20px;${MUTED}">`,
+      `<p style="margin:0 0 4px">Program Tracker feedback</p>`,
+      // one per line, each a full-height row, so a thumb can't hit the neighbour
+      ...footer.map((l) => `<a href="${esc(l.href)}" style="display:block;padding:12px 0;${MUTED}">${esc(l.label)}</a>`),
+      `</div>`,
+    ].join(""),
+  );
   const all = unsub({ kind: "all" });
   const headers = all ? { "List-Unsubscribe": `<${all}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" } : undefined;
   const log = { trainerId: to.id, kind: `feedback.${kind}`, label: `${handle} · ${label}`, feedbackItemId: snap.item.id };

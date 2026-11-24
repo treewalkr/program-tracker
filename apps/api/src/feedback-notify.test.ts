@@ -117,6 +117,16 @@ describe("feedbackEmails", () => {
     expect(e.html).toContain("&lt;script&gt;");
   });
 
+  test("the HTML is a phone-safe document: colour schemes declared, long text wraps, 44px button", () => {
+    const [e] = feedbackEmails("created", snap({ item: { ...snap().item, comment: `see https://x.test/${"a".repeat(200)}` } }));
+    expect(e.html).toStartWith("<!doctype html><html lang=\"en\">");
+    expect(e.html).toContain('<meta name="color-scheme" content="light dark">');
+    expect(e.html).toContain('<meta name="supported-color-schemes" content="light dark">');
+    expect(e.html).toContain('width="100%"');
+    expect(e.html).toContain("overflow-wrap:anywhere");
+    expect(e.html).toMatch(/padding:12px 20px;[^"]*line-height:20px[^"]*">Open FB-012</);
+  });
+
   test("the master switch off silences every event", () => {
     const off = (p: Person) => ({ ...p, feedbackEmails: false });
     expect(feedbackEmails("created", snap({ admin: off(boss) }))).toEqual([]);
@@ -168,7 +178,7 @@ describe("feedbackEmails", () => {
       expect(body).not.toContain("tok-boss");
     }
     expect(kaiMail.text).toContain("Mute FB-012: ");
-    expect(kaiMail.html).toContain("Mute FB-012</a> · <a");
+    expect(kaiMail.html).toContain(">Mute FB-012</a><a"); // one link per row
     expect(kaiMail.html).toContain(">Stop reply emails</a>");
     expect(kaiMail.html).toContain(">Unsubscribe from all</a>");
     expect(kaiMail.html).toContain(">Manage in Settings</a>");
