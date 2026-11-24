@@ -35,7 +35,7 @@
   const enter = $derived({ y: prefersReducedMotion.current ? 0 : 12, duration: prefersReducedMotion.current ? 0 : 180, easing: cubicOut });
 </script>
 
-<section class="draft-notices" aria-label="Draft notifications" aria-live="polite">
+<section class="draft-notices" aria-label="Draft notifications" aria-live="polite" data-no-lift>
   {#each shown as n (n.id)}
     <article class="notice {n.tone}" transition:fly={enter} aria-labelledby="dn-{n.id}">
       <span class="lamp {n.tone === 'ready' ? 'green' : 'red'}" aria-hidden="true"></span>
@@ -75,8 +75,8 @@
   .draft-notices {
     position: fixed;
     right: calc(16px + env(safe-area-inset-right));
-    /* Above the Feedback launcher (32px pill at bottom 16px), and whatever lifts it. */
-    bottom: calc(60px + max(var(--feedback-lift, 0px), env(safe-area-inset-bottom)));
+    /* Above the Feedback launcher (32px pill at bottom 16px), lifted the same as the pill (lift.ts). */
+    bottom: calc(60px + max(var(--feedback-lift, 0px), var(--feedback-auto-lift, 0px), env(safe-area-inset-bottom)));
     z-index: 9998;
     width: min(360px, calc(100vw - 32px));
     display: flex;

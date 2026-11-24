@@ -1,4 +1,4 @@
-import { beforeNavigate, goto } from "$app/navigation";
+import { afterNavigate, beforeNavigate, goto } from "$app/navigation";
 import { relinked, samePage } from "$lib/portal/lang";
 
 /** Which button closed the dialog: `choice:<id>` for one of `choices`. Esc and a backdrop click count as "cancel". */
@@ -101,12 +101,19 @@ export interface LeaveGuardOptions {
 export function createLeaveGuard(opts: LeaveGuardOptions): Asker {
   const asker = createAsk();
   let leaving = false;
-  // a Back/Forward replayed after "leave": let exactly that popstate through
-  let replaying = false;
+  // a Back/Forward replayed after "leave": let exactly that popstate through.
+  // Holds its delta, and drops once any navigation lands: SvelteKit skips
+  // beforeNavigate while another navigation is in flight, and a flag left
+  // standing would wave the next Back through unasked.
+  let replaying: number | null = null;
+
+  afterNavigate(() => {
+    replaying = null;
+  });
 
   beforeNavigate((nav) => {
-    if (replaying && nav.type === "popstate") {
-      replaying = false;
+    if (replaying !== null && nav.type === "popstate" && nav.delta === replaying) {
+      replaying = null;
       return;
     }
     // an unprefixed link is re-sent under the language prefix: ask about that one
@@ -133,7 +140,7 @@ export function createLeaveGuard(opts: LeaveGuardOptions): Asker {
         // Back/Forward was held on this entry: step the same way rather than
         // pushing the destination again, which would trap the next Back here
         if (delta) {
-          replaying = true;
+          replaying = delta;
           history.go(delta);
           return;
         }

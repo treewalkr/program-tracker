@@ -5,6 +5,7 @@ let hooks: ((nav: Nav) => void)[] = [];
 const navigate = (nav: Nav) => hooks.forEach((h) => h(nav));
 mock.module("$app/navigation", () => ({
   beforeNavigate: (fn: (nav: Nav) => void) => void hooks.push(fn),
+  afterNavigate: () => {},
   goto: async () => {},
 }));
 

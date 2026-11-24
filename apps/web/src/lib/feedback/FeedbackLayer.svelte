@@ -1,9 +1,10 @@
 <script lang="ts">
   import { tick, untrack } from "svelte";
   import { page } from "$app/state";
+  import { beforeNavigate } from "$app/navigation";
   import { appPath } from "$lib/portal/lang";
   import { feedbackMode } from "./mode.svelte";
-  import { buildContext, chainOf, closeUpFrame, isFeedbackUi, shortPath, sourceLabel } from "./capture";
+  import { buildContext, chainOf, closeUpFrame, inOpenDialog, isFeedbackUi, shortPath, sourceLabel } from "./capture";
   import { runtimeSnapshot } from "./runtime";
   import { feedbackApi, type CapturedShot } from "./client";
   import TicketPins from "./TicketPins.svelte";
@@ -76,6 +77,13 @@
     return `left:${p.left}px; top:${p.top}px; width:${p.width}px; max-height:${p.maxHeight}px`;
   });
 
+  /** The bar moved: re-read its top too, so an open pin stays clear of it. */
+  function onlift(px: number) {
+    if (px === autoLift) return;
+    autoLift = px;
+    void tick().then(measure);
+  }
+
   function measure() {
     hoverRect = hovered?.isConnected ? hovered.getBoundingClientRect() : null;
     selRect = selected?.isConnected ? selected.getBoundingClientRect() : null;
@@ -120,8 +128,11 @@
       hovered = null;
       return;
     }
+    // An open modal (the leave guard, a confirm) is never something to pick:
+    // it must keep working, or picking strands the trainer inside it.
+    const passes = (t: EventTarget | null) => isFeedbackUi(t as Node) || inOpenDialog(t as Node);
     const block = (e: Event) => {
-      if (isFeedbackUi(e.target as Node)) return;
+      if (passes(e.target)) return;
       // A touch press must keep its default, or the finger can't scroll to what
       // it wants to pick (and WebKit may drop the tap's click). The app still
       // never sees it, and only a stationary tap clicks, which `onClick` takes.
@@ -143,7 +154,7 @@
       measure();
     };
     const onClick = (e: MouseEvent) => {
-      if (isFeedbackUi(e.target as Node)) return;
+      if (passes(e.target)) return;
       block(e);
       const t = e.target as Element | null;
       if (t && t !== document.documentElement && t !== document.body) select(t);
@@ -159,6 +170,13 @@
       for (const ev of blocked) document.removeEventListener(ev, block, true);
       document.documentElement.classList.remove("feedback-picking");
     };
+  });
+
+  // On the root, so the draft notices above the pill rise with it (lift.ts).
+  $effect(() => {
+    const root = document.documentElement;
+    root.style.setProperty("--feedback-auto-lift", `${autoLift}px`);
+    return () => root.style.removeProperty("--feedback-auto-lift");
   });
 
   // Keep outlines glued to their elements through scroll and resize.
@@ -187,17 +205,22 @@
     return () => document.removeEventListener("keydown", onKey, true);
   });
 
-  // Navigating away drops a half-written pin on a stale element. While picking,
-  // every app click is blocked, so a route change means Back / Forward: leave
-  // picking too, or the previous page would stay hijacked. "Use app" survives.
+  // While picking, every app click is blocked, so Back / Forward is how the
+  // trainer leaves: drop picking then, even when a leave guard holds the Back
+  // and opens its dialog, or the dialog's buttons would be picked instead.
+  // Only Back / Forward: a Feedback-UI link ("N sent") keeps the mode on.
+  beforeNavigate((nav) => {
+    if (nav.type === "popstate" && picking) exit();
+  });
+
+  // Navigating away drops a half-written pin on a stale element.
   let lastHere = untrack(() => here);
   $effect(() => {
     const now = here;
     untrack(() => {
       if (now === lastHere) return;
       lastHere = now;
-      if (feedbackMode.picking) exit();
-      else close();
+      close();
       hovered = null;
     });
   });
@@ -405,8 +428,7 @@
     class="bar"
     bind:this={barEl}
     class:on={feedbackMode.on}
-    style:--feedback-auto-lift="{autoLift}px"
-    {@attach (el) => watchBottomBars(el, (px) => (autoLift = px))}
+    {@attach (el) => watchBottomBars(el, onlift)}
     role="toolbar"
     aria-label="Feedback mode"
   >

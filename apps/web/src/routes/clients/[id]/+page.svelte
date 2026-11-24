@@ -353,16 +353,24 @@
     return row;
   }
 
+  const focusInvalid = () => document.querySelector<HTMLElement>('#panel-settings [aria-invalid="true"]')?.focus();
+
+  /** Focus the first invalid Settings field, opening the tab first: "Save and leave" can run from any tab. */
+  async function showInvalid() {
+    if (tab !== "settings") setTab("settings");
+    await tick();
+    focusInvalid();
+  }
+
   async function save() {
     if (nameError(idName) || emailError(idEmail)) {
       idAttempted = true;
-      await tick();
-      document.querySelector<HTMLElement>('#panel-settings [aria-invalid="true"]')?.focus();
+      await showInvalid();
       return;
     }
     if (basicsInvalid(form)) {
       saveProfileError = "fix the basics marked above";
-      document.querySelector<HTMLElement>('#panel-settings [aria-invalid="true"]')?.focus();
+      await showInvalid();
       return;
     }
     saving = true;
@@ -392,7 +400,10 @@
     }),
     save: async () => {
       await save();
-      return !profileDirty && !saveProfileError;
+      const ok = !profileDirty && !saveProfileError;
+      // the closing dialog hands focus back to what opened it: move it on to the field to fix
+      if (!ok) setTimeout(focusInvalid);
+      return ok;
     },
   });
 

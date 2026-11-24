@@ -226,6 +226,10 @@ export function buildContext(
 export const isFeedbackUi = (node: Node | null): boolean =>
   node instanceof Element && node.closest(`[${FEEDBACK_UI_ATTR}]`) !== null;
 
+/** Inside a dialog the app has open (a leave guard, a confirm). */
+export const inOpenDialog = (node: Node | null): boolean =>
+  node instanceof Element && node.closest("dialog[open]") !== null;
+
 /** The smallest box an element close-up is taken at: a heading alone reads as an unreadable sliver. */
 export const CLOSE_UP_MIN = { width: 320, height: 96 };
 

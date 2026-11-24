@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { feedbackLift, pillHome } from "./lift";
+import { docksToBottom, feedbackLift, pillHome } from "./lift";
 
 const VW = 1280;
 const VH = 800;
@@ -43,5 +43,21 @@ describe("feedbackLift against a measured pill", () => {
   test("iPad portrait: the member save bar under the pill lifts it", () => {
     // 834 × 1194, sticky .savebar 12px off the bottom, 60px tall, across the content column
     expect(feedbackLift({ left: 300, top: 1122, right: 810, bottom: 1182 }, 834, 1194)).toBe(1194 - 1122);
+  });
+});
+
+describe("docksToBottom", () => {
+  test("fixed elements and bottom-sticky bars count", () => {
+    expect(docksToBottom({ position: "fixed", bottom: "auto" })).toBe(true);
+    expect(docksToBottom({ position: "sticky", bottom: "12px" })).toBe(true);
+  });
+
+  test("a top-sticky heading passing the pill is not a bar", () => {
+    expect(docksToBottom({ position: "sticky", bottom: "auto" })).toBe(false);
+  });
+
+  test("anything in flow is not a bar", () => {
+    expect(docksToBottom({ position: "static", bottom: "auto" })).toBe(false);
+    expect(docksToBottom({ position: "relative", bottom: "0px" })).toBe(false);
   });
 });

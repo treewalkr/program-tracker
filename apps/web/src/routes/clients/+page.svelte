@@ -5,7 +5,7 @@
   import { reasonText } from "$lib/api/errors";
   import type { RosterPageDto, RosterQuery, RosterRowDto } from "$lib/api/types";
   import { listUrlState } from "$lib/list/urlState.svelte";
-  import { daysBetween, localToday, shortDay } from "$lib/adminClients";
+  import { daysBetween, localToday, shortDay } from "$lib/dates";
   import StatusPill from "$lib/components/StatusPill.svelte";
   import Avatar from "$lib/ui/Avatar.svelte";
   import Button from "$lib/ui/Button.svelte";
