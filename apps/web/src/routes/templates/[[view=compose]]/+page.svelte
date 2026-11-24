@@ -303,6 +303,22 @@
     clients = await api.clients();
     await loadPrefs();
   });
+
+  /** Fills the body with a built-in's rules to edit; asks before replacing your own writing. */
+  async function startFrom(p: InstructionPreset) {
+    const own = newContent.trim() && !INSTRUCTION_PRESETS.some((x) => x.content === newContent);
+    if (own) {
+      const a = await leaveGuard.ask({
+        title: `Replace your rules with ${p.name}?`,
+        body: "What you've written in Body so far will be replaced.",
+        confirmLabel: "Replace",
+        cancelLabel: "Keep mine",
+      });
+      if (a !== "confirm") return;
+    }
+    if (!newName.trim() || INSTRUCTION_PRESETS.some((x) => x.name === newName)) newName = p.name;
+    newContent = p.content;
+  }
 </script>
 
 <svelte:head><title>Instruction templates · Program Tracker</title></svelte:head>
@@ -366,6 +382,19 @@
         }}
       >
         <InputField label="Name" placeholder="e.g. Deload policy" bind:value={newName} maxlength={80} />
+        <div class="start">
+          <p class="start-lead">Start from</p>
+          <div class="seeds" role="group" aria-label="Start from a built-in">
+            {#each INSTRUCTION_PRESETS as p (p.key)}
+              {@const n = parseRule(p.content).reduce((sum, b) => sum + b.items.length, 0)}
+              <button type="button" class="seed" aria-pressed={newContent === p.content} onclick={() => startFrom(p)}>
+                <span class="seed-name">{p.name}</span>
+                <span class="seed-sum">{p.summary}</span>
+                <span class="seed-n mono">{n} {n === 1 ? "rule" : "rules"}</span>
+              </button>
+            {/each}
+          </div>
+        </div>
         <InputNote
           label="Body"
           mono
@@ -657,4 +686,22 @@
     .go { display: block; }
     .rd-rules { padding: 16px; }
   }
+
+  /* New template: start from a built-in, then edit. Cards scroll sideways. */
+  .start { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .start-lead { margin: 0; font: 600 12px var(--font-ui); color: var(--ink); }
+  .seeds { display: flex; gap: 8px; overflow-x: auto; scroll-snap-type: x proximity; padding-bottom: 4px; }
+  .seed {
+    flex: none; width: 196px; scroll-snap-align: start;
+    display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
+    padding: 10px 12px; text-align: left; cursor: pointer;
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    font: 400 12px/1.4 var(--font-ui); color: var(--muted);
+  }
+  .seed:hover { border-color: var(--line-strong); }
+  .seed:focus-visible { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px var(--focus-ring); }
+  .seed[aria-pressed="true"] { border-color: var(--hover-ink); box-shadow: inset 0 0 0 1px var(--hover-ink); }
+  .seed-name { font: 600 13px/1.3 var(--font-ui); color: var(--ink); }
+  .seed-sum { display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .seed-n { margin-top: auto; padding-top: 2px; font-size: 11px; color: var(--faint); }
 </style>
