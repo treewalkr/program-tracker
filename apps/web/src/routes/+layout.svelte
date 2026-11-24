@@ -60,7 +60,8 @@
 
   syncThemeAttribute();
 
-  type NavGroup = { label: string; items: { href: string; label: string; icon: IconName }[] };
+  /** `short`: the label under the icon on a touch screen's rail (fits 56px at 10px). */
+  type NavGroup = { label: string; items: { href: string; label: string; short?: string; icon: IconName }[] };
   const baseGroups: NavGroup[] = [
     {
       label: "Workspace",
@@ -72,15 +73,15 @@
     {
       label: "Library",
       items: [
-        { href: "/exercises", label: "Exercise library", icon: "dumbbell" },
-        { href: "/session-types", label: "Session types", icon: "layers" },
-        { href: "/cardio-library", label: "Cardio library", icon: "timer" },
-        { href: "/schemes", label: "Progression schemes", icon: "trending" },
-        { href: "/vocabulary", label: "Vocabulary", icon: "pencil" },
-        { href: "/chains", label: "Kinetic chains", icon: "link" },
+        { href: "/exercises", label: "Exercise library", short: "Exercises", icon: "dumbbell" },
+        { href: "/session-types", label: "Session types", short: "Sessions", icon: "layers" },
+        { href: "/cardio-library", label: "Cardio library", short: "Cardio", icon: "timer" },
+        { href: "/schemes", label: "Progression schemes", short: "Schemes", icon: "trending" },
+        { href: "/vocabulary", label: "Vocabulary", short: "Vocab", icon: "pencil" },
+        { href: "/chains", label: "Kinetic chains", short: "Chains", icon: "link" },
         { href: "/templates", label: "Templates", icon: "file" },
         { href: "/examples", label: "Examples", icon: "star" },
-        { href: "/rules", label: "Coaching rules", icon: "list-check" },
+        { href: "/rules", label: "Coaching rules", short: "Rules", icon: "list-check" },
       ],
     },
   ];
@@ -92,7 +93,7 @@
             label: "Platform",
             items: [
               { href: "/admin", label: "Trainers", icon: "lock" },
-              { href: "/admin/clients", label: "All clients", icon: "users" },
+              { href: "/admin/clients", label: "All clients", short: "Clients", icon: "users" },
               { href: "/admin/emails/outbox", label: "Outbox", icon: "send" },
             ],
           },
@@ -288,6 +289,7 @@
   >
     <Icon name={item.icon} />
     <span class="nav-text">{item.label}</span>
+    <span class="nav-short" aria-hidden="true">{item.short ?? item.label}</span>
     {#if item.href === "/clients" && clientCount !== null}
       <span class="count">{clientCount}</span>
     {/if}
@@ -937,6 +939,39 @@
     .main { padding: 20px 16px 56px; }
   }
 
+  /* Touch screens (and narrow windows): a 44px target around the 28px toggle,
+     without moving the title line. */
+  @media (max-width: 860px), (hover: none) {
+    .side-toggle { position: relative; }
+    .side-toggle::before { content: ""; position: absolute; inset: -8px; }
+  }
+
+  /* Touch screens have no hover, so rail tooltips never show: the rail
+     widens to 72px and names each icon underneath. */
+  .nav-short { display: none; }
+  @media (hover: none) {
+    .shell.slim { grid-template-columns: 72px 1fr; }
+    .drawer .side { --rail-w: 72px; }
+    .rail .nav-item {
+      flex-direction: column;
+      gap: 3px;
+      width: 56px;
+      height: 48px;
+    }
+    .rail .nav-short {
+      display: block;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font: 500 10px/1.1 var(--font-ui);
+      color: var(--muted);
+    }
+    .rail .nav-item.active .nav-short { color: var(--ink); }
+    .rail .unread { top: 4px; right: calc(50% - 14px); }
+    /* No keyboard to press it with. */
+    .hint { display: none; }
+  }
+
   .focus-menu { display: none; }
   /* Phones give every page the full width: the rail hides and the menu
      button (top bar, or the corner on gym-floor routes) opens the drawer. */
@@ -944,9 +979,6 @@
     .shell:not(.keep-rail).slim { grid-template-columns: 0 1fr; }
     .shell:not(.keep-rail).rail .side { display: none; }
     .shell:not(.keep-rail).drawer .side { --rail-w: 0px; } /* no rail here: unfold from the screen edge */
-    /* 44px touch target around the 28px toggle, without moving the title line. */
-    .side-toggle { position: relative; }
-    .side-toggle::before { content: ""; position: absolute; inset: -8px; }
     .shell.focus .main { padding: 12px 12px 56px; }
     .shell.focus .topbar { display: none; } /* the corner menu button covers it here */
     .focus-menu {
