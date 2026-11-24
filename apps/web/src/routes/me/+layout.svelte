@@ -1,5 +1,7 @@
 <script lang="ts">
-  import { i18n } from "$lib/portal/i18n.svelte";
+  import { afterNavigate, goto } from "$app/navigation";
+  import { i18n, pickedLang } from "$lib/portal/i18n.svelte";
+  import { keptLang } from "$lib/portal/lang";
   import { portalApi } from "$lib/api/portal";
   import PortalError from "$lib/portal/PortalError.svelte";
   import { applyUnits, PORTAL_UNITS_KEY, restoreUnits } from "$lib/units.svelte";
@@ -13,6 +15,12 @@
     restoreUnits(PORTAL_UNITS_KEY);
     if (signedIn && !data.offline) portalApi.settings().then((s) => applyUnits(s.units, PORTAL_UNITS_KEY), () => {});
     return () => restoreUnits();
+  });
+
+  // Back onto a page from before a language switch: the language just picked, not the old URL's
+  afterNavigate((nav) => {
+    const to = keptLang(nav, pickedLang());
+    if (to) void goto(to, { replaceState: true, noScroll: true, keepFocus: true });
   });
 
   // <html lang> follows the portal's language (Thai line-breaking, screen readers); the trainer app is English

@@ -13,7 +13,7 @@
   import PrepChecklist from "$lib/components/log/PrepChecklist.svelte";
   import { cardioLogOf, type CardioFormError } from "$lib/cardioForm";
   import type { MessageKey } from "$lib/portal/messages";
-  import { fmtDay, fmtShortDate, i18n, latinLang, t, weekdayName } from "$lib/portal/i18n.svelte";
+  import { fmtDay, fmtShortDate, i18n, inLang, latinLang, t, weekdayName } from "$lib/portal/i18n.svelte";
   import { dayGroups, doneCount, focusSession } from "$lib/portal/week";
   import { modalityName, modalityStored } from "$lib/portal/modality";
   import { lastSetText, setParts, setTarget } from "$lib/portal/rx";
@@ -618,9 +618,11 @@
           <p class="count tnum">{t("log.weekCount", { done: after.done, total: after.total })}</p>
           <div class="bar" aria-hidden="true"><span style:width={`${(after.done / Math.max(1, after.total)) * 100}%`}></span></div>
           {#if after.next}
+            <!-- the next session takes this one's place in history: "‹ This week" from there is this week, not this saved form.
+                 Prefixed, since the root layout re-follows an unprefixed link as a plain push. -->
             <p class="next-line">
               <span class="next-k">{t("log.nextUp")}</span>
-              <a href={`/me/log/${after.next.id}`} lang={latinLang(after.next.name)}>{after.next.name}</a>{#if after.when}<span class="next-when">{" · "}{after.when}</span>{/if}
+              <a href={inLang(`/me/log/${after.next.id}`)} data-sveltekit-replacestate lang={latinLang(after.next.name)}>{after.next.name}</a>{#if after.when}<span class="next-when">{" · "}{after.when}</span>{/if}
             </p>
           {:else}
             <p class="next-line">{t("log.weekDone")}</p>
