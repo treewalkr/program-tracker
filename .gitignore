@@ -47,3 +47,6 @@ REVIEW-*.md
 
 # prod database dumps taken before releases
 backups/
+
+# Redesign concept comps (local only)
+/redesign-concepts/
