@@ -19,6 +19,7 @@
     type ChoiceState,
   } from "$lib/pasteImport";
   import Button from "$lib/ui/Button.svelte";
+  import InputDate from "$lib/ui/InputDate.svelte";
   import Counter from "$lib/ui/Counter.svelte";
 
   /**
@@ -196,17 +197,18 @@
           {#if span}<span class="subtle">({span})</span>{/if}
         </p>
 
-        <label class="when">
-          <span class="q">When did the latest week start?</span>
-          <input class="input date" type="date" max={today} bind:value={latest} required aria-describedby="hi-when-hint" />
-        </label>
-        <p class="subtle fine" id="hi-when-hint">
-          {#if trainingDays?.length}
-            Days land on the client's training days; a weekday in a day's name wins.
-          {:else}
-            No training days set, so days fall on consecutive dates; a weekday in a day's name wins.
-          {/if}
-        </p>
+        <div class="when">
+          <InputDate
+            label="When did the latest week start?"
+            {today}
+            max={today}
+            required
+            hint={trainingDays?.length
+              ? "Days land on the client's training days; a weekday in a day's name wins."
+              : "No training days set, so days fall on consecutive dates; a weekday in a day's name wins."}
+            bind:value={latest}
+          />
+        </div>
 
         {#if weeks.length > 1}
           <details class="adjust">
@@ -216,16 +218,16 @@
                 <li>
                   <span class="wk">{result.weeks[w]?.label ?? `Week ${w + 1}`}</span>
                   {#if w === lastWeek}
-                    <input class="input date" type="date" max={today} bind:value={latest} aria-label="Start of {result.weeks[w]?.label ?? 'the latest week'}" />
+                    <InputDate label="Start of {result.weeks[w]?.label ?? 'the latest week'}" hideLabel {today} max={today} bind:value={latest} />
                   {:else}
-                    <input
-                      class="input date"
-                      type="date"
+                    <InputDate
+                      label="Start of {result.weeks[w]?.label ?? `week ${w + 1}`}"
+                      hideLabel
+                      {today}
                       max={today}
                       value={weekStarts[w]}
                       disabled={!latest}
-                      aria-label="Start of {result.weeks[w]?.label ?? `week ${w + 1}`}"
-                      onchange={(e) => (overrides[w] = e.currentTarget.value)}
+                      onchange={(v) => (overrides[w] = v)}
                     />
                   {/if}
                 </li>
@@ -293,9 +295,7 @@
   .grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 16px 32px; align-items: start; }
   .ask { display: flex; flex-direction: column; gap: 8px; }
   .found { margin: 0; font-size: 14px; }
-  .when { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-  .q { font: 600 14px var(--font-ui); }
-  .date { width: auto; font-family: var(--font-mono); font-size: 13px; }
+  .when { max-width: 360px; }
   .adjust summary { cursor: pointer; font-size: 13px; color: var(--blue); }
   .adjust summary .subtle { font-size: 12px; margin-left: 4px; }
   .weeks { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
