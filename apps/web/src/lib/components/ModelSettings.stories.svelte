@@ -10,7 +10,7 @@
       docs: {
         description: {
           component:
-            'One-line model summary (model · effort effort) that opens the provider/model/effort picker in a popover. Escape closes and returns focus to the trigger. Empty selection = provider default.',
+            'One-line model summary (model · effort effort) that opens the provider/model/effort picker in a popover. Escape closes and returns focus to the trigger. Empty selection = provider default. The trigger is named "AI model: <model> · <effort>" for screen readers.',
         },
       },
     },
