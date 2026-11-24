@@ -464,7 +464,7 @@
         {label}{#if n}<span class="n">{n}</span>{/if}<Icon name="chevron" />
       </button>
     {/each}
-    <div class="sortsel"><SelectPrefixed prefix="Sort" options={SORTS} bind:value={sort} onchange={() => view.setPage(1)} /></div>
+    <div class="sortsel"><SelectPrefixed prefix="Sort" maxWidth="none" options={SORTS} bind:value={sort} onchange={() => view.setPage(1)} /></div>
   {/snippet}
 
 {#if loading}
@@ -782,8 +782,8 @@
   }
   /* Phone: the three filters share one row; sort gets the next row to itself. */
   @container main (max-width: 700px) {
-    .fbtn { flex: 1 1 0; min-width: 0; justify-content: center; }
-    .sortsel { flex: 1 1 200px; width: auto; }
+    .fbtn { flex: 1 1 25%; min-width: 0; justify-content: center; gap: 4px; padding-inline: 8px; }
+    .sortsel { flex: 1 1 60%; width: auto; }
   }
   @media (prefers-reduced-motion: reduce) {
     .flash { transition: none; }
