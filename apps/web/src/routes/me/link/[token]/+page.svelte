@@ -27,7 +27,11 @@
     info = undefined;
     failed = false;
     portalApi.linkInfo(tk).then(
-      (r) => (info = r),
+      (r) => {
+        info = r;
+        // tapped again in a browser that's already in as this member: straight to the week
+        if (r?.signedIn) void goto("/me", { replaceState: true });
+      },
       () => (failed = true),
     );
   });
@@ -52,7 +56,7 @@
 <PortalBar coach={info?.trainerName ?? null} settings={false} />
 
 <main class="link">
-  {#if info === undefined && !failed}
+  {#if (info === undefined && !failed) || info?.signedIn}
     <p class="sr-only" role="status">{t("link.checking")}</p>
     <div aria-hidden="true" class="sk">
       <Skeleton h="30px" w="80%" />
