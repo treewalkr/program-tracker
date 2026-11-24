@@ -372,20 +372,47 @@ export function changeSummary(all: SlotChange[]): string {
     .join(" · ");
 }
 
-/** Safe markdown subset for AI replies: HTML escaped, **bold**, paragraphs, line breaks, "- " lists. */
+const TABLE_DIVIDER = /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/;
+const isTableRow = (l: string) => l.includes("|");
+const tableCells = (l: string) => l.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => c.trim());
+
+/**
+ * Safe markdown subset for AI replies: HTML escaped, **bold**, paragraphs, line breaks, "- " lists,
+ * and pipe tables (wrapped in `.md-table`, which scrolls sideways instead of widening the page).
+ */
 export function renderMarkdown(text: string): string {
   const esc = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   const inline = (s: string) => s.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  const table = (lines: string[]) => {
+    const head = tableCells(lines[0]);
+    const row = (l: string, tag: "td" | "th") => {
+      const cells = tableCells(l);
+      return `<tr>${head.map((_, i) => `<${tag}>${inline(cells[i] ?? "")}</${tag}>`).join("")}</tr>`;
+    };
+    const body = lines.slice(2).map((l) => row(l, "td")).join("");
+    return `<div class="md-table"><table><thead>${row(lines[0], "th")}</thead>${body ? `<tbody>${body}</tbody>` : ""}</table></div>`;
+  };
+  const block = (lines: string[]): string => {
+    // A table starts at a "|" row followed by a divider row, possibly under a paragraph line.
+    const start = lines.findIndex((l, i) => isTableRow(l) && TABLE_DIVIDER.test(lines[i + 1] ?? ""));
+    if (start >= 0) {
+      let end = start + 2;
+      while (end < lines.length && isTableRow(lines[end])) end++;
+      return (
+        (start > 0 ? block(lines.slice(0, start)) : "") +
+        table(lines.slice(start, end)) +
+        (end < lines.length ? block(lines.slice(end)) : "")
+      );
+    }
+    if (lines.every((l) => /^\s*[-*] /.test(l))) {
+      return `<ul>${lines.map((l) => `<li>${inline(l.replace(/^\s*[-*] /, ""))}</li>`).join("")}</ul>`;
+    }
+    return `<p>${inline(lines.join("<br>"))}</p>`;
+  };
   return esc
     .trim()
     .split(/\n{2,}/)
-    .map((block) => {
-      const lines = block.split("\n");
-      if (lines.every((l) => /^\s*[-*] /.test(l))) {
-        return `<ul>${lines.map((l) => `<li>${inline(l.replace(/^\s*[-*] /, ""))}</li>`).join("")}</ul>`;
-      }
-      return `<p>${inline(lines.join("<br>"))}</p>`;
-    })
+    .map((b) => block(b.split("\n")))
     .join("");
 }
 

@@ -5,6 +5,7 @@ import {
   draftPreviewModel,
   versionView,
   findBuildingChild,
+  renderMarkdown,
   submitChatTurn,
   versionStamps,
   type ChatTurnApi,
@@ -409,5 +410,36 @@ describe("versionView weeks", () => {
     expect(w2.sessions[0].exercises[0].name).toBe("RDL");
     expect(w2.changes.map((c) => c.week)).toEqual([2]);
     expect(versionView([v1, v2], v2.id, 2, catalogById, undefined, 1)!.changes).toEqual([]);
+  });
+});
+
+describe("renderMarkdown", () => {
+  test("keeps plain paragraphs, bold and lists as before", () => {
+    expect(renderMarkdown("Hi **there**\nnext\n\n- a\n- b")).toBe(
+      "<p>Hi <strong>there</strong><br>next</p><ul><li>a</li><li>b</li></ul>"
+    );
+  });
+
+  test("renders a pipe table inside one horizontal-scroll wrapper", () => {
+    const html = renderMarkdown("Load by week:\n\n| Week | Squat | Bench |\n|---|:---:|---:|\n| 1 | 100 | 80 |\n| 2 | 105 |");
+    expect(html).toBe(
+      "<p>Load by week:</p>" +
+        '<div class="md-table"><table><thead><tr><th>Week</th><th>Squat</th><th>Bench</th></tr></thead>' +
+        "<tbody><tr><td>1</td><td>100</td><td>80</td></tr><tr><td>2</td><td>105</td><td></td></tr></tbody></table></div>"
+    );
+    expect(html.match(/md-table/g)).toHaveLength(1);
+  });
+
+  test("a table glued under a paragraph line still renders, and cells are escaped", () => {
+    const html = renderMarkdown("Here:\n| a | b |\n| - | - |\n| <x> | **y** |");
+    expect(html).toBe(
+      "<p>Here:</p>" +
+        '<div class="md-table"><table><thead><tr><th>a</th><th>b</th></tr></thead>' +
+        "<tbody><tr><td>&lt;x&gt;</td><td><strong>y</strong></td></tr></tbody></table></div>"
+    );
+  });
+
+  test("a lone divider line with no header stays text", () => {
+    expect(renderMarkdown("|---|---|")).toBe("<p>|---|---|</p>");
   });
 });

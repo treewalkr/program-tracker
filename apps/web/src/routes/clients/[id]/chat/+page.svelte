@@ -718,6 +718,7 @@
   }
   .col {
     min-height: 0;
+    min-width: 0;
     display: flex;
     flex-direction: column;
   }
@@ -777,6 +778,38 @@
     font-size: 14px;
     line-height: 1.6;
     max-width: 68ch;
+    min-width: 0;
+    overflow-wrap: anywhere; /* long URLs and ids wrap instead of widening the page */
+  }
+  .md {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .md :global(.md-table) {
+    max-width: 100%;
+    overflow-x: auto;
+    margin: 0 0 8px;
+  }
+  .md :global(.md-table:last-child) {
+    margin-bottom: 0;
+  }
+  .md :global(table) {
+    border-collapse: collapse;
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+  }
+  .md :global(th),
+  .md :global(td) {
+    padding: 4px 10px;
+    border-bottom: 1px solid var(--line-soft);
+    text-align: left;
+    vertical-align: top;
+    overflow-wrap: normal; /* cells keep their words; the wrapper scrolls instead */
+    white-space: nowrap;
+  }
+  .md :global(th) {
+    font-weight: 600;
+    border-bottom-color: var(--line);
   }
   .md :global(p) {
     margin: 0 0 8px;
