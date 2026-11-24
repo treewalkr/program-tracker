@@ -81,7 +81,9 @@
   import SetChips from "$lib/components/SetChips.svelte";
   import StatusPill from "$lib/components/StatusPill.svelte";
   import Crumbs from "$lib/ui/Crumbs.svelte";
-  import Field from "$lib/ui/Field.svelte";
+  import InputField from "$lib/ui/InputField.svelte";
+  import InputNote from "$lib/ui/InputNote.svelte";
+  import SelectField from "$lib/ui/SelectField.svelte";
   import Segmented from "$lib/ui/Segmented.svelte";
   import OverflowMenu, { type OverflowItem } from "$lib/ui/OverflowMenu.svelte";
   import ConfirmButton from "$lib/ui/ConfirmButton.svelte";
@@ -620,32 +622,14 @@
         markAsExample();
       }}
     >
-      <Field label="Goal" htmlFor="ex-goal">
-        <input
-          class="input"
-          id="ex-goal"
-          placeholder="e.g. first pull-up, 5k time, lean bulk"
-          bind:value={markGoal}
-          maxlength="120"
-        />
-      </Field>
-      <Field label="Level" htmlFor="ex-level">
-        <select class="input" id="ex-level" bind:value={markLevel}>
-          {#each EXAMPLE_LEVELS as l (l)}
-            <option value={l}>{l.charAt(0).toUpperCase() + l.slice(1)}</option>
-          {/each}
-        </select>
-      </Field>
-      <Field label="Note" htmlFor="ex-note">
-        <textarea
-          class="textarea"
-          id="ex-note"
-          rows="2"
-          maxlength="500"
-          placeholder="optional — when to reuse this block"
-          bind:value={markNote}
-        ></textarea>
-      </Field>
+      <InputField label="Goal" placeholder="e.g. first pull-up, 5k time, lean bulk" bind:value={markGoal} maxlength={120} />
+      <SelectField
+        label="Level"
+        maxWidth="none"
+        options={EXAMPLE_LEVELS.map((l) => ({ value: l, label: l.charAt(0).toUpperCase() + l.slice(1) }))}
+        bind:value={markLevel}
+      />
+      <InputNote label="Note" optional rows={2} maxlength={500} placeholder="When to reuse this block" bind:value={markNote} />
       <div class="mark-actions">
         <p class="hint">Days/week defaults to the program's exercise sessions per week ({exerciseCount(program.weeks[0])}).</p>
         <button class="btn primary" type="submit" disabled={savingMark || !markGoal.trim()}>
