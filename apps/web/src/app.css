@@ -492,6 +492,13 @@ body {
 ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 99px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--line-strong); }
 ::-webkit-scrollbar-track { background: transparent; }
+/* Phone widths and touch screens: no scrollbars anywhere, page included.
+   Phones swipe (and show only a passing overlay bar); scrolling rows carry
+   their own edge fade. Beats any scroller's own `scrollbar-width`. */
+@media (max-width: 720px), (hover: none) and (pointer: coarse) {
+  html, html * { scrollbar-width: none !important; }
+  ::-webkit-scrollbar { display: none; }
+}
 
 h1,
 h2,
@@ -925,14 +932,9 @@ a.rowlink { color: var(--ink); font-weight: 600; }
 .tabs button.on { color: var(--ink); font-weight: 600; border-bottom-color: var(--tab-on); }
 .tabs button:disabled { opacity: 0.5; cursor: default; }
 
-/* Sideways scrollers (tab bars, phone action rows, .x-scroll): phone widths
-   and touch screens show no bar (the edge fade says the row scrolls); a wide
-   window with a mouse keeps a thin one. */
+/* Sideways scrollers (tab bars, phone action rows, .x-scroll) keep a thin
+   bar in a wide window with a mouse; phones hide it with every other bar. */
 .tabs, .head-actions, .x-scroll { scrollbar-width: thin; }
-@media (max-width: 720px), (hover: none) and (pointer: coarse) {
-  .tabs, .head-actions, .x-scroll { scrollbar-width: none; }
-  .tabs::-webkit-scrollbar, .head-actions::-webkit-scrollbar, .x-scroll::-webkit-scrollbar { display: none; }
-}
 /* The hint that a row scrolls: an edge fades while there is more past it
    (right from the start, left once scrolled). Driven by the row's own scroll,
    so a row that fits has no timeline and no fade; no support, no fade. */
