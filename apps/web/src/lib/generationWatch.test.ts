@@ -282,3 +282,52 @@ describe("createGenerationWatch", () => {
     expect(watch.notices.map((n) => n.id)).toEqual(["g1"]);
   });
 });
+
+describe("follow()", () => {
+  test("resolves with the row once it leaves the pending list — the page needs no poller of its own", async () => {
+    const { env, watch, tick, flush } = harness({ pending: [pendingRow()], path: "/clients/c1/generate" });
+    await watch.start();
+    let got: GenerationDto | null | undefined;
+    void watch.follow("g1", { clientId: "c1", clientName: "Ada" }).then((g) => (got = g));
+    await tick();
+    expect(got).toBeUndefined();
+
+    env.pending = [];
+    env.rows.g1 = gen({ status: "failed_provider", error: "timeout" });
+    await tick();
+    await flush();
+    expect(got).toMatchObject({ id: "g1", status: "failed_provider" });
+    expect(env.timers).toHaveLength(0);
+  });
+
+  test("a row the watcher hadn't seen yet is watched (backing off to 30 s while hidden)", async () => {
+    const { env, watch, tick, flush } = harness({ hidden: true });
+    await watch.start();
+    expect(env.timers).toHaveLength(0);
+    let got: GenerationDto | null | undefined;
+    void watch.follow("g1", { clientId: "c1", clientName: "Ada" }).then((g) => (got = g));
+    expect(watch.watched).toEqual(["g1"]);
+    expect(env.timers[0].ms).toBe(30_000);
+
+    env.rows.g1 = gen({ status: "cancelled" });
+    await tick();
+    await flush();
+    expect(got).toMatchObject({ status: "cancelled" });
+    expect(watch.notices).toHaveLength(0);
+  });
+
+  test("an already-settled row is read once; a vanished one resolves null", async () => {
+    const { env, watch, tick, flush } = harness({ pending: [pendingRow()] });
+    await watch.start();
+    env.pending = [];
+    env.rows.g1 = gen();
+    await tick();
+    expect(await watch.follow("g1", { clientId: "c1", clientName: "Ada" })).toMatchObject({ id: "g1" });
+
+    let gone: GenerationDto | null | undefined;
+    void watch.follow("g9", { clientId: "c1", clientName: "Ada" }).then((g) => (gone = g));
+    await tick();
+    await flush();
+    expect(gone).toBeNull();
+  });
+});

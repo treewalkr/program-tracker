@@ -16,6 +16,8 @@ import { POLL_INTERVAL_MS } from "./generation";
  *   ready (validated) or failed. Cancelled, approved or vanished rows are quiet.
  * - One held request per page: a newer one from the same page supersedes it,
  *   and the older caller never hears back (a cancelled draft's late reply).
+ * - `follow(id)` (a page showing a running draft it didn't start, e.g. after a
+ *   refresh) waits on the same poll instead of running its own timer.
  * - No in-app notice while the trainer is on that client's generate or chat
  *   page (it moves to review on its own); a browser notification still fires
  *   when the tab is hidden.
@@ -106,6 +108,15 @@ export function createGenerationWatch(deps: WatchDeps) {
   let polling: Promise<void> | null = null;
   /** The newest held request per page (client + href); older ones never answer. */
   const latest = new Map<string, object>();
+  /** Pages waiting on a row to settle (follow): id → resolvers. */
+  const followers = new Map<string, ((row: GenerationDto | null) => void)[]>();
+
+  function resolveFollowers(id: string, row: GenerationDto | null) {
+    const waiting = followers.get(id);
+    if (!waiting) return;
+    followers.delete(id);
+    for (const resolve of waiting) resolve(row);
+  }
 
   const active = () => started && (watching.size > 0 || inFlight > 0);
 
@@ -120,9 +131,10 @@ export function createGenerationWatch(deps: WatchDeps) {
   }
 
   function report(gen: GenerationDto, info: WatchInfo) {
+    if (gen.status === "pending") return;
+    resolveFollowers(gen.id, gen);
     if (settled.has(gen.id)) return;
     const tone = gen.status === "validated" ? "ready" : gen.status === "failed_validation" || gen.status === "failed_provider" ? "failed" : null;
-    if (gen.status === "pending") return;
     settled.add(gen.id);
     watching.delete(gen.id);
     if (!tone) return;
@@ -148,6 +160,7 @@ export function createGenerationWatch(deps: WatchDeps) {
       if ((err as { status?: unknown }).status === 404 || /not found/i.test((err as Error).message ?? "")) {
         settled.add(id);
         watching.delete(id);
+        resolveFollowers(id, null);
       }
     }
   }
@@ -250,6 +263,21 @@ export function createGenerationWatch(deps: WatchDeps) {
         (row) => (stale() ? new Promise<T>(() => {}) : row),
         (err) => (stale() ? new Promise<T>(() => {}) : Promise.reject(err))
       );
+    },
+
+    /**
+     * Wait for a running draft to settle, on the app's one poll (5 s, 30 s
+     * while hidden) — for a page that shows a draft it didn't start. Resolves
+     * with the settled row (any status, cancelled included), or null when the
+     * row is gone.
+     */
+    follow(id: string, info: WatchInfo): Promise<GenerationDto | null> {
+      if (settled.has(id)) return deps.api.generation(id).catch(() => null);
+      return new Promise((resolve) => {
+        followers.set(id, [...(followers.get(id) ?? []), resolve]);
+        if (!watching.has(id)) watching.set(id, { ...info });
+        if (timer === null) schedule();
+      });
     },
 
     /** The tab came back: check now, then at the visible pace. */
