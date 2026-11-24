@@ -351,6 +351,8 @@
   .x { border: none; background: none; color: var(--faint); cursor: pointer; font-size: 15px; padding: 0 4px; }
   .x:hover:not(:disabled) { color: var(--bad); }
   .x:disabled { opacity: 0.3; cursor: default; }
+  /* touch: the same glyph in a finger-size box, so a near miss on Rest isn't a removed set */
+  @media (pointer: coarse) { .x { min-width: 40px; min-height: 40px; } }
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 
   .setsnote { margin: -4px 0 0; font-size: 12px; color: var(--muted); }
