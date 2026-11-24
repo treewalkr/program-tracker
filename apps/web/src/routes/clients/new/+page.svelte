@@ -6,13 +6,15 @@
   import type { ExerciseDto } from "$lib/api/types";
   import ClientProfileFields from "$lib/components/ClientProfileFields.svelte";
   import ClientIdentityFields from "$lib/components/ClientIdentityFields.svelte";
-  import { basicsInvalid, emailError, emptyProfile, nameError, phonePayload, profilePayload } from "$lib/clientProfile";
+  import { emailError, invalidBasics, emptyProfile, nameError, phonePayload, profilePayload } from "$lib/clientProfile";
   import { clearNewClientDraft, newClientDraftKey, readNewClientDraft, saveNewClientDraft } from "$lib/newClientDraft";
   import Button from "$lib/ui/Button.svelte";
   import Crumbs from "$lib/ui/Crumbs.svelte";
   import Note from "$lib/ui/Note.svelte";
   import PageHead from "$lib/ui/PageHead.svelte";
   import ProfileSection from "$lib/components/ProfileSection.svelte";
+  import LeaveGuard from "$lib/ui/LeaveGuard.svelte";
+  import { createLeaveGuard } from "$lib/leaveGuard.svelte";
 
   const session = page.data.session;
   const draftKey = newClientDraftKey(apiMode, session?.kind === "signedIn" ? session.trainer.id : null);
@@ -34,6 +36,32 @@
   /** True when the user arrived from another in-app page, so Back returns there. */
   let cameFromApp = false;
   const missing = $derived(nameError(name) ? "a name" : emailError(email) ? "a valid email" : null);
+  const badBasics = $derived(invalidBasics(profile));
+  const blank = JSON.stringify({ name: "", email: "", phone: "", profile: emptyProfile() });
+  const typed = $derived(JSON.stringify({ name, email, phone, profile }) !== blank);
+
+  const guard = createLeaveGuard({
+    // off once Cancel or a successful add has let go of the form
+    dirty: () => autosave && saving == null && typed,
+    prompt: () => ({
+      title: "Leave this new client?",
+      body: "They aren't added yet. What you've entered stays as a draft on this device and comes back next time you open New client.",
+      leaveLabel: "Leave, keep draft",
+      danger: false,
+    }),
+  });
+
+  /**
+   * Bring a field the trainer must fix to the top of the screen and focus it.
+   * Top, not nearest: the sticky add bar covers the bottom of a phone screen,
+   * and any other invalid fields sit below this one.
+   */
+  function reveal(el: HTMLElement | null) {
+    if (!el) return;
+    el.focus({ preventScroll: true });
+    const smooth = !matchMedia("(prefers-reduced-motion: reduce)").matches;
+    el.scrollIntoView({ block: "start", behavior: smooth ? "smooth" : "auto" });
+  }
 
   afterNavigate(({ from, type }) => {
     cameFromApp = type !== "enter" && from != null;
@@ -81,12 +109,13 @@
     if (missing) {
       attempted = true;
       await tick();
-      document.getElementById(nameError(name) ? "f-name" : "f-email")?.focus();
+      reveal(document.getElementById(nameError(name) ? "f-name" : "f-email"));
       return;
     }
-    if (basicsInvalid(profile)) {
+    if (badBasics.length) {
       attempted = true;
-      document.querySelector<HTMLElement>('.newclient [aria-invalid="true"]')?.focus();
+      await tick();
+      reveal(document.querySelector<HTMLElement>('.newclient [aria-invalid="true"]'));
       return;
     }
     saving = then;
@@ -122,6 +151,8 @@
   });
 </script>
 
+<LeaveGuard {guard} />
+
 <svelte:head><title>New client · Program Tracker</title></svelte:head>
 
 <Crumbs items={[{ href: "/clients", label: "Clients" }, { label: "New client" }]} />
@@ -154,7 +185,7 @@
       <span class="savemsg" role="status" aria-live="polite">
         {#if createError}<span class="err">Couldn't add the client — {createError}. Your entries are kept; try again.</span>
         {:else if attempted && missing}<span class="err">Add {missing} to continue</span>
-        {:else if attempted && basicsInvalid(profile)}<span class="err">Fix the basics marked above to continue</span>
+        {:else if attempted && badBasics.length}<span class="err">Fix {badBasics.join(", ")} above to continue</span>
         {:else}<span class="addbar-hint">Add client opens their page · Add &amp; generate drafts their first program</span>{/if}
       </span>
       <span class="addbar-actions">
@@ -170,6 +201,8 @@
 
 <style>
   .addbar { flex-wrap: wrap; row-gap: 8px; }
+  /* A field revealed after a failed add clears the top edge (and the view-as bar). */
+  .newclient :global(:is(input, select, textarea, button)) { scroll-margin-top: calc(var(--view-bar-h, 0px) + 16px); }
   .addbar-actions { display: flex; gap: 8px; margin-left: auto; }
   /* The column reaches the fixed Feedback launcher below ~1100px: sit above it. */
   @media (max-width: 1100px) { .addbar { bottom: 60px; } }

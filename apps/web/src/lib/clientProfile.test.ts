@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import {
   basicsInvalid,
+  invalidBasics,
   basicsSummary,
   birthDateError,
   bodyweightError,
@@ -187,4 +188,10 @@ test("cardio counts as set by days, a long session or a target", () => {
   expect(hasCardio({ ...f, cardioDays: [2] })).toBe(true);
   expect(hasCardio({ ...f, longRunDay: 7 })).toBe(true);
   expect(hasCardio({ ...f, cardioUnit: "zone_minutes" })).toBe(true);
+});
+
+test("invalid basics are named in form order, for the add bar", () => {
+  const f = { ...emptyProfile(), birthDate: "2030-01-01", bodyweightKg: 9999, heightCm: 999 };
+  expect(invalidBasics(f, "2026-11-24")).toEqual(["date of birth", "bodyweight", "height"]);
+  expect(invalidBasics(emptyProfile())).toEqual([]);
 });
