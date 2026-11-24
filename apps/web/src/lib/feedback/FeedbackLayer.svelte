@@ -77,6 +77,13 @@
     return `left:${p.left}px; top:${p.top}px; width:${p.width}px; max-height:${p.maxHeight}px`;
   });
 
+  /** The bar moved: re-read its top too, so an open pin stays clear of it. */
+  function onlift(px: number) {
+    if (px === autoLift) return;
+    autoLift = px;
+    void tick().then(measure);
+  }
+
   function measure() {
     hoverRect = hovered?.isConnected ? hovered.getBoundingClientRect() : null;
     selRect = selected?.isConnected ? selected.getBoundingClientRect() : null;
@@ -421,7 +428,7 @@
     class="bar"
     bind:this={barEl}
     class:on={feedbackMode.on}
-    {@attach (el) => watchBottomBars(el, (px) => (autoLift = px))}
+    {@attach (el) => watchBottomBars(el, onlift)}
     role="toolbar"
     aria-label="Feedback mode"
   >
