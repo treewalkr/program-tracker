@@ -27,6 +27,8 @@
 		disabled?: boolean;
 		/** `auto` fits about 7 figures plus the caps; `fill` takes the column. */
 		width?: 'auto' | 'fill';
+		/** Keep the label for screen readers only (a figure in a list row). */
+		hideLabel?: boolean;
 		/** Range messages, in the page's language. */
 		rangeWords?: RangeWords;
 		onchange?: (value: number | null) => void;
@@ -46,6 +48,7 @@
 		optional = false,
 		disabled = false,
 		width = 'fill',
+		hideLabel = false,
 		rangeWords = RANGE_WORDS_EN,
 		onchange,
 	}: Props = $props();
@@ -88,7 +91,7 @@
 	}
 </script>
 
-<FieldFrame {id} {label} {hint} error={issue} {optional}>
+<FieldFrame {id} {label} {hint} error={issue} {optional} {hideLabel}>
 	<div class="box" class:auto={width === 'auto'} class:bad={!!issue} class:off={disabled}>
 		{#if prefix}<span class="cap" aria-hidden="true">{prefix}</span>{/if}
 		<input

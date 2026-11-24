@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { ProviderDto } from "$lib/api/types";
-  import Field from "$lib/ui/Field.svelte";
+  import SelectField from "$lib/ui/SelectField.svelte";
+  import type { SelectOption } from "$lib/ui/select/options";
   import { effortName } from "$lib/effort";
 
   /**
@@ -17,18 +18,31 @@
     providerId = $bindable(""),
     model = $bindable(""),
     effort = $bindable(""),
-    idPrefix = "pp",
   }: {
     providers: ProviderDto[];
     providerId: string;
     model: string;
     effort: string;
-    idPrefix?: string;
   } = $props();
 
   const provider = $derived(providers.find((p) => p.id === providerId) ?? null);
   const showModel = $derived((provider?.models.length ?? 0) > 1);
   const effortLevels = $derived(provider?.effortLevels?.length ? provider.effortLevels : null);
+
+  const providerOptions = $derived<SelectOption[]>(providers.map((p) => ({ value: p.id, label: p.label })));
+  const modelOptions = $derived<SelectOption[]>([
+    { value: "", label: `${provider?.model} (provider default)` },
+    ...(provider?.models ?? []).filter((m) => m !== provider?.model).map((m) => ({ value: m, label: m })),
+  ]);
+  const defaultEffort = $derived(provider?.defaultEffort ?? effortLevels?.[0]);
+  const effortOptions = $derived<SelectOption[]>(
+    effortLevels
+      ? [
+          { value: "", label: `${effortName(defaultEffort!)} (default)` },
+          ...effortLevels.filter((l) => l !== defaultEffort).map((l) => ({ value: l, label: effortName(l) })),
+        ]
+      : [],
+  );
 
   function onProviderChange() {
     // switching provider invalidates the model and effort selections
@@ -38,43 +52,14 @@
 </script>
 
 <div class="picker">
-  <Field label="Provider" htmlFor="{idPrefix}-provider">
-    <select
-      class="select"
-      id="{idPrefix}-provider"
-      bind:value={providerId}
-      onchange={onProviderChange}
-    >
-      {#each providers as p (p.id)}
-        <option value={p.id}>{p.label}</option>
-      {/each}
-    </select>
-  </Field>
+  <SelectField label="Provider" maxWidth="none" options={providerOptions} bind:value={providerId} onchange={onProviderChange} />
 
   {#if showModel}
-    <Field label="Model" htmlFor="{idPrefix}-model">
-      <select class="select" id="{idPrefix}-model" bind:value={model}>
-        <option value="">{provider?.model} (provider default)</option>
-        {#each provider!.models as m (m)}
-          {#if m !== provider!.model}
-            <option value={m}>{m}</option>
-          {/if}
-        {/each}
-      </select>
-    </Field>
+    <SelectField label="Model" maxWidth="none" options={modelOptions} bind:value={model} />
   {/if}
 
   {#if effortLevels}
-    <Field label="Thinking" htmlFor="{idPrefix}-effort">
-      <select class="select" id="{idPrefix}-effort" bind:value={effort}>
-        <option value="">{effortName(provider?.defaultEffort ?? effortLevels[0])} (default)</option>
-        {#each effortLevels as lvl (lvl)}
-          {#if lvl !== (provider?.defaultEffort ?? effortLevels[0])}
-            <option value={lvl}>{effortName(lvl)}</option>
-          {/if}
-        {/each}
-      </select>
-    </Field>
+    <SelectField label="Thinking" maxWidth="none" options={effortOptions} bind:value={effort} />
   {/if}
 </div>
 
@@ -85,12 +70,9 @@
     gap: 12px;
     align-items: flex-end;
   }
-  /* Field renders a bare div; stretch each so the selects share one width. */
+  /* SelectField renders a bare div; stretch each so the selects share one width. */
   .picker > :global(div) {
     flex: 1 1 160px;
     min-width: 0;
-  }
-  .picker :global(.select) {
-    min-height: 32px;
   }
 </style>

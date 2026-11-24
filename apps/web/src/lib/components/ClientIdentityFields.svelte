@@ -1,6 +1,6 @@
 <script lang="ts">
   import { emailError, nameError } from "$lib/clientProfile";
-  import Field from "$lib/ui/Field.svelte";
+  import InputField from "$lib/ui/InputField.svelte";
   import { PHONE_MAX } from "@pt/shared";
 
   /**
@@ -23,46 +23,34 @@
 </script>
 
 <div class="who-fields">
-  <Field label="Name" htmlFor="{idPrefix}-name" hint="required">
-    <input
-      class="input"
-      id="{idPrefix}-name"
-      bind:value={name}
-      maxlength="120"
-      autocomplete="off"
-      aria-required="true"
-      aria-invalid={nErr ? "true" : undefined}
-      aria-describedby={nErr ? `${idPrefix}-name-err` : undefined}
-      oninput={() => (edited.name = true)}
-      onblur={() => (touched.name = edited.name)}
-    />
-    {#if nErr}<p class="ferr" id="{idPrefix}-name-err">{nErr}</p>{/if}
-  </Field>
-  <Field label="Email" htmlFor="{idPrefix}-email" hint="optional">
-    <input
-      class="input"
-      id="{idPrefix}-email"
-      type="email"
-      inputmode="email"
-      bind:value={email}
-      maxlength="200"
-      autocomplete="off"
-      aria-invalid={eErr ? "true" : undefined}
-      aria-describedby={eErr ? `${idPrefix}-email-err` : undefined}
-      oninput={() => (edited.email = true)}
-      onblur={() => (touched.email = edited.email)}
-    />
-    {#if eErr}<p class="ferr" id="{idPrefix}-email-err">{eErr}</p>{/if}
-  </Field>
-  <Field label="Phone" htmlFor="{idPrefix}-phone" hint="optional">
-    <input class="input" id="{idPrefix}-phone" type="tel" inputmode="tel" bind:value={phone} maxlength={PHONE_MAX} autocomplete="off" />
-  </Field>
+  <InputField
+    label="Name"
+    id="{idPrefix}-name"
+    bind:value={name}
+    maxlength={120}
+    autocomplete="off"
+    error={nErr}
+    oninput={() => (edited.name = true)}
+    onblur={() => (touched.name = edited.name)}
+  />
+  <InputField
+    label="Email"
+    id="{idPrefix}-email"
+    type="email"
+    inputmode="email"
+    optional
+    bind:value={email}
+    maxlength={200}
+    autocomplete="off"
+    error={eErr}
+    oninput={() => (edited.email = true)}
+    onblur={() => (touched.email = edited.email)}
+  />
+  <InputField label="Phone" id="{idPrefix}-phone" type="tel" inputmode="tel" optional bind:value={phone} maxlength={PHONE_MAX} autocomplete="off" />
 </div>
 
 <style>
-  .who-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
-  .ferr { margin: 4px 0 0; font: 500 13px var(--font-ui); color: var(--bad); }
-  .input[aria-invalid="true"] { border-color: var(--bad); }
+  .who-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; align-items: start; }
   @media (max-width: 700px) {
     .who-fields { grid-template-columns: minmax(0, 1fr); }
   }

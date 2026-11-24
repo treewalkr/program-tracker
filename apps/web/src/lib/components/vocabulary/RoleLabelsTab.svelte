@@ -6,9 +6,11 @@
   import Button from "$lib/ui/Button.svelte";
   import ConfirmButton from "$lib/ui/ConfirmButton.svelte";
   import Icon from "$lib/ui/Icon.svelte";
+  import InputField from "$lib/ui/InputField.svelte";
   import Note from "$lib/ui/Note.svelte";
   import Panel from "$lib/ui/Panel.svelte";
   import Pill from "$lib/ui/Pill.svelte";
+  import SelectField from "$lib/ui/SelectField.svelte";
 
   /**
    * Role labels: the built-ins and the trainer's own, in rank order (the
@@ -88,10 +90,16 @@
 </script>
 
 {#snippet afterSelect(value: string, onchange: (v: string) => void, except: string | null, label: string)}
-  <select class="select after" {value} aria-label={label} onchange={(e) => onchange(e.currentTarget.value)}>
-    <option value="">First</option>
-    {#each ordered.active.filter((o) => o.key !== except) as o (o.key)}<option value={o.key}>After {o.name}</option>{/each}
-  </select>
+  <div class="after">
+    <SelectField
+      {label}
+      hideLabel
+      maxWidth="none"
+      options={[{ value: "", label: "First" }, ...ordered.active.filter((o) => o.key !== except).map((o) => ({ value: o.key, label: `After ${o.name}` }))]}
+      {value}
+      {onchange}
+    />
+  </div>
 {/snippet}
 
 {#if error}<div class="err"><Note tone="bad">{error}</Note></div>{/if}
@@ -102,15 +110,11 @@
   </p>
 
   <form class="panel-body add" onsubmit={add} aria-label="Add a role label">
-    <input class="input name" placeholder="New label, e.g. Speed" bind:value={draft.name} maxlength={ROLE_LABEL_NAME_MAX} aria-label="Label name" />
-    <input class="input chip" placeholder={draft.name.trim() || "Chip"} bind:value={draft.chip} maxlength={ROLE_LABEL_CHIP_MAX} aria-label="Chip (optional)" />
-    <input
-      class="input meaning"
-      placeholder="What it means, in one line"
-      bind:value={draft.description}
-      maxlength={ROLE_LABEL_DESCRIPTION_MAX}
-      aria-label="What it means"
-    />
+    <div class="name"><InputField label="Label name" hideLabel placeholder="New label, e.g. Speed" bind:value={draft.name} maxlength={ROLE_LABEL_NAME_MAX} /></div>
+    <div class="chip"><InputField label="Chip (optional)" hideLabel placeholder={draft.name.trim() || "Chip"} bind:value={draft.chip} maxlength={ROLE_LABEL_CHIP_MAX} /></div>
+    <div class="meaning">
+      <InputField label="What it means" hideLabel placeholder="What it means, in one line" bind:value={draft.description} maxlength={ROLE_LABEL_DESCRIPTION_MAX} />
+    </div>
     {@render afterSelect(draft.after ?? lastKey, (v) => (draft.after = v), null, "Position")}
     <Button variant="primary" type="submit" disabled={adding || !draft.name.trim() || !draft.description.trim()}>
       {adding ? "Adding…" : "Add label"}
@@ -125,18 +129,22 @@
           <form class="edit" onsubmit={(e) => { e.preventDefault(); save(l); }} aria-label="Edit {l.name}" onkeydown={(e) => { if (e.key === "Escape") editingKey = null; }}>
             {#if l.builtinKey}
               <span class="name-text">{l.name}</span>
-              <input bind:this={firstField} bind:value={edit.chip} class="input chip" maxlength={ROLE_LABEL_CHIP_MAX} placeholder={l.name} aria-label="Chip" />
+              <div class="chip"><InputField label="Chip" hideLabel bind:input={firstField} bind:value={edit.chip} maxlength={ROLE_LABEL_CHIP_MAX} placeholder={l.name} /></div>
             {:else}
-              <input bind:this={firstField} bind:value={edit.name} class="input name" maxlength={ROLE_LABEL_NAME_MAX} aria-label="Name" required />
-              <input bind:value={edit.chip} class="input chip" maxlength={ROLE_LABEL_CHIP_MAX} placeholder={edit.name.trim() || "Same as name"} aria-label="Chip" />
+              <div class="name"><InputField label="Name" hideLabel bind:input={firstField} bind:value={edit.name} maxlength={ROLE_LABEL_NAME_MAX} required /></div>
+              <div class="chip">
+                <InputField label="Chip" hideLabel bind:value={edit.chip} maxlength={ROLE_LABEL_CHIP_MAX} placeholder={edit.name.trim() || "Same as name"} />
+              </div>
             {/if}
-            <input
-              bind:value={edit.description}
-              class="input meaning"
-              maxlength={ROLE_LABEL_DESCRIPTION_MAX}
-              placeholder={l.builtinKey ? "Empty = the default meaning" : "What it means"}
-              aria-label="What it means"
-            />
+            <div class="meaning">
+              <InputField
+                label="What it means"
+                hideLabel
+                bind:value={edit.description}
+                maxlength={ROLE_LABEL_DESCRIPTION_MAX}
+                placeholder={l.builtinKey ? "Empty = the default meaning" : "What it means"}
+              />
+            </div>
             {@render afterSelect(edit.after, (v) => (edit.after = v), l.key, "Position")}
             <Button small variant="primary" type="submit">Save</Button>
             <Button small variant="ghost" type="button" onclick={() => (editingKey = null)}>Cancel</Button>
@@ -191,7 +199,7 @@
   .name { flex: 0 1 160px; min-width: 120px; }
   .chip { flex: 0 1 96px; min-width: 72px; }
   .meaning { flex: 1 1 220px; min-width: 180px; }
-  .after { width: 170px; font-size: 13px; }
+  .after { width: 210px; }
 
   .rows { list-style: none; margin: 0; padding: 0 0 6px; }
   .row {

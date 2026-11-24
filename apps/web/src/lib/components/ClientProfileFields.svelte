@@ -7,7 +7,11 @@
     type ProfileForm,
   } from "$lib/clientProfile";
   import { BIRTH_DATE_MIN, BODYWEIGHT_KG_RANGE, HEIGHT_CM_RANGE, STARTED_ON_MIN, ageOn, startedOnMax } from "@pt/shared";
-  import Field from "$lib/ui/Field.svelte";
+  import InputDate from "$lib/ui/InputDate.svelte";
+  import InputNote from "$lib/ui/InputNote.svelte";
+  import InputUnit from "$lib/ui/InputUnit.svelte";
+  import SelectField from "$lib/ui/SelectField.svelte";
+  import type { SelectOption } from "$lib/ui/select/options";
   import TrainingWeekGrid from "$lib/components/TrainingWeekGrid.svelte";
   import ProfileSection from "$lib/components/ProfileSection.svelte";
   import ExercisePicker from "$lib/components/ExercisePicker.svelte";
@@ -42,6 +46,18 @@
     if (!form.oneRepMaxes.length) addOneRepMax();
   }
 
+  const EXPERIENCE_OPTIONS: SelectOption<ProfileForm["experience"]>[] = [
+    { value: "", label: "Not set" },
+    { value: "beginner", label: "Beginner — under 1 yr" },
+    { value: "intermediate", label: "Intermediate — 1–3 yrs" },
+    { value: "advanced", label: "Advanced — 3+ yrs" },
+  ];
+  const SEX_OPTIONS: SelectOption<ProfileForm["sex"]>[] = [
+    { value: "", label: "Not specified" },
+    { value: "female", label: "Female" },
+    { value: "male", label: "Male" },
+  ];
+
   const today = localIso(new Date());
   const age = $derived(form.birthDate && !birthDateError(form.birthDate, today) ? ageOn(form.birthDate, today) : null);
   const errs = $derived({
@@ -53,12 +69,16 @@
 </script>
 
 <ProfileSection title="Goals & limitations" purpose="every AI draft respects these">
-  <Field label="Goals" htmlFor="{idPrefix}-goals">
-    <textarea class="textarea" id="{idPrefix}-goals" rows="2" maxlength="2000" placeholder="e.g. Squat 140kg by spring, run a sub-25 min 5k" bind:value={form.goals}></textarea>
-  </Field>
-  <Field label="Limitations" htmlFor="{idPrefix}-lim" hint="hard constraints every draft must respect">
-    <textarea class="textarea" id="{idPrefix}-lim" rows="3" maxlength="2000" placeholder="e.g. Left shoulder impingement — no overhead pressing" bind:value={form.limitations}></textarea>
-  </Field>
+  <InputNote label="Goals" id="{idPrefix}-goals" rows={2} maxlength={2000} placeholder="e.g. Squat 140kg by spring, run a sub-25 min 5k" bind:value={form.goals} />
+  <InputNote
+    label="Limitations"
+    id="{idPrefix}-lim"
+    rows={3}
+    maxlength={2000}
+    hint="Hard constraints every draft must respect"
+    placeholder="e.g. Left shoulder impingement — no overhead pressing"
+    bind:value={form.limitations}
+  />
 </ProfileSection>
 
 <ProfileSection title="Training week" purpose="where exercise sessions and cardio land on the calendar">
@@ -67,43 +87,24 @@
 
 <ProfileSection title="Basics" purpose="used for age, loading and AI context">
   <div class="basics-row">
-    <Field label="Experience" htmlFor="{idPrefix}-exp">
-      <select class="select" id="{idPrefix}-exp" bind:value={form.experience}>
-        <option value="">Not set</option>
-        <option value="beginner">Beginner — under 1 yr</option>
-        <option value="intermediate">Intermediate — 1–3 yrs</option>
-        <option value="advanced">Advanced — 3+ yrs</option>
-      </select>
-    </Field>
-    <Field label="Sex" htmlFor="{idPrefix}-sex">
-      <select class="select" id="{idPrefix}-sex" bind:value={form.sex}>
-        <option value="">Not specified</option>
-        <option value="female">Female</option>
-        <option value="male">Male</option>
-      </select>
-    </Field>
+    <SelectField label="Experience" options={EXPERIENCE_OPTIONS} maxWidth="none" bind:value={form.experience} />
+    <SelectField label="Sex" options={SEX_OPTIONS} maxWidth="none" bind:value={form.sex} />
   </div>
   <div class="basics-row">
-    <Field label="Date of birth" htmlFor="{idPrefix}-dob" hint={age != null ? `${age} yrs` : undefined} error={errs.birth}>
-      <input class="input" id="{idPrefix}-dob" type="date" min={BIRTH_DATE_MIN} max={today} aria-invalid={errs.birth ? "true" : undefined} bind:value={form.birthDate} />
-    </Field>
-    <Field label="Client since" htmlFor="{idPrefix}-since" error={errs.since}>
-      <input class="input" id="{idPrefix}-since" type="date" min={STARTED_ON_MIN} max={startedOnMax(today)} aria-invalid={errs.since ? "true" : undefined} bind:value={form.startedOn} />
-    </Field>
+    <InputDate label="Date of birth" {today} min={BIRTH_DATE_MIN} max={today} hint={age != null ? `${age} yrs` : null} error={errs.birth} bind:value={form.birthDate} />
+    <InputDate label="Client since" {today} min={STARTED_ON_MIN} max={startedOnMax(today)} error={errs.since} bind:value={form.startedOn} />
   </div>
   <div class="basics-row">
-    <Field label="Bodyweight" htmlFor="{idPrefix}-bw" error={errs.weight}>
-      <span class="unit-input">
-        <input class="input tnum" id="{idPrefix}-bw" type="number" inputmode="decimal" min={Math.floor(showWeight(BODYWEIGHT_KG_RANGE.min))} max={Math.ceil(showWeight(BODYWEIGHT_KG_RANGE.max))} step="any" placeholder="—" aria-invalid={errs.weight ? "true" : undefined} bind:value={() => (form.bodyweightKg == null ? null : showWeight(form.bodyweightKg)), (v) => (form.bodyweightKg = v == null ? null : storeWeight(v))} />
-        <span class="subtle">{weightUnit()}</span>
-      </span>
-    </Field>
-    <Field label="Height" htmlFor="{idPrefix}-ht" error={errs.height}>
-      <span class="unit-input">
-        <input class="input tnum" id="{idPrefix}-ht" type="number" inputmode="decimal" min={HEIGHT_CM_RANGE.min} max={HEIGHT_CM_RANGE.max} step="0.5" placeholder="—" aria-invalid={errs.height ? "true" : undefined} bind:value={form.heightCm} />
-        <span class="subtle">cm</span>
-      </span>
-    </Field>
+    <InputUnit
+      label="Bodyweight"
+      unit={weightUnit()}
+      step={0.5}
+      min={Math.floor(showWeight(BODYWEIGHT_KG_RANGE.min))}
+      max={Math.ceil(showWeight(BODYWEIGHT_KG_RANGE.max))}
+      error={errs.weight}
+      bind:value={() => (form.bodyweightKg == null ? null : showWeight(form.bodyweightKg)), (v) => (form.bodyweightKg = v == null ? null : storeWeight(v))}
+    />
+    <InputUnit label="Height" unit="cm" step={0.5} min={HEIGHT_CM_RANGE.min} max={HEIGHT_CM_RANGE.max} error={errs.height} bind:value={form.heightCm} />
   </div>
 </ProfileSection>
 
@@ -114,11 +115,19 @@
         {#each form.oneRepMaxes as r, i (i)}
           <div class="orm-row">
             <ExercisePicker value={r.exerciseId} {catalog} label="1RM {i + 1} exercise" onpick={(ex) => (r.exerciseId = ex.id)} />
-            <span class="orm-kg">
-              <input class="input tnum" type="number" inputmode="decimal" min="1" max={Math.ceil(showWeight(600))} step="any" placeholder="—" aria-label="1RM {i + 1} {weightUnit()}" bind:value={() => (r.kg == null ? null : showWeight(r.kg)), (v) => (r.kg = v == null ? null : storeWeight(v))} />
-              <span class="subtle">{weightUnit()}</span>
-            </span>
-            <input class="input orm-date" type="date" aria-label="1RM {i + 1} tested on" bind:value={r.date} />
+            <div class="orm-kg">
+              <InputUnit
+                label="1RM {i + 1} {weightUnit()}"
+                hideLabel
+                unit={weightUnit()}
+                width="auto"
+                step={0.5}
+                min={1}
+                max={Math.ceil(showWeight(600))}
+                bind:value={() => (r.kg == null ? null : showWeight(r.kg)), (v) => (r.kg = v == null ? null : storeWeight(v))}
+              />
+            </div>
+            <div class="orm-date"><InputDate label="1RM {i + 1} tested on" hideLabel {today} bind:value={r.date} /></div>
             <button type="button" class="orm-x" aria-label="Remove 1RM {i + 1}" onclick={() => form.oneRepMaxes.splice(i, 1)}>×</button>
           </div>
         {/each}
@@ -136,10 +145,7 @@
 {/if}
 
 <style>
-  .basics-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
-  .unit-input { display: flex; align-items: center; gap: 6px; }
-  .unit-input .input { width: 96px; text-align: right; }
-  .input[aria-invalid="true"] { border-color: var(--bad); }
+  .basics-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; align-items: start; }
   @media (max-width: 700px) {
     .basics-row { grid-template-columns: minmax(0, 1fr); }
   }
@@ -147,9 +153,7 @@
   .orm-empty { margin: 0; font-size: 13px; color: var(--muted); }
   .orm-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .orm-row :global(.xp) { flex: 1 1 220px; min-width: 0; }
-  .orm-kg { display: inline-flex; align-items: center; gap: 6px; }
-  .orm-kg .input { width: 84px; text-align: right; }
-  .orm-date { width: auto; }
+  .orm-kg, .orm-date { flex: none; }
   .orm-x { border: none; background: none; color: var(--faint); cursor: pointer; font-size: 16px; padding: 0 4px; }
   .orm-x:hover { color: var(--bad); }
   .orm-add { align-self: flex-start; border: none; background: none; padding: 0; font: 500 13px var(--font-ui); color: var(--blue); cursor: pointer; }

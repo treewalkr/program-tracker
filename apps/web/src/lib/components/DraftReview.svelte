@@ -32,6 +32,8 @@
   import NoteEditor from "./NoteEditor.svelte";
   import Button from "$lib/ui/Button.svelte";
   import Icon from "$lib/ui/Icon.svelte";
+  import InputNote from "$lib/ui/InputNote.svelte";
+  import SelectButtonPanel from "$lib/ui/SelectButtonPanel.svelte";
   import Note from "$lib/ui/Note.svelte";
   import Crumbs from "$lib/ui/Crumbs.svelte";
 
@@ -255,6 +257,13 @@
 
   const baseVersion = $derived(base !== null && base < version ? base : Math.max(1, version - 1));
   const baseGen = $derived(chain[baseVersion - 1] ?? null);
+  const baseOptions = $derived(
+    chain.slice(0, -1).map((g, i) => ({
+      value: String(i + 1),
+      label: `v${i + 1}`,
+      description: i === 0 ? "first draft" : g.revisionMessage ? `“${g.revisionMessage.slice(0, 60)}${g.revisionMessage.length > 60 ? "…" : ""}”` : undefined,
+    })),
+  );
   const compareAll = $derived(baseGen?.draft ? diffDrafts(baseGen.draft, draft) : []);
   const compareChanges = $derived(compareAll.filter((c) => c.kind !== "plan" && (c.week == null || c.week === shown.week)));
 
@@ -393,8 +402,16 @@
 
 {#if rejectOpen && !decided}
   <div class="reject-box">
-    <label for="rv-reject">Why reject v{version}? <span class="subtle">Optional — future drafts learn from it.</span></label>
-    <textarea id="rv-reject" class="textarea" rows="2" maxlength="2000" placeholder="e.g. Too much hinge volume for a beginner" bind:value={rejectReason}></textarea>
+    <InputNote
+      label="Why reject v{version}?"
+      id="rv-reject"
+      optional
+      hint="Future drafts learn from it."
+      rows={2}
+      maxlength={2000}
+      placeholder="e.g. Too much hinge volume for a beginner"
+      bind:value={rejectReason}
+    />
     <div class="row">
       <Button variant="danger" disabled={rejecting} onclick={() => onreject(rejectReason.trim())}>{rejecting ? "Rejecting…" : "Reject draft"}</Button>
       <Button variant="ghost" onclick={() => (rejectOpen = false)}>Keep reviewing</Button>
@@ -527,12 +544,14 @@
     <button type="button" aria-pressed={mode === "compare"} disabled={version < 2} onclick={() => (mode = "compare")}>Compare</button>
   </div>
   {#if mode === "compare" && version >= 2}
-    <span class="subtle">v{version} against</span>
-    <select class="select base" aria-label="Compare against version" value={baseVersion} onchange={(e) => (base = Number(e.currentTarget.value))}>
-      {#each chain.slice(0, -1) as g, i (g.id)}
-        <option value={i + 1}>v{i + 1}{i === 0 ? " — first draft" : g.revisionMessage ? ` — “${g.revisionMessage.slice(0, 28)}${g.revisionMessage.length > 28 ? "…" : ""}”` : ""}</option>
-      {/each}
-    </select>
+    <SelectButtonPanel
+      label="v{version} against"
+      title="Compare against"
+      footer="Only changes what the diff is measured from."
+      options={baseOptions}
+      value={String(baseVersion)}
+      onchange={(v) => (base = Number(v))}
+    />
     <strong class="count">{plural(mergeWeekChanges(compareAll).length, "change")}</strong>
   {:else}
     <span class="subtle">{plural(shown.sessions.length, "session")} · {shown.sessions.reduce((n, s) => n + mainWork(s.exercises).reduce((m, e) => m + e.prescribedSets.length, 0), 0)} working sets{#if why.general.length && why.days.every((d) => d.length === 0)} · reasoning is in {isWeek ? "Reasoning" : "Block rationale"} below{/if}</span>
@@ -667,8 +686,6 @@
   .mt10 { margin-top: 10px; }
 
   .reject-box { border: 1px solid var(--bad-line); background: var(--bad-bg); border-radius: 6px; padding: 12px; display: grid; gap: 8px; margin-bottom: 16px; }
-  .reject-box label { font: 600 13px/1.3 var(--font-ui); }
-  .reject-box .subtle { font-weight: 400; }
 
   .band { display: grid; grid-template-columns: 1.15fr 1fr 1fr; }
   .band > section { padding: 14px 16px; min-width: 0; }
@@ -717,7 +734,6 @@
   @media (max-width: 720px), (pointer: coarse) {
     .seg button { min-height: 44px; padding: 6px 14px; font-size: 14px; }
   }
-  .base { width: auto; }
   .count { font-size: 13px; }
   .ask { margin-left: auto; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; }
   .select-toggle, .edit-lock { margin-left: auto; }

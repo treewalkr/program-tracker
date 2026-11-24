@@ -11,6 +11,9 @@
 	} from '$lib/api/types';
 	import Button from '$lib/ui/Button.svelte';
 	import Icon from '$lib/ui/Icon.svelte';
+	import InputField from '$lib/ui/InputField.svelte';
+	import InputNote from '$lib/ui/InputNote.svelte';
+	import SelectField from '$lib/ui/SelectField.svelte';
 	import ToggleChip from '$lib/ui/ToggleChip.svelte';
 	import LearnedRule from './LearnedRule.svelte';
 
@@ -51,7 +54,13 @@
 	const canSave = $derived(!saving && (comment.trim().length > 0 || correction.trim().length > 0));
 	const uid = $props.id();
 
+	const ruleOptions = $derived([
+		{ value: '', label: 'No' },
+		...rules.map((r) => ({ value: r.id, label: r.text.length > 80 ? `${r.text.slice(0, 77)}…` : r.text }))
+	]);
+
 	onMount(() => {
+		document.getElementById(`${uid}-comment`)?.focus();
 		api
 			.coachingRules()
 			.then((all) => {
@@ -119,15 +128,16 @@
 				void save();
 			}}
 		>
-			<label class="field">
-				<span class="lbl">What's off?</span>
-				<!-- svelte-ignore a11y_autofocus -->
-				<textarea class="textarea" rows="2" maxlength={2000} placeholder="Too heavy right after a deload week" bind:value={comment} onkeydown={escape} autofocus></textarea>
-			</label>
-			<label class="field">
-				<span class="lbl">What instead <span class="opt">optional</span></span>
-				<input class="input" maxlength={2000} placeholder="Belt squat 3×8 @ RPE 7" bind:value={correction} onkeydown={escape} />
-			</label>
+			<InputNote
+				label="What's off?"
+				id="{uid}-comment"
+				rows={2}
+				maxlength={2000}
+				placeholder="Too heavy right after a deload week"
+				bind:value={comment}
+				onkeydown={escape}
+			/>
+			<InputField label="What instead" optional maxlength={2000} placeholder="Belt squat 3×8 @ RPE 7" bind:value={correction} onkeydown={escape} />
 			<div class="field">
 				<span class="lbl" id="{uid}-scope">Should it apply again?</span>
 				<div class="chips" role="group" aria-labelledby="{uid}-scope">
@@ -142,15 +152,7 @@
 				{#if scope !== 'once'}<span class="hint">The AI suggests a rule from this note. You confirm it before any draft uses it.</span>{/if}
 			</div>
 			{#if rules.length > 0}
-				<label class="field">
-					<span class="lbl">Broke a rule? <span class="opt">optional</span></span>
-					<select class="select" bind:value={brokeRuleId}>
-						<option value="">No</option>
-						{#each rules as r (r.id)}
-							<option value={r.id}>{r.text.length > 80 ? `${r.text.slice(0, 77)}…` : r.text}</option>
-						{/each}
-					</select>
-				</label>
+				<SelectField label="Broke a rule? (optional)" maxWidth="none" options={ruleOptions} bind:value={brokeRuleId} />
 			{/if}
 			<div class="actions">
 				<Button small type="submit" disabled={!canSave}>{saving ? (scope === 'once' ? 'Saving…' : 'Saving · learning…') : 'Save note'}</Button>
@@ -245,15 +247,6 @@
 		font-size: 12px;
 		font-weight: 500;
 		color: var(--muted);
-	}
-	.opt {
-		font-weight: 400;
-		color: var(--faint);
-	}
-	.textarea,
-	.input,
-	.select {
-		font-size: 13px;
 	}
 	.chips {
 		display: flex;

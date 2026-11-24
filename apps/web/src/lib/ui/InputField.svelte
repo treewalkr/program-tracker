@@ -33,6 +33,7 @@
 		input?: HTMLInputElement;
 		oninput?: (value: string) => void;
 		onchange?: (value: string) => void;
+		onkeydown?: (e: KeyboardEvent) => void;
 		onblur?: () => void;
 	}
 
@@ -57,6 +58,7 @@
 		input = $bindable(),
 		oninput,
 		onchange,
+		onkeydown,
 		onblur,
 	}: Props = $props();
 
@@ -88,6 +90,7 @@
 		bind:value
 		oninput={() => oninput?.(value)}
 		onchange={() => onchange?.(value)}
+		{onkeydown}
 		onblur={() => onblur?.()}
 	/>
 </FieldFrame>
