@@ -47,3 +47,7 @@
 <Story name="Disabled" asChild>
   <div style="max-width: 320px"><InputUnit label="Bodyweight" unit="kg" value={72.4} disabled /></div>
 </Story>
+
+<Story name="Hidden label (list row)" asChild>
+  <div style="max-width: 320px"><InputUnit label="1RM 1 kg" unit="kg" value={140} width="auto" hideLabel /></div>
+</Story>
