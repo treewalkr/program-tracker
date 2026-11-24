@@ -97,7 +97,9 @@
     gap: 10px;
   }
   .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; }
-  .f { display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; color: var(--muted); }
+  .f { display: flex; flex-direction: column; gap: 4px; }
+  /* the same label as the field components beside it */
+  .f > span { font: 500 12px var(--font-ui); color: var(--ink); }
   .grow-f { flex: 1; min-width: 160px; }
   .foot { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
   .grow { flex: 1; }
