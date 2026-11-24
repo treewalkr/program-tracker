@@ -32,14 +32,14 @@
   });
 </script>
 
-<div class="portal">
+<main class="portal">
   {#if data.unreachable}
     <!-- no connection and never signed in on this phone: nothing to show but the way back -->
     <PortalError kind="offline" toProgram={false} />
   {:else}
     {@render children()}
   {/if}
-</div>
+</main>
 
 <style>
   /* The client's surface: the same Primer world, one size up and one thing at a time. */
