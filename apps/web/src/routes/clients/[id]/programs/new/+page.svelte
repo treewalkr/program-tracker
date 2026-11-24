@@ -51,6 +51,10 @@
   import PageHead from "$lib/ui/PageHead.svelte";
   import Panel from "$lib/ui/Panel.svelte";
   import Field from "$lib/ui/Field.svelte";
+  import InputField from "$lib/ui/InputField.svelte";
+  import SelectField from "$lib/ui/SelectField.svelte";
+  import SelectGrouped from "$lib/ui/SelectGrouped.svelte";
+  import type { SelectOption } from "$lib/ui/select/options";
   import SkeletonHead from "$lib/ui/SkeletonHead.svelte";
   import Skeleton from "$lib/ui/Skeleton.svelte";
   import SkeletonPanel from "$lib/ui/SkeletonPanel.svelte";
@@ -316,6 +320,13 @@
       plannedWeeks = activeWeekPlans.length;
     }
   });
+
+  const schemeOptions = $derived<SelectOption[]>([
+    ...visiblePresets.map((p) => ({ value: `${PRESET}${p.key}`, label: p.name, group: "Presets" })),
+    ...schemes.map((x) => ({ value: x.id, label: x.name, group: "Your schemes" })),
+    { value: "custom", label: "Custom — set each week", group: "Other" },
+    { value: "none", label: "None — no week directives", group: "Other" },
+  ]);
 
   function onSchemeSelect(value: string) {
     if (value === "custom" || value === "none") {
@@ -678,12 +689,8 @@
     <Panel title="Basics">
       <div class="panel-body basics-body">
         <div class="stack ident">
-          <Field label="Name" htmlFor="np-name">
-            <input class="input" id="np-name" placeholder="e.g. Strength Base B" bind:value={name} maxlength="120" />
-          </Field>
-          <Field label="Description" hint="optional" htmlFor="np-desc">
-            <input class="input" id="np-desc" placeholder="Focus, notes to self…" bind:value={description} maxlength="300" />
-          </Field>
+          <InputField label="Name" placeholder="e.g. Strength Base B" bind:value={name} maxlength={120} />
+          <InputField label="Description" optional placeholder="Focus, notes to self…" bind:value={description} maxlength={300} />
         </div>
 
         <div class="phasing">
@@ -698,31 +705,12 @@
           {#if usePhasing}
             <div class="stack plan">
               <div class="plan-scheme">
-                <Field label="Progression scheme" htmlFor="np-scheme">
-                  <select
-                    class="select"
-                    id="np-scheme"
-                    value={schemeMode === "saved" ? selectedSchemeId : schemeMode}
-                    onchange={(e) => onSchemeSelect(e.currentTarget.value)}
-                  >
-                    {#if visiblePresets.length > 0}
-                      <optgroup label="Presets">
-                        {#each visiblePresets as p (p.key)}
-                          <option value="{PRESET}{p.key}">{p.name}</option>
-                        {/each}
-                      </optgroup>
-                    {/if}
-                    {#if schemes.length > 0}
-                      <optgroup label="Your schemes">
-                        {#each schemes as s (s.id)}
-                          <option value={s.id}>{s.name}</option>
-                        {/each}
-                      </optgroup>
-                    {/if}
-                    <option value="custom">Custom — set each week</option>
-                    <option value="none">None — no week directives</option>
-                  </select>
-                </Field>
+                <SelectGrouped
+                  label="Progression scheme"
+                  options={schemeOptions}
+                  value={schemeMode === "saved" ? selectedSchemeId : schemeMode}
+                  onchange={onSchemeSelect}
+                />
 
                 {#if schemeMode === "saved" && selectedScheme}
                   <div class="scheme-chips">
@@ -741,7 +729,7 @@
                       newRow={() => ({ directive: "+volume", metric: "overall_volume", deltaPercent: 5 })}
                     />
                     <div class="save-row">
-                      <input class="input" placeholder="Scheme name, e.g. 5-week peak" aria-label="Scheme name" bind:value={schemeName} />
+                      <div class="save-name"><InputField label="Scheme name" hideLabel placeholder="Scheme name, e.g. 5-week peak" bind:value={schemeName} /></div>
                       <Button
                         small
                         disabled={savingScheme || !schemeName.trim() || customWeeks.length < 2}
@@ -754,20 +742,17 @@
 
               <div class="stack plan-side">
               {#if activeWeekPlans.length === 0}
-                <Field label="Block length" htmlFor="np-weeks">
-                  <select class="select" id="np-weeks" bind:value={plannedWeeks}>
-                    {#each [3, 4, 5, 6, 8] as w (w)}<option value={w}>{w} weeks</option>{/each}
-                  </select>
-                </Field>
+                <SelectField
+                  label="Block length"
+                  maxWidth="none"
+                  options={[3, 4, 5, 6, 8].map((w) => ({ value: String(w), label: `${w} weeks` }))}
+                  bind:value={() => String(plannedWeeks), (v) => (plannedWeeks = Number(v))}
+                />
               {/if}
 
               <div class="pair">
-                <Field label="This phase" htmlFor="np-phase">
-                  <input class="input" id="np-phase" bind:value={phase} maxlength="40" />
-                </Field>
-                <Field label="Next phase" htmlFor="np-next">
-                  <input class="input" id="np-next" bind:value={nextPhase} maxlength="40" />
-                </Field>
+                <InputField label="This phase" bind:value={phase} maxlength={40} />
+                <InputField label="Next phase" bind:value={nextPhase} maxlength={40} />
               </div>
               </div>
             </div>
@@ -974,7 +959,7 @@
   .scheme-meta .num { font-family: var(--font-mono); color: var(--ink); }
   .custom-scheme { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
   .save-row { display: flex; gap: 8px; align-items: center; }
-  .save-row .input { flex: 1; min-width: 0; }
+  .save-name { flex: 1; min-width: 0; }
   .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
   /* —— sessions —— */
