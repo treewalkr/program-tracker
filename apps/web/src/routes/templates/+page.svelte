@@ -1,5 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
+  import { page } from "$app/state";
+  import { pushState } from "$app/navigation";
   import { api } from "$lib/api";
   import { fmtDate } from "$lib/format";
   import { INSTRUCTION_PRESETS, type InstructionPreset } from "@pt/shared";
@@ -16,8 +18,12 @@
   import InputSearch from "$lib/ui/InputSearch.svelte";
   import SelectCombobox from "$lib/ui/SelectCombobox.svelte";
   import EmptyState from "$lib/ui/EmptyState.svelte";
+  import Icon from "$lib/ui/Icon.svelte";
   import LeaveGuard from "$lib/ui/LeaveGuard.svelte";
   import { createLeaveGuard } from "$lib/leaveGuard.svelte";
+
+  /** Below this library width the list and the reader stop sitting side by side. */
+  const NARROW = 760;
 
   let templates = $state<InstructionTemplateDto[]>([]);
   let loaded = $state(false);
@@ -84,10 +90,13 @@
     saving = true;
     error = null;
     try {
-      await api.createInstructionTemplate({ name: newName.trim(), content: newContent.trim() });
+      const name = newName.trim();
+      await api.createInstructionTemplate({ name, content: newContent.trim() });
       newName = "";
       newContent = "";
       await load();
+      const mine = [...templates].reverse().find((t) => t.name === name);
+      if (mine) await pick(mine.id);
     } catch (e) {
       error = (e as Error).message;
     } finally {
@@ -203,11 +212,39 @@
     return a === "confirm";
   }
 
+  /* Narrow (phone, iPad portrait): the list and the reader take turns. Opening
+     one pushes a shallow history entry, so the back gesture returns to the list. */
+  let libWidth = $state(0);
+  const narrow = $derived(libWidth > 0 && libWidth < NARROW);
+  const reading = $derived(narrow && !!page.state.tplOpen);
+  let listScroll = 0;
+
+  async function open() {
+    if (!narrow) return;
+    if (!page.state.tplOpen) {
+      listScroll = window.scrollY;
+      pushState("", { tplOpen: true });
+    }
+    await tick();
+    window.scrollTo(0, 0);
+  }
+  async function backToList() {
+    if (page.state.tplOpen) history.back();
+  }
+  let wasReading = false;
+  $effect(() => {
+    if (wasReading && !reading) tick().then(() => window.scrollTo(0, listScroll));
+    wasReading = reading;
+  });
+
   async function pick(id: string) {
-    if (id !== editingId && !(await leaveEdit())) return;
+    if (id !== editingId) {
+      if (!(await leaveEdit())) return;
+      editingId = null;
+    }
     selId = id;
     composing = false;
-    editingId = null;
+    await open();
     await tick();
     document.getElementById("rd-title")?.focus({ preventScroll: true });
   }
@@ -215,6 +252,9 @@
     if (!(await leaveEdit())) return;
     composing = true;
     editingId = null;
+    await open();
+    await tick();
+    document.getElementById("rd-title")?.focus({ preventScroll: true });
   }
   async function copyAndSelect(p: InstructionPreset) {
     await copyPreset(p);
@@ -250,43 +290,52 @@
 
 <svelte:head><title>Instruction templates · Program Tracker</title></svelte:head>
 
-<PageHead
-  title="Instruction templates"
-  sub="Standing rules you switch on per draft, under Rules on a client's Generate page. Keep them true for any client; one client's injuries or equipment belong in that client's Limitations."
->
-</PageHead>
+{#if reading}
+  <!-- Rides the menu toggle's line like a crumbs Back (and stands in for the layout's,
+       which would leave the page): back to the list, not off it. -->
+  <p class="crumbs compact tpl-back">
+    <button type="button" class="back" onclick={backToList}><Icon name="chevron" size={16} /><span>Templates</span></button>
+  </p>
+{:else}
+  <PageHead
+    title="Instruction templates"
+    sub="Standing rules you switch on per draft, under Rules on a client's Generate page. Keep them true for any client; one client's injuries or equipment belong in that client's Limitations."
+  />
+{/if}
 
-<div class="lib">
-  <aside class="rail">
-  <div class="bar">
-    <InputSearch label="Search names and rules" bind:value={q} />
-    <Button variant="primary" onclick={startNew}>New template</Button>
-  </div>
+<div class="lib-wrap" bind:clientWidth={libWidth}>
+<div class="lib" class:reading>
+  <aside class="rail" aria-label="Templates">
+    <div class="bar">
+      <div class="find"><InputSearch label="Search templates" bind:value={q} /></div>
+      <Button variant="primary" onclick={startNew}>New template</Button>
+    </div>
 
-  <div class="shelves">
-    {#each railGroups as g (g.label)}
-      <section class="shelf" aria-label={g.label}>
-        <h2 class="shelf-h">{g.label} <span class="mono">{g.rows.length}</span></h2>
-        {#if g.rows.length}
-          <ul class="tiles">
-            {#each g.rows as e (e.id)}
-              <li>
-                <button type="button" class="tile {e.kind}" class:on={!composing && picked?.id === e.id} aria-current={!composing && picked?.id === e.id ? "true" : undefined} title={e.name} onclick={() => pick(e.id)}>
-                  <span class="tile-top">
-                    <span class="tile-name">{e.name}</span>
-                    <span class="tile-n">{rulesLabel(e)}</span>
-                  </span>
-                  <span class="tile-sub">{e.summary ?? firstRule(e)}</span>
-                </button>
-              </li>
-            {/each}
-          </ul>
-        {:else}
-          <p class="shelf-none">{q.trim() ? "No match." : "Nothing of your own yet. Open a built-in and copy it, or press New template."}</p>
-        {/if}
-      </section>
-    {/each}
-  </div>
+    <div class="shelves">
+      {#each railGroups as g (g.label)}
+        <Panel title={g.label} count={g.rows.length} aria-label={g.label}>
+          {#if g.rows.length}
+            <ul class="rows">
+              {#each g.rows as e (e.id)}
+                {@const on = !narrow && !composing && picked?.id === e.id}
+                <li>
+                  <button type="button" class="row" class:on aria-current={on ? "true" : undefined} onclick={() => pick(e.id)}>
+                    <span class="row-main">
+                      <span class="row-name">{e.name}</span>
+                      <span class="row-sub">{e.summary ?? firstRule(e)}</span>
+                    </span>
+                    <span class="row-n">{rulesLabel(e)}</span>
+                    <span class="go" aria-hidden="true"><Icon name="chevron" size={16} /></span>
+                  </button>
+                </li>
+              {/each}
+            </ul>
+          {:else}
+            <p class="shelf-none">{q.trim() ? "No match." : "Nothing of your own yet. Open a built-in and copy it, or press New template."}</p>
+          {/if}
+        </Panel>
+      {/each}
+    </div>
   </aside>
 
   <section class="reader" aria-label="Selected template">
@@ -465,6 +514,7 @@
     </div>
   </Panel>
 </div>
+</div>
 
 <LeaveGuard guard={leaveGuard} />
 
@@ -511,38 +561,46 @@
   .picker .pick { flex: 1 1 220px; min-width: 0; max-width: 320px; }
 
 
-  /* ---- library: sticky list rail + reader ---- */
-  .lib { display: grid; grid-template-columns: 272px minmax(0, 1fr); gap: 28px; align-items: start; margin-top: 4px; }
-  .rail { position: sticky; top: 12px; display: flex; flex-direction: column; gap: 14px; max-height: calc(100vh - 24px); min-height: 0; }
-  .bar { display: flex; flex-direction: column; gap: 8px; }
-  .shelves { display: flex; flex-direction: column; gap: 18px; overflow-y: auto; min-height: 0; padding-right: 2px; }
-  .shelf-h { display: flex; align-items: baseline; gap: 8px; margin: 0 0 6px; font-size: 13px; font-weight: 600; }
-  .shelf-h .mono { font-weight: 400; font-size: 12px; color: var(--muted); }
-  .shelf-none { margin: 0; font-size: 13px; color: var(--muted); }
-  .tiles { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-  .tile {
-    display: flex; flex-direction: column; gap: 3px; width: 100%; text-align: left;
-    padding: 9px 11px 10px; border-radius: var(--radius); border: 1px solid var(--line); background: var(--well);
-    color: var(--muted); font: inherit; cursor: pointer; min-width: 0;
+  /* ---- library: a sticky list rail beside the reader; on a narrow library
+     (phone, iPad portrait, a squeezed landscape) they take turns ---- */
+  .lib-wrap { container: lib / inline-size; }
+  .lib { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 28px; align-items: start; margin-top: 4px; }
+  .rail { position: sticky; top: 12px; display: flex; flex-direction: column; gap: 12px; max-height: calc(100vh - 24px); min-height: 0; }
+  .bar { display: flex; flex-wrap: wrap; gap: 8px; }
+  .find { flex: 1 1 160px; min-width: 0; }
+  .shelves { display: flex; flex-direction: column; gap: 12px; overflow-y: auto; min-height: 0; padding-bottom: 2px; }
+  .shelf-none { margin: 0; padding: 12px 16px; font-size: 13px; color: var(--muted); }
+
+  .rows { list-style: none; margin: 0; padding: 0; }
+  .rows li + li { border-top: 1px solid var(--line-soft); }
+  .row {
+    display: flex; align-items: flex-start; gap: 10px; width: 100%; min-width: 0;
+    padding: 10px 14px; border: 0; background: none; text-align: left;
+    font: inherit; color: var(--ink); cursor: pointer;
   }
-  .tile:hover { border-color: var(--ink); }
-  .tile:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; box-shadow: 0 0 0 2px var(--surface); }
-  .tile.on { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); background: var(--surface); }
-  .tile.on .tile-name { font-weight: 700; }
-  .tile-top { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
-  .tile-name { font: 600 13px/1.3 var(--font-ui); color: var(--ink); min-width: 0; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
-  .tile-n { margin-left: auto; font: 400 12px/1 var(--font-mono); white-space: nowrap; }
-  .tile-sub { font: 400 12px/1.4 var(--font-ui); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+  .row:hover { background: var(--row-hover); }
+  .row:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
+  .row.on { background: var(--well-2); box-shadow: inset 0 0 0 1px var(--ink); }
+  .rows li:last-child .row { border-radius: 0 0 calc(var(--radius) - 1px) calc(var(--radius) - 1px); }
+  .row-main { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+  .row-name { font: 600 13px/1.35 var(--font-ui); overflow-wrap: anywhere; }
+  .row-sub {
+    font: 400 12px/1.45 var(--font-ui); color: var(--muted);
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden;
+  }
+  .row-n { flex: none; padding-top: 1px; font: 400 12px/1.35 var(--font-mono); font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap; }
+  .go { display: none; flex: none; align-self: center; color: var(--faint); transform: rotate(-90deg); }
 
   .reader { min-width: 0; }
   .reader :global(#rd-title:focus) { outline: none; }
-  .rd-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 22px; }
-  .rd-head h2 { margin: 0 0 6px; font-size: 20px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.2; }
+  .rd-head { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 12px 16px; margin-bottom: 22px; }
+  .rd-head > div:first-child { min-width: 0; flex: 1 1 280px; }
+  .rd-head h2 { margin: 0 0 6px; font-size: 20px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.25; text-wrap: balance; }
   .rd-sum { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0; color: var(--muted); max-width: var(--measure-prose); }
   .rd-actions { display: flex; gap: 8px; align-items: center; flex: none; }
   .rd-err { margin-bottom: 16px; }
-  .rd-grid { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 24px; align-items: start; }
-  .rd-rules { display: flex; flex-direction: column; gap: 22px; padding: 22px 26px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+  .rd-grid { display: grid; grid-template-columns: minmax(0, 1fr) 240px; gap: 24px; align-items: start; }
+  .rd-rules { display: flex; flex-direction: column; gap: 22px; padding: 20px 24px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
   .rd-label { margin: 0 0 8px; font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
   .rd-block ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; }
   .rd-block li { position: relative; padding-left: 20px; font-size: 14px; line-height: 1.65; max-width: var(--measure-prose); }
@@ -555,13 +613,31 @@
   .rd-raw summary:hover { color: var(--ink); }
   .rd-form { max-width: 720px; }
 
-  @media (max-width: 1060px) {
+  /* The page's own Back, styled as BackButton: a 28px line with a 44px target. */
+  .tpl-back { margin: -2px 0 12px; line-height: 28px; }
+  .tpl-back .back {
+    position: relative; display: inline-flex; align-items: center; gap: 4px; height: 28px;
+    margin-left: -6px; padding: 0 6px; border: 0; border-radius: 6px; background: none;
+    font: 500 16px/1 var(--font-ui); color: var(--blue); cursor: pointer;
+  }
+  .tpl-back .back::before { content: ""; position: absolute; inset: -8px; }
+  .tpl-back .back:hover { background: var(--well-2); }
+  .tpl-back .back:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
+  .tpl-back .back :global(svg) { transform: rotate(90deg); }
+
+  @container lib (max-width: 1000px) {
     .rd-grid { grid-template-columns: minmax(0, 1fr); }
   }
-  @media (max-width: 860px) {
-    .lib { grid-template-columns: minmax(0, 1fr); }
-    .rail { position: static; max-height: none; }
-    .shelves { max-height: 260px; }
-    .rd-head { flex-wrap: wrap; }
+  @container lib (max-width: 759px) {
+    .lib { grid-template-columns: minmax(0, 1fr); gap: 0; }
+    .rail { position: static; max-height: none; gap: 16px; }
+    .shelves { overflow: visible; gap: 16px; }
+    .lib.reading .rail, .lib:not(.reading) .reader { display: none; }
+    .lib.reading ~ .prefs { display: none; }
+    .row { align-items: center; padding: 12px 12px 12px 16px; min-height: 56px; }
+    .row-name { font-size: 14px; }
+    .row-sub { font-size: 13px; }
+    .go { display: block; }
+    .rd-rules { padding: 16px; }
   }
 </style>

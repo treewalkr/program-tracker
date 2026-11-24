@@ -8,7 +8,10 @@ declare global {
 		// interface Error {}
 		// interface Locals {}
 		// interface PageData {}
-		// interface PageState {}
+		interface PageState {
+			/** Templates page, narrow widths: the reader is open over the list. */
+			tplOpen?: boolean;
+		}
 		// interface Platform {}
 	}
 }
