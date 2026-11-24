@@ -35,8 +35,15 @@
 		return m;
 	});
 
+	// Keep the active row in view by scrolling the list only: scrollIntoView would
+	// also scroll the page, dragging a panel that just opened upward off its trigger.
 	$effect(() => {
-		list?.querySelector(`#${CSS.escape(`${id}-${active}`)}`)?.scrollIntoView({ block: 'nearest' });
+		const row = list?.querySelector<HTMLElement>(`#${CSS.escape(`${id}-${active}`)}`);
+		if (!list || !row) return;
+		const r = row.getBoundingClientRect();
+		const l = list.getBoundingClientRect();
+		if (r.top < l.top) list.scrollTop -= l.top - r.top;
+		else if (r.bottom > l.bottom) list.scrollTop += r.bottom - l.bottom;
 	});
 </script>
 
