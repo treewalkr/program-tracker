@@ -58,7 +58,7 @@
         </button>
       </div>
       <div class="ms-body">
-        <ProviderPicker {providers} bind:providerId bind:model bind:effort idPrefix="ms" />
+        <ProviderPicker {providers} bind:providerId bind:model bind:effort />
       </div>
       <p class="ms-hint">{hint}</p>
     </div>
