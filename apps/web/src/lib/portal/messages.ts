@@ -94,6 +94,7 @@ export const en = {
 
   "log.back": "This week",
   "log.date": "Date",
+  "log.yesterday": "Yesterday",
   "log.exercise": "Exercise {n} of {total}",
   "log.prev": "Previous exercise",
   "log.next": "Next exercise",
@@ -431,6 +432,7 @@ export const th: Record<MessageKey, string> = {
 
   "log.back": "สัปดาห์นี้",
   "log.date": "วันที่",
+  "log.yesterday": "เมื่อวาน",
   "log.exercise": "ท่าที่ {n} จาก {total}",
   "log.prev": "ท่าก่อนหน้า",
   "log.next": "ท่าถัดไป",

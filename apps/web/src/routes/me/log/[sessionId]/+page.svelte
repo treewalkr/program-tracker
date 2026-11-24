@@ -575,6 +575,16 @@
     const [, ...rest] = setParts([ps], t);
     return [`${t("log.target")} ${setTarget(ps, t)}`, ...rest.filter((p) => !p.startsWith(t("rx.rest", { t: "" }).trim()))].join(" · ");
   }
+  /** "Today · Tue 24 Nov", "Yesterday · Mon 23 Nov", "Fri 21 Nov". */
+  const dateChip = $derived(date === today ? `${t("week.today")} · ${fmtDay(date)}` : date === addDays(today, -1) ? `${t("log.yesterday")} · ${fmtDay(date)}` : fmtDay(date));
+  /** A mouse click on the hidden input lands in a date segment; open the calendar instead. Touch opens it natively. */
+  function openPicker(e: MouseEvent) {
+    try {
+      (e.currentTarget as HTMLInputElement).showPicker?.();
+    } catch {
+      // not allowed here (no user gesture, or a cross-origin frame): the keyboard still works
+    }
+  }
   const feelSummary = $derived(
     (["energy", "sleep", "soreness"] as const)
       .filter((k) => readiness[k] != null)
@@ -606,7 +616,28 @@
 
 <PortalBar coach={me?.trainer.name ?? null} />
 
-<div class="back-row"><BackButton fallback="/me" label={t("log.back")} /></div>
+<div class="back-row">
+  <BackButton fallback="/me" label={t("log.back")} />
+  {#if loadState === "ready" && session && !saved}
+    <!-- the date as a chip on the back link's line: Set 1 starts on the first screen. The native
+         picker sits over it; "Today" stays in words so back-dating is never a surprise. -->
+    <label class="date-chip" class:off={byCoach}>
+      <span aria-hidden="true">{dateChip}</span>
+      <Icon name="chevron" />
+      <input
+        class="tnum"
+        type="date"
+        bind:value={date}
+        min={minDate}
+        max={maxDate}
+        lang={i18n.locale}
+        disabled={byCoach}
+        aria-label={t("log.date")}
+        onclick={openPicker}
+      />
+    </label>
+  {/if}
+</div>
 
 <p class="sr-only" role="status">{announce}</p>
 
@@ -668,13 +699,9 @@
   <!-- novalidate: a prescribed 12 s or 7.5 kg is off the steppers' step, and the browser would
        silently refuse it; buildPortalLog is the one gate. -->
   <form class="log" novalidate onsubmit={(e) => { e.preventDefault(); void save(); }}>
-    <header class="head">
+    <div class="head">
       <h1 lang={latinLang(session.name)}>{session.name}</h1>
-      <label class="date">
-        <span>{t("log.date")}</span>
-        <input class="input tnum" type="date" bind:value={date} min={minDate} max={maxDate} lang={i18n.locale} disabled={byCoach} />
-      </label>
-    </header>
+    </div>
 
     {#if session.notes}
       <!-- the coach's word on the whole session, before any set -->
@@ -715,10 +742,6 @@
 
       {#if prepItems.length > 0}
         <PrepChecklist items={prepItems} bind:done={prepDone} variant="touch" title={t("log.prep")} tag={t("log.prepTag")} />
-      {/if}
-
-      {#if !cardioSession && block}
-        <p class="warmups">{prepItems.length > 0 ? t("log.mainWork") : t("log.warmups")}</p>
       {/if}
 
       {#if cardioSession}
@@ -855,6 +878,8 @@
             </button>
           {/if}
         </section>
+        <!-- a reminder, not a gate: under the sets, so the first set is on the first screen -->
+        <p class="warmups">{prepItems.length > 0 ? t("log.mainWork") : t("log.warmups")}</p>
       {/if}
 
       {#if !cardioSession}{@render notesField()}{/if}
@@ -933,7 +958,7 @@
 
 <style>
   /* The old 44px row: the button's touch target fits inside it. */
-  .back-row { margin-top: 4px; padding: 8px 0; }
+  .back-row { margin-top: 4px; min-height: 44px; }
 
   .sk { display: grid; gap: 14px; margin-top: 12px; }
   .sk :global(.skeleton) { display: block; }
@@ -941,9 +966,41 @@
   /* the narrow log sheet: LogStepper's 44px steppers key off this container */
   .log { container: logform / inline-size; display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; margin-top: 8px; padding-bottom: 96px; }
   .head { display: grid; gap: 12px; }
+  .back-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; }
+  .date-chip {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 44px;
+    padding: 0 12px 0 14px;
+    font: 500 14px/1.2 var(--font-ui);
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+    background: var(--well);
+    border: 1px solid var(--line);
+    border-radius: 99px;
+  }
+  .date-chip :global(svg) { flex: none; width: 14px; height: 14px; color: var(--muted); }
+  .date-chip:focus-within { outline: 2px solid var(--blue); outline-offset: 2px; }
+  .date-chip.off { color: var(--muted); }
+  .date-chip.off :global(svg) { display: none; }
+  /* the real field, invisible, over the whole chip: its tap opens the phone's own picker */
+  .date-chip input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    font-size: 16px;
+    opacity: 0;
+    border: 0;
+    appearance: none;
+    cursor: pointer;
+  }
+  .date-chip input:disabled { cursor: default; }
   h1 { margin: 0; font: 600 24px/1.25 var(--font-ui); letter-spacing: -0.01em; text-wrap: balance; }
-  .date { display: flex; align-items: center; gap: 12px; font-size: 14px; color: var(--muted); }
-  .date .input { flex: 1; max-width: 220px; min-height: 44px; font-size: 16px; }
   .log :global(.draft) { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
   .link-btn {
     min-height: 44px;
@@ -1006,7 +1063,7 @@
   .cue { margin: 0; font-size: 14px; }
   .session-note { margin: 0; padding: 12px 16px; font-size: 16px; background: var(--well); border-radius: var(--radius); text-wrap: pretty; }
   .session-note span { font-weight: 600; color: var(--muted); }
-  .warmups { margin: -6px 0; font-size: 13px; color: var(--muted); }
+  .warmups { margin: -6px 0 0; font-size: 13px; color: var(--muted); }
   .cue span { font-weight: 600; color: var(--muted); }
   .last { margin: 0; font-size: 14px; }
   .last > span:first-child { color: var(--muted); }
