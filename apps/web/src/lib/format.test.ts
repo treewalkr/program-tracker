@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { fmtDateTime, weekOptions, weekPlanLabel } from "./format";
+import { fmtDate, fmtDateTime, weekOptions, weekPlanLabel } from "./format";
 
 describe("weekPlanLabel", () => {
   test("weekPlanLabel renders directive and quantified target", () => {
@@ -28,6 +28,20 @@ describe("weekPlanLabel", () => {
 
     const optsClamped = weekOptions(weeks, 9);
     expect(optsClamped.find((o) => o.isCurrent)?.label).toBe("W4");
+  });
+});
+
+describe("fmtDate", () => {
+  test("a date-only string is that calendar day in any time zone", () => {
+    const prev = process.env.TZ;
+    try {
+      for (const tz of ["America/Los_Angeles", "UTC", "Asia/Bangkok", "Pacific/Auckland"]) {
+        process.env.TZ = tz;
+        expect(fmtDate("2026-11-23")).toBe("23 Nov 2026");
+      }
+    } finally {
+      process.env.TZ = prev;
+    }
   });
 });
 

@@ -29,7 +29,7 @@
   import { maxHrUntested } from "$lib/hrProfile";
   import PulseDrill from "$lib/components/PulseDrill.svelte";
   import { cardioDone, cardioUnitLabel, cardioWeekTotals, isoWeekStart, placedWeekdays, sessionTag, sessionsByWeekday } from "@pt/shared";
-  import { weekOptions } from "$lib/format";
+  import { fmtDate, weekOptions } from "$lib/format";
   import { localIso } from "$lib/overview";
   import StatusPill from "$lib/components/StatusPill.svelte";
   import SessionCard from "$lib/components/SessionCard.svelte";
@@ -808,7 +808,7 @@
       </Panel>
 
       {#if chainWeekData}
-        <Panel title="Sets touching each chain" count={`week of ${chainWeekData.weekStart}`}>
+        <Panel title="Sets touching each chain" count={`week of ${fmtDate(chainWeekData.weekStart)}`}>
           {#snippet act()}
             <Button small variant="ghost" href="/chains">Edit chains</Button>
           {/snippet}

@@ -4,9 +4,9 @@ import type { ProgramWeekDto, WeekPlan } from "./api/types";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-/** "20 Sep 2026" — fixed 3-letter months, day-first, locale-independent. */
+/** "20 Sep 2026" — fixed 3-letter months, day-first, locale-independent. A date-only "2026-09-20" is that local day. */
 export function fmtDate(iso: string): string {
-  const d = new Date(iso);
+  const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(iso) ? `${iso}T00:00:00` : iso);
   return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
 }
 
