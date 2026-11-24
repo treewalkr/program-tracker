@@ -11,7 +11,11 @@
   import Button from "$lib/ui/Button.svelte";
   import PageHead from "$lib/ui/PageHead.svelte";
   import Panel from "$lib/ui/Panel.svelte";
-  import Field from "$lib/ui/Field.svelte";
+  import InputField from "$lib/ui/InputField.svelte";
+  import InputNote from "$lib/ui/InputNote.svelte";
+  import InputSearch from "$lib/ui/InputSearch.svelte";
+  import SelectCombobox from "$lib/ui/SelectCombobox.svelte";
+  import SelectField from "$lib/ui/SelectField.svelte";
   import EmptyState from "$lib/ui/EmptyState.svelte";
   import Pill from "$lib/ui/Pill.svelte";
   import Note from "$lib/ui/Note.svelte";
@@ -35,6 +39,7 @@
   let reuseId = $state<string | null>(null);
   let reuseClientId = $state("");
   let reusing = $state(false);
+  const clientOptions = $derived(clients.map((c) => ({ value: c.id, label: c.name })));
   let error = $state<string | null>(null);
   let listError = $state<string | null>(null);
 
@@ -46,6 +51,8 @@
   }
 
   const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+  const LEVEL_OPTIONS = EXAMPLE_LEVELS.map((l) => ({ value: l, label: cap(l) }));
+  const DAY_OPTIONS = [1, 2, 3, 4, 5, 6, 7].map((d) => ({ value: String(d), label: `${d} ${d === 1 ? "day" : "days"}` }));
 
   const filtered = $derived(
     examples.filter((e) => {
@@ -153,25 +160,15 @@
       e.preventDefault();
     }}
   >
-    <Field label="Search" htmlFor="ex-q">
-      <input class="input" id="ex-q" type="search" placeholder="Name, goal or note" bind:value={query} />
-    </Field>
-    <Field label="Level" htmlFor="ex-level">
-      <select class="select" id="ex-level" bind:value={level}>
-        <option value="">Any level</option>
-        {#each EXAMPLE_LEVELS as l (l)}
-          <option value={l}>{cap(l)}</option>
-        {/each}
-      </select>
-    </Field>
-    <Field label="Days per week" htmlFor="ex-days">
-      <select class="select" id="ex-days" bind:value={days}>
-        <option value="">Any frequency</option>
-        {#each [1, 2, 3, 4, 5, 6, 7] as d (d)}
-          <option value={d}>{d} {d === 1 ? "day" : "days"}</option>
-        {/each}
-      </select>
-    </Field>
+    <InputSearch label="Search examples" placeholder="Name, goal or note" bind:value={query} />
+    <SelectField label="Level" maxWidth="none" options={[{ value: "", label: "Any level" }, ...LEVEL_OPTIONS]} bind:value={level} />
+    <SelectField
+      label="Days per week"
+      maxWidth="none"
+      options={[{ value: "", label: "Any frequency" }, ...DAY_OPTIONS]}
+      value={days === "" ? "" : String(days)}
+      onchange={(v) => (days = v === "" ? "" : Number(v))}
+    />
   </form>
 </Panel>
 {/snippet}
@@ -211,31 +208,18 @@
                   saveEdit(e.id);
                 }}
               >
-                <Field label="Goal" htmlFor={`eg-${e.id}`}>
-                  <input class="input" id={`eg-${e.id}`} bind:value={editGoal} maxlength="120" />
-                </Field>
+                <InputField label="Goal" bind:value={editGoal} maxlength={120} />
                 <div class="edit-row">
-                  <Field label="Level" htmlFor={`el-${e.id}`}>
-                    <select class="select" id={`el-${e.id}`} bind:value={editLevel}>
-                      {#each EXAMPLE_LEVELS as l (l)}
-                        <option value={l}>{cap(l)}</option>
-                      {/each}
-                    </select>
-                  </Field>
-                  <Field label="Days per week" htmlFor={`ed-${e.id}`}>
-                    <input class="input" id={`ed-${e.id}`} type="number" min="1" max="7" bind:value={editDays} />
-                  </Field>
+                  <SelectField label="Level" maxWidth="none" options={LEVEL_OPTIONS} bind:value={editLevel} />
+                  <SelectField
+                    label="Days per week"
+                    maxWidth="none"
+                    options={DAY_OPTIONS}
+                    value={String(editDays)}
+                    onchange={(v) => (editDays = Number(v))}
+                  />
                 </div>
-                <Field label="Note" htmlFor={`en-${e.id}`}>
-                  <textarea
-                    class="textarea"
-                    id={`en-${e.id}`}
-                    rows="2"
-                    maxlength="500"
-                    placeholder="Why this program is worth copying"
-                    bind:value={editNote}
-                  ></textarea>
-                </Field>
+                <InputNote label="Note" rows={2} maxlength={500} placeholder="Why this program is worth copying" bind:value={editNote} />
                 <div class="row-actions">
                   <Button variant="primary" small type="submit" disabled={savingEdit || !editGoal.trim()}>
                     {savingEdit ? "Saving…" : "Save"}
@@ -263,11 +247,15 @@
                     reuse(e);
                   }}
                 >
-                  <select class="select" bind:value={reuseClientId} aria-label="Client for the reused program">
-                    {#each clients as c (c.id)}
-                      <option value={c.id}>{c.name}</option>
-                    {/each}
-                  </select>
+                  <div class="reuse-pick">
+                    <SelectCombobox
+                      label="Client for the reused program"
+                      placeholder="Choose a client…"
+                      options={clientOptions}
+                      bind:value={reuseClientId}
+                      emptyText="No clients match"
+                    />
+                  </div>
                   <Button variant="primary" small type="submit" disabled={reusing || !reuseClientId}>
                     {reusing ? "Creating…" : "Create draft"}
                   </Button>
@@ -334,7 +322,7 @@
   .edit-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
   .reuse-form { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-  .reuse-form .select { width: auto; min-width: 200px; max-width: 260px; }
+  .reuse-pick { flex: 0 1 260px; min-width: 200px; }
   .reuse-hint { margin: 6px 0 0; }
 
   :global(.empty-panel) { max-width: var(--measure-form); }
