@@ -51,3 +51,8 @@
   <!-- A phone list head pins Sort at 156px: a long value ends in … -->
   <div style="width: 156px; min-height: 220px"><SelectPrefixed prefix="Sort" options={sorts} value={sorts[sorts.length - 1].value} /></div>
 </Story>
+
+<Story name="Full width" asChild>
+  <!-- maxWidth="none" lifts the 300px cap so Sort fills a phone toolbar row -->
+  <div style="width: 398px; min-height: 220px"><SelectPrefixed prefix="Sort" maxWidth="none" options={sorts} bind:value={sort} /></div>
+</Story>

@@ -17,9 +17,11 @@
 		prefix: string;
 		disabled?: boolean;
 		open?: boolean;
+		/** Cap on the control's width; "none" lets it fill its slot. */
+		maxWidth?: string;
 	}
 
-	let { options, value = $bindable(), onchange, prefix, disabled = false, open = $bindable(false) }: Props = $props();
+	let { options, value = $bindable(), onchange, prefix, disabled = false, open = $bindable(false), maxWidth = '300px' }: Props = $props();
 
 	const uid = $props.id();
 	const chosen = $derived(options.find((o) => o.value === value));
@@ -39,7 +41,7 @@
 	}
 </script>
 
-<Dropdown bind:open>
+<Dropdown bind:open {maxWidth}>
 	{#snippet trigger()}
 		<button
 			type="button"
