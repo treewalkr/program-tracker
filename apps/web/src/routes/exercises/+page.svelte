@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
   import { api } from "$lib/api";
+  import { errorText } from "$lib/api/errors";
   import type { ExerciseDto, ExercisePatch } from "$lib/api/types";
   import {
     EQUIPMENT_OPTIONS,
@@ -89,7 +90,7 @@
     try {
       list = await api.exercises();
     } catch (err) {
-      loadError = err instanceof Error ? err.message : "Couldn't load the library.";
+      loadError = errorText(err);
     } finally {
       loading = false;
     }
@@ -442,7 +443,7 @@
 
 <PageHead
   title="Exercise library"
-  sub={loading ? "Loading…" : `${seedCount} in the library · ${mineCount} of yours. Tagged patterns feed balance checks and AI drafts.`}
+  sub={loading ? "Loading…" : loadError ? "Tagged patterns feed balance checks and AI drafts." : `${seedCount} in the library · ${mineCount} of yours. Tagged patterns feed balance checks and AI drafts.`}
 >
   {#snippet actions()}
     <Button variant="primary" onclick={() => openNew()} title="New exercise (n)">
