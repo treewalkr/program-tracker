@@ -4,7 +4,7 @@
   import { clearDraft, readDraft, writeDraft } from "$lib/localDraft";
   import { onMount, tick } from "svelte";
   import { page } from "$app/state";
-  import { goto } from "$app/navigation";
+  import { beforeNavigate, goto } from "$app/navigation";
   import { api } from "$lib/api";
   import type {
     ClientDto,
@@ -39,7 +39,7 @@
   import { weekPlanLabel } from "$lib/format";
   import { rowsToWeekPlans } from "$lib/phasing";
   import WeekPlanRows from "$lib/components/WeekPlanRows.svelte";
-  import { cloneSessionRows, exercisesForSave, type CustomWeekRow, type DraftForm, type SessionRow } from "$lib/programForm";
+  import { cloneSessionRows, exercisesForSave, pendingWrite, type CustomWeekRow, type DraftForm, type SessionRow } from "$lib/programForm";
   import ExerciseEditor from "$lib/components/ExerciseEditor.svelte";
   import ExerciseGroup from "$lib/components/ExerciseGroup.svelte";
   import SessionTypePicker from "$lib/components/SessionTypePicker.svelte";
@@ -245,14 +245,16 @@
     }
   }
 
-  let persistTimer: ReturnType<typeof setTimeout> | undefined;
+  const keep = pendingWrite(persist, 400);
   $effect(() => {
     if (!autosave) return;
     JSON.stringify(formSnapshot()); // track every field, deeply
-    clearTimeout(persistTimer);
-    persistTimer = setTimeout(persist, 400);
-    return () => clearTimeout(persistTimer);
+    keep.schedule();
+    return () => keep.cancel();
   });
+  // an in-app link fires no pagehide, and tearing the page down cancels the
+  // timer: write a change made in the last 400 ms before it goes
+  beforeNavigate(() => keep.flush());
 
   /** Throw the kept draft away and go back to a blank program. */
   function startOver() {
@@ -488,7 +490,7 @@
           : null,
       });
       autosave = false;
-      clearTimeout(persistTimer);
+      keep.cancel();
       clearDraft(draftKey);
       await goto(fill ? `/clients/${id}/generate?fill=${program.id}` : `/programs/${program.id}`);
     } catch (err) {
@@ -551,9 +553,9 @@
 
 <svelte:head><title>New program · Program Tracker</title></svelte:head>
 <svelte:window
-  onpagehide={persist}
+  onpagehide={keep.flush}
   onvisibilitychange={() => {
-    if (document.visibilityState === "hidden") persist();
+    if (document.visibilityState === "hidden") keep.flush();
   }}
 />
 

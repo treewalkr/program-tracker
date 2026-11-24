@@ -52,3 +52,38 @@ export function cloneSessionRows(rows: readonly SessionRow[], newId: () => strin
     exercises: s.exercises.map((e) => ({ ...e, id: newId() })),
   }));
 }
+
+/** A debounced write that can be pushed out now: the form's autosave schedules
+ *  one per change, and leaving the page flushes whatever is still waiting. */
+export interface PendingWrite {
+  readonly pending: boolean;
+  schedule(): void;
+  flush(): void;
+  cancel(): void;
+}
+
+export function pendingWrite(write: () => void, delayMs: number): PendingWrite {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const cancel = () => {
+    clearTimeout(timer);
+    timer = undefined;
+  };
+  return {
+    get pending() {
+      return timer !== undefined;
+    },
+    schedule() {
+      cancel();
+      timer = setTimeout(() => {
+        timer = undefined;
+        write();
+      }, delayMs);
+    },
+    flush() {
+      if (timer === undefined) return;
+      cancel();
+      write();
+    },
+    cancel,
+  };
+}

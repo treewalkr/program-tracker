@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { ImportChunk, buildImportResult, matchExercise, type ImportExercise } from "@pt/shared";
-import { cloneSessionRows, exercisesForSave, type DraftForm, type SessionRow } from "./programForm";
+import { cloneSessionRows, exercisesForSave, pendingWrite, type DraftForm, type SessionRow } from "./programForm";
 import { choiceFor, formFromImport, templateExercises, type MatchChoice } from "./pasteImport";
 
 const BASE: DraftForm = {
@@ -167,5 +167,48 @@ describe("exercisesForSave with groups", () => {
     expect(out.map((e) => e.id)).toEqual(["core", "a1", "a2"]);
     expect(out.map((e) => e.group)).toEqual([undefined, "A", "A"]);
     expect(out[1].prescribedSets.length).toBe(3);
+  });
+});
+
+describe("pendingWrite", () => {
+  const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  test("writes once after the delay, however many times it was scheduled", async () => {
+    let writes = 0;
+    const w = pendingWrite(() => writes++, 20);
+    w.schedule();
+    w.schedule();
+    expect(w.pending).toBe(true);
+    await wait(40);
+    expect(writes).toBe(1);
+    expect(w.pending).toBe(false);
+  });
+
+  test("flush writes a pending change now, and only once", async () => {
+    let writes = 0;
+    const w = pendingWrite(() => writes++, 20);
+    w.schedule();
+    w.flush();
+    expect(writes).toBe(1);
+    expect(w.pending).toBe(false);
+    await wait(40);
+    expect(writes).toBe(1);
+  });
+
+  test("flush with nothing pending writes nothing", () => {
+    let writes = 0;
+    const w = pendingWrite(() => writes++, 20);
+    w.flush();
+    expect(writes).toBe(0);
+  });
+
+  test("cancel drops the pending write", async () => {
+    let writes = 0;
+    const w = pendingWrite(() => writes++, 20);
+    w.schedule();
+    w.cancel();
+    w.flush();
+    await wait(40);
+    expect(writes).toBe(0);
   });
 });
