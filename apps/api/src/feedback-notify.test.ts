@@ -49,16 +49,24 @@ describe("feedbackEmails", () => {
     expect(out[0].text).toContain("  Which screen?");
   });
 
-  test("an AI answer is labelled as one and invites a correction", () => {
+  test("an AI answer is labelled as one: the reporter is invited to correct it, others to review it", () => {
     const out = feedbackEmails(
       "reply",
       snap({ actor: null, comment: { body: "It's under Settings → Email.", status: null, authorKind: "ai" } }),
     );
     expect(to(out)).toEqual(["boss@example.com", "kai@example.com"]);
-    expect(out[0].subject).toBe("[FB-012] AI answer to your feedback");
-    expect(out[0].text).toContain("The AI assistant answered FB-012");
-    expect(out[0].text).toContain("  It's under Settings → Email.");
-    expect(out[0].text).toContain("reply on the ticket to correct it");
+    const forKai = out.find((e) => e.to === "kai@example.com")!;
+    expect(forKai.subject).toBe("[FB-012] AI answer to your feedback");
+    expect(forKai.text).toContain("The AI assistant answered FB-012");
+    expect(forKai.text).toContain("  It's under Settings → Email.");
+    expect(forKai.text).toContain("reply on the ticket to correct it and a person will take a look");
+    // the admin is the person who takes a look — not addressed as the reporter
+    const forBoss = out.find((e) => e.to === "boss@example.com")!;
+    expect(forBoss.subject).toBe("[FB-012] AI answered Kai's ticket");
+    expect(forBoss.text).toContain("The AI assistant answered FB-012");
+    expect(forBoss.text).toContain("for Kai:");
+    expect(forBoss.text).toContain("  It's under Settings → Email.");
+    expect(forBoss.text).not.toContain("a person will take a look");
   });
 
   test("status changes email the reporter: accepted, won't fix with reason, shipped", () => {

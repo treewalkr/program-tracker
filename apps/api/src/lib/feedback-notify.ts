@@ -18,7 +18,8 @@ import { emailConfigured, sendEmail, type Email, type SendResult } from "./maile
  *
  * - created → the admin (unless the admin filed it)
  * - reply   → everyone on the thread (reporter, admin, other repliers) but the author;
- *             an AI answer is labelled as one and invites a correction. AI drafts
+ *             an AI answer is labelled as one and invites the reporter to correct it
+ *             (everyone else is told it went out, to review it). AI drafts
  *             and private notes never notify — only publishing one does.
  * - status  → the reporter, for accepted / in progress / won't fix / done (unless they made the change)
  * Nobody hears about their own actions. On top of that each person's own say:
@@ -211,12 +212,22 @@ export function feedbackEmails(kind: FeedbackEvent["kind"], snap: FeedbackSnapsh
   }
 
   if (kind === "reply" && snap.comment?.authorKind === "ai") {
-    return send(`[${handle}] AI answer to your feedback`, {
-      lead: `The AI assistant answered ${handle} ("${clip(item.comment, 80)}"):`,
-      quote: snap.comment.body?.trim() ?? "",
-      markdown: true,
-      after: "This answer was written by an AI that read the app's code. If it's wrong or doesn't help, reply on the ticket to correct it and a person will take a look.",
-    }, "AI answer");
+    const answer = { quote: snap.comment.body?.trim() ?? "", markdown: true };
+    const about = `${handle} ("${clip(item.comment, 80)}")`;
+    // the reporter is the one it answers; the admin and other repliers are the people who review it
+    return feedbackRecipients(kind, snap).map((p) =>
+      p.id === snap.reporter?.id
+        ? compose(snap, kind, p, `[${handle}] AI answer to your feedback`, {
+            ...answer,
+            lead: `The AI assistant answered ${about}:`,
+            after: "This answer was written by an AI that read the app's code. If it's wrong or doesn't help, reply on the ticket to correct it and a person will take a look.",
+          }, "AI answer")
+        : compose(snap, kind, p, `[${handle}] AI answered ${snap.reporter ? `${snap.reporter.name}'s` : "a"} ticket`, {
+            ...answer,
+            lead: `The AI assistant answered ${about}${snap.reporter ? ` for ${snap.reporter.name}` : ""}:`,
+            after: "It's already on the ticket. Open it to check the answer, and reply there if it needs correcting.",
+          }, "AI answer"),
+    );
   }
 
   if (kind === "reply") {
