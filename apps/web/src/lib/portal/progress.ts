@@ -78,6 +78,7 @@ export function cardioSummary(c: PortalCardio, t: T): { lead: string; second: st
   const target = t(`week.cardio.${c.unit}` as MessageKey, { done: Math.round(c.done), target: c.target });
   const coachYardstick = c.unit === "session_load" || c.unit === "zone_minutes";
   if (!coachYardstick || c.sessions == null || c.minutes == null) return { lead: target, second: null };
-  const lead = t("week.cardio.lead", { sessions: c.sessions, time: hoursMinutes(c.minutes, t) });
+  const time = hoursMinutes(c.minutes, t);
+  const lead = c.sessions === 1 ? t("week.cardio.leadOne", { time }) : t("week.cardio.lead", { sessions: c.sessions, time });
   return { lead, second: target };
 }

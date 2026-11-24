@@ -338,6 +338,7 @@ export const en = {
   "rpe.feel4": "hard, a few words",
   "rpe.feel5": "all-out",
   "week.cardio.lead": "{sessions} sessions · {time}",
+  "week.cardio.leadOne": "1 session · {time}",
   "progress.loadExplain": "Load = how hard × minutes. It shows your coach how heavy the week was.",
   "cardio.notesPlaceholder": "How did it go?",
 } as const;
@@ -676,6 +677,7 @@ export const th: Record<MessageKey, string> = {
   "rpe.feel4": "หนัก พูดได้ไม่กี่คำ",
   "rpe.feel5": "สุดแรง",
   "week.cardio.lead": "{sessions} เซสชัน · {time}",
+  "week.cardio.leadOne": "1 เซสชัน · {time}",
   "progress.loadExplain": "โหลด = ความเหนื่อย × นาที ใช้ให้โค้ชดูว่าสัปดาห์นี้หนักแค่ไหน",
   "cardio.notesPlaceholder": "เป็นอย่างไรบ้าง",
 };

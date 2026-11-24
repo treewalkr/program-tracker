@@ -65,6 +65,9 @@ describe("cardioSummary: sessions and time lead, the coach's load comes second",
     expect(s).toEqual({ lead: "2 sessions · 1 h 15 min", second: "Load 246 of 600" });
     expect(s.second).not.toContain("AU");
   });
+  test("one session is singular", () => {
+    expect(cardioSummary({ unit: "session_load", target: 600, done: 120, sessions: 1, minutes: 42 }, tEn).lead).toBe("1 session · 42 min");
+  });
   test("a minutes or sessions target is already the lead", () => {
     expect(cardioSummary({ unit: "minutes", target: 120, done: 90, sessions: 2, minutes: 90 }, tEn)).toEqual({ lead: "90 of 120 min", second: null });
   });
