@@ -284,7 +284,7 @@
   @media (max-width: 1180px) {
     .insp {
       position: fixed; top: 0; right: 0; bottom: 0; width: min(420px, 100vw); max-height: none; z-index: 20;
-      border-radius: 0; box-shadow: var(--shadow-overlay);
+      border-radius: 0; box-shadow: var(--shadow-overlay); padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) 0;
     }
   }
 </style>

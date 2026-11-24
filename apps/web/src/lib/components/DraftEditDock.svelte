@@ -126,7 +126,7 @@
   /* The review page: floats over the sessions like the sticky save bar. */
   .dock.page {
     position: sticky;
-    bottom: 12px;
+    bottom: calc(12px + env(safe-area-inset-bottom));
     z-index: 5;
     margin-top: 12px;
     background: var(--surface);

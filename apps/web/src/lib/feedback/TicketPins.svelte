@@ -404,7 +404,7 @@
     position: fixed;
     z-index: 9999;
     left: 50%;
-    bottom: 64px;
+    bottom: calc(64px + env(safe-area-inset-bottom));
     transform: translateX(-50%);
     margin: 0;
     background: var(--hover-ink);

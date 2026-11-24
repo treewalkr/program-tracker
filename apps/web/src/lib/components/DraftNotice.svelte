@@ -74,9 +74,9 @@
 <style>
   .draft-notices {
     position: fixed;
-    right: 16px;
+    right: calc(16px + env(safe-area-inset-right));
     /* Above the Feedback launcher (32px pill at bottom 16px), and whatever lifts it. */
-    bottom: calc(60px + var(--feedback-lift, 0px));
+    bottom: calc(60px + max(var(--feedback-lift, 0px), env(safe-area-inset-bottom)));
     z-index: 9998;
     width: min(360px, calc(100vw - 32px));
     display: flex;

@@ -841,7 +841,7 @@
     .rv-actions { display: none; }
     .outcome-actions { display: block; margin-top: 10px; }
     .outcome-actions .row :global(.btn) { flex: 1; justify-content: center; min-height: 44px; }
-    .mbar { display: block; position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; background: var(--surface); border-top: 1px solid var(--line); padding: 10px 16px 12px; box-shadow: var(--shadow-overlay-up); }
+    .mbar { display: block; position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; background: var(--surface); border-top: 1px solid var(--line); padding: 10px calc(16px + env(safe-area-inset-right)) calc(12px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left)); box-shadow: var(--shadow-overlay-up); }
     .mbar .row :global(.btn) { flex: 1; justify-content: center; min-height: 36px; }
     .mbar .lock, .mbar .paused { margin-top: 6px; }
     .ask { margin-left: 0; }

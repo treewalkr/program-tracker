@@ -606,9 +606,10 @@
 
   .bar {
     position: fixed;
-    right: 16px;
-    /* Rides above a bar docked to the bottom: found by watchBottomBars, or set by the page (lift.ts). */
-    bottom: calc(16px + max(var(--feedback-lift, 0px), var(--feedback-auto-lift, 0px)));
+    right: calc(16px + env(safe-area-inset-right));
+    /* Rides above a bar docked to the bottom: found by watchBottomBars, or set by the page (lift.ts).
+       Such a bar already clears the home indicator; with none, the inset itself is the floor. */
+    bottom: calc(16px + max(var(--feedback-lift, 0px), var(--feedback-auto-lift, 0px), env(safe-area-inset-bottom)));
     z-index: 9999;
     display: flex;
     align-items: center;
