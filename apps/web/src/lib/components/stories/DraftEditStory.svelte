@@ -46,7 +46,7 @@
         name: "Lower A — Back Squat",
         kind: "exercises",
         exercises: [
-          ex("Box Jump", "power", 3, 3),
+          ex("Box Jump", "plyometric", 3, 3),
           ex("Barbell Back Squat", "primary", 5, 5),
           ex("Barbell Hack Squat", "strength", 3, 8),
           ex("Romanian Deadlift", "strength", 3, 8),

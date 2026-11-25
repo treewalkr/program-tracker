@@ -204,7 +204,7 @@ describe.skipIf(!dbUp)("role labels", () => {
       ] }],
     };
     const fixed = await checkDraftRoles(trainerId, draft);
-    expect(fixed.weeks[0].sessions[0].exercises.map((e) => e.role)).toEqual(["primary", "primary", "core", "power", "accessory", mine.key]);
+    expect(fixed.weeks[0].sessions[0].exercises.map((e) => e.role)).toEqual(["primary", "primary", "core", "plyometric", "accessory", mine.key]);
     expect(fixed.rationale).toContain("Role check: Lower has more than one Primary lift");
     // a revision that kept the note doesn't get it twice
     const again = await checkDraftRoles(trainerId, fixed);

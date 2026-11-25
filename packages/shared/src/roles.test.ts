@@ -156,10 +156,23 @@ describe("suggestRole", () => {
   const ex = (name: string, o: Partial<RoleHints> = {}): RoleHints => ({ name, ...o });
   const reps = (...r: number[]) => r.map((n) => ({ reps: n, type: "working" }));
 
-  test("explosive names → power, whatever the pattern", () => {
-    for (const n of ["Box Jump", "Med Ball Slam", "Power Clean", "Push Jerk", "Snatch Pull", "Bounds", "Sprint 20m", "Plyo Push-up"]) {
+  test("explosive lifts → power, whatever the pattern", () => {
+    for (const n of ["Med Ball Slam", "Power Clean", "Push Jerk", "Snatch Pull", "Sprint 20m", "Jump Squat", "Barbell Jump Squat", "Kettlebell Swing"]) {
       expect(suggestRole(ex(n, { movementPattern: "vertical_push" }), [], 0)).toBe("power");
     }
+  });
+
+  test("reactive jump, hop, bound and skip names → plyometric, whatever the pattern", () => {
+    for (const n of ["Pogo jumps", "Box Jump", "Depth Jump", "Drop Jump", "Hurdle Hops", "Lateral Bound", "Bounds", "A-Skip", "B Skips", "Plyo Push-up"]) {
+      expect(suggestRole(ex(n, { movementPattern: "vertical_push" }), [], 0)).toBe("plyometric");
+    }
+  });
+
+  test("plyometric vs power: the trainer's split", () => {
+    expect(suggestRole(ex("Pogo jumps"), [], 0)).toBe("plyometric");
+    expect(suggestRole(ex("Power clean"), [], 0)).toBe("power");
+    expect(suggestRole(ex("Box jump"), [], 0)).toBe("plyometric");
+    expect(suggestRole(ex("Hip thrust"), [], 0)).not.toBe("plyometric");
   });
 
   test("trunk patterns, core muscle or trunk names → core", () => {
@@ -223,12 +236,14 @@ describe("suggestRole", () => {
     expect(suggestRole(ex("Thoracic Rotation", { movementPattern: "rotation" }), [], 0)).toBe("mobility");
   });
 
-  test("clashes: sprints stay power, a plain row stays a lift", () => {
+  test("clashes: sprints stay power, a plain row stays a lift, skipping rope is conditioning, hip is not a hop", () => {
     expect(suggestRole(ex("Sprint 20m"), [], 0)).toBe("power");
     expect(suggestRole(ex("Hill Sprints"), [], 0)).toBe("power");
     expect(suggestRole(ex("Bike Sprints"), [], 0)).toBe("power");
     expect(suggestRole(ex("Sled Push"), [], 0)).toBe("conditioning");
-    expect(suggestRole(ex("Box Jump"), [], 0)).toBe("power");
+    expect(suggestRole(ex("Skipping Rope"), [], 0)).toBe("conditioning");
+    expect(suggestRole(ex("Box Jump"), [], 0)).toBe("plyometric");
+    expect(suggestRole(ex("Hip Thrust", { movementPattern: "hip_dominant" }), [], 0)).toBe("primary");
     expect(suggestRole(ex("Barbell Row", { prescribedSets: reps(5) }), [], 0)).toBe("primary");
     expect(suggestRole(ex("Seated Cable Row", { prescribedSets: reps(10) }), [], 0)).toBe("strength");
     expect(suggestRole(ex("Bicycle Crunch"), [], 0)).toBe("core");
@@ -255,7 +270,7 @@ describe("suggestRole", () => {
       ex("Leg Curl", { movementPattern: "isolation", prescribedSets: reps(12) }),
       ex("Plank"),
     ];
-    expect(suggestRoles(session)).toEqual(["power", "primary", "secondary", "strength", "accessory", "core"]);
+    expect(suggestRoles(session)).toEqual(["plyometric", "primary", "secondary", "strength", "accessory", "core"]);
   });
 
   test("compound work above 6 reps → strength, and doesn't take the primary slot", () => {

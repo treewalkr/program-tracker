@@ -160,7 +160,15 @@ const CONDITIONING_NAME =
   /\b(bikes?|cycl(e|ing)|assault|rower|row[\s-]?ergs?|ergs?|ski[\s-]?ergs?|rowing[\s-]?machine|concept[\s-]?2|c2|sleds?|prowler|intervals?|runs?|running|jog|jogging|conditioning|metcon|hiit|cardio|zone[\s-]?2|treadmill|elliptical|swim(ming)?|battle[\s-]?ropes?|jump[\s-]?rope|skipping|burpees?|shuttles?)\b/i;
 const SPRINT = /\bsprint/i;
 
-const EXPLOSIVE = /\b(jumps?|jumping|throws?|cleans?|snatch(es)?|jerks?|plyo\w*|med(icine)?[\s-]?ball|bounds?|bounding|sprints?|sprinting)\b/i;
+/**
+ * Plyometric names: reactive jumps, hops, bounds and skips — stretch-shortening
+ * work. "Skipping" (rope) is conditioning above, and `skips?` never matches it
+ * (no word boundary inside "skipping"); `hops?` never matches "hip".
+ */
+const PLYO_NAME = /\b(pogos?|hops?|hopping|bounds?|bounding|skips?|jumps?|jumping|plyo\w*)\b/i;
+/** Explosive lifts: Olympic lifts and their cousins, throws, med-ball and swing work, jump squats, sprints. */
+const POWER_NAME =
+  /\b(jump[\s-]?squats?|squat[\s-]?jumps?|cleans?|snatch(es)?|jerks?|throws?|med(icine)?[\s-]?ball|swings?|sprints?|sprinting)\b/i;
 const TRUNK_PATTERNS = new Set<MovementPattern>([
   "anti_rotation",
   "anti_lateral_flexion",
@@ -197,7 +205,7 @@ export const isRetiredRole = (role: string | null | undefined): boolean => !!rol
 /** A warm-up / activation / ramp name: a hint that the exercise belongs in Movement prep. */
 export const looksLikePrep = (name: string): boolean => PREP_NAME.test(name);
 
-type Kind = "mobility" | "conditioning" | "power" | "core" | "compound" | "accessory";
+type Kind = "mobility" | "conditioning" | "plyometric" | "power" | "core" | "compound" | "accessory";
 
 function kindOf(hints: RoleHints): Kind {
   // A warm-up is prep by block now (looksLikePrep), not by label: it takes Mobility.
@@ -207,7 +215,9 @@ function kindOf(hints: RoleHints): Kind {
   // "No pattern" (mobility, drills) and a lone "Multi-movement" give no hint: the name heuristics decide.
   const e =
     hints.movementPattern === "no_pattern" || hints.movementPattern === "multi_movement" ? { ...hints, movementPattern: null } : hints;
-  if (EXPLOSIVE.test(e.name)) return "power";
+  // Lifts first: "Jump Squat" is a power lift even though "jump" reads plyometric.
+  if (POWER_NAME.test(e.name)) return "power";
+  if (PLYO_NAME.test(e.name)) return "plyometric";
   if (e.movementPattern && TRUNK_PATTERNS.has(e.movementPattern)) return "core";
   if (e.primaryMuscleGroup === "core" || e.primaryMuscleGroup === "obliques") return "core";
   if (!e.movementPattern && TRUNK_NAME.test(e.name)) return "core";
@@ -233,7 +243,9 @@ function isHeavy(e: RoleHints): boolean {
  * Built-in label for `sessionExercises[index]` (`exercise`): by name first —
  * warm-up/activation and stretching/foam rolling/breathing → mobility (the
  * Movement Prep label is retired: the session block says prep), bike/erg/sled/run/intervals → conditioning (a sprint stays
- * power); then explosive → power; trunk → core; the session's first heavy compound (≤ 6 reps when
+ * power); plyometric names (pogo, hop, bound, jump, skip) → plyometric; explosive
+ * lifts (clean, snatch, jerk, throw, med ball, swing, jump squat) → power; trunk → core;
+ * the session's first heavy compound (≤ 6 reps when
  * known, not to failure) → primary, the next → secondary; other compound work → strength;
  * everything else → accessory (Auxiliary). Pure; never a custom label, and
  * never `supplemental` (the trainer picks that one).
