@@ -1,6 +1,15 @@
 import { describe, expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
-import { LAST_GRANDFATHERED, LINT_HELP, migrationNumber, stripComments, unsafeChanges } from "./migration-lint";
+import {
+  LAST_GRANDFATHERED,
+  LAST_WITHOUT_RLS,
+  LINT_HELP,
+  RLS_HELP,
+  migrationNumber,
+  stripComments,
+  tablesMissingRls,
+  unsafeChanges,
+} from "./migration-lint";
 
 describe("unsafeChanges", () => {
   const unsafe: [string, string][] = [
@@ -62,6 +71,26 @@ ALTER TABLE "feedback" DROP COLUMN "element_shot";`;
   });
 });
 
+describe("tablesMissingRls", () => {
+  test("flags a new table without RLS", () => {
+    expect(tablesMissingRls(`CREATE TABLE "things" ("id" uuid PRIMARY KEY);`)).toEqual(["things"]);
+    expect(tablesMissingRls(`CREATE TABLE IF NOT EXISTS public.things (id uuid);`)).toEqual(["things"]);
+  });
+
+  test("passes when the same file enables RLS", () => {
+    const sql = `CREATE TABLE "things" ("id" uuid PRIMARY KEY);
+--> statement-breakpoint
+ALTER TABLE "things" ENABLE ROW LEVEL SECURITY;`;
+    expect(tablesMissingRls(sql)).toEqual([]);
+    expect(tablesMissingRls(`CREATE TABLE things (id uuid); ALTER TABLE "public"."things" ENABLE ROW LEVEL SECURITY;`)).toEqual([]);
+  });
+
+  test("ignores commented-out tables and other tables' RLS", () => {
+    expect(tablesMissingRls(`-- CREATE TABLE "old" (id uuid);`)).toEqual([]);
+    expect(tablesMissingRls(`CREATE TABLE "a" (id uuid); ALTER TABLE "b" ENABLE ROW LEVEL SECURITY;`)).toEqual(["a"]);
+  });
+});
+
 describe("stripComments", () => {
   test("keeps -- inside quotes", () => {
     expect(stripComments(`SELECT '--a', "b--c" -- tail`)).toBe(`SELECT '--a', "b--c"  `);
@@ -86,5 +115,15 @@ describe("drizzle migrations", () => {
       return hits.length ? [`${f}: ${hits.join(", ")}`] : [];
     });
     if (problems.length) throw new Error(`Unsafe migration(s):\n  ${problems.join("\n  ")}\n\n${LINT_HELP}`);
+  });
+
+  test(`tables created after ${String(LAST_WITHOUT_RLS).padStart(4, "0")} enable RLS`, () => {
+    const problems = files
+      .filter((f) => (migrationNumber(f) ?? 0) > LAST_WITHOUT_RLS)
+      .flatMap((f) => {
+        const missing = tablesMissingRls(readFileSync(dir + f, "utf8"));
+        return missing.length ? [`${f}: ${missing.join(", ")}`] : [];
+      });
+    if (problems.length) throw new Error(`Table(s) without RLS:\n  ${problems.join("\n  ")}\n\n${RLS_HELP}`);
   });
 });
