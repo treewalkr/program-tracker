@@ -1,0 +1,3 @@
+#!/bin/sh
+# git hook shim (core.hooksPath = scripts/githooks): the rules live in scripts/guards/pre-commit.ts
+exec sh "$(dirname "$0")/run.sh" pre-commit "$@"

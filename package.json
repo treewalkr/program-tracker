@@ -7,6 +7,7 @@
     "packages/*"
   ],
   "scripts": {
+    "prepare": "[ -n \"$CI\" ] || [ ! -e .git ] || git config core.hooksPath scripts/githooks || true",
     "dev": "concurrently -n api,web -c blue,green \"bun run --filter @pt/api dev\" \"bun run --filter @pt/web dev\"",
     "dev:api": "bun run --filter @pt/api dev",
     "dev:web": "bun run --filter @pt/web dev",
