@@ -28,6 +28,16 @@ export function startLine(date: string, today: string, weeks: number): string {
   return `Today is W${week} · ${weekRangeLabel(start, addDays(start, 6))}`;
 }
 
+/**
+ * Activating archives the member's current program at once, even when the new
+ * block's Week 1 is still ahead. This is the warning for that gap, or null when
+ * there is no gap (Week 1 is today or earlier) or no program is being replaced.
+ */
+export function futureStartWarning(date: string, today: string, replacing: string | null | undefined, member: string | null | undefined): string | null {
+  if (!replacing || !date || dayNumber(date) <= dayNumber(today)) return null;
+  return `“${replacing}” stops as soon as you activate. ${member || "The member"} has nothing to log until ${weekdayDayMonth(date)}, when Week 1 starts.`;
+}
+
 /** The dialog's error line for a date, in the trainer's words; null when it's fine. */
 export function startIssue(date: string, today: string, weeks: number): string | null {
   if (!date) return "Pick a date.";

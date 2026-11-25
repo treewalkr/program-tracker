@@ -567,7 +567,7 @@
         <Button small type="button" onclick={() => (activateOpen = true)}>Activate</Button>
       {/snippet}
     </DraftBanner>
-    <StartDateDialog mode={activateOpen ? "activate" : null} program={a.program as SignalProgram} onconfirm={activateApproved} onclose={() => (activateOpen = false)} />
+    <StartDateDialog mode={activateOpen ? "activate" : null} program={a.program as SignalProgram} onconfirm={activateApproved} onclose={() => (activateOpen = false)} replacing={current?.status === "active" ? current.name : null} member={firstName} />
   {/if}
 
   {#if visibleSignals.length > 0}

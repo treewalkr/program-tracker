@@ -930,7 +930,7 @@
 
 
 {#if pending}
-  <StartDateDialog mode={startDialogOpen ? "activate" : null} program={pending as SignalProgram} onconfirm={activate} onclose={() => (startDialogOpen = false)} />
+  <StartDateDialog mode={startDialogOpen ? "activate" : null} program={pending as SignalProgram} onconfirm={activate} onclose={() => (startDialogOpen = false)} replacing={current?.status === "active" ? current.name : null} member={client?.name.split(" ")[0]} />
 {/if}
 
 <style>

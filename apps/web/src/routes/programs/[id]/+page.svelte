@@ -98,6 +98,8 @@
 
   let program = $state<ProgramDto | null>(null);
   let clientName = $state<string | null>(null);
+  /** The member's active program (other than this one): activating this draft stops it at once. */
+  let replacing = $state<string | null>(null);
   /** This program's logs — shown under each session next to what was planned. */
   let logs = $state<SessionLogDto[]>([]);
   let trainingDays = $state<number[]>([]);
@@ -432,6 +434,7 @@
       if (p.clientId) {
         const detail = await api.client(p.clientId);
         clientName = detail.client.name;
+        replacing = detail.currentProgram && detail.currentProgram.id !== p.id ? detail.currentProgram.name : null;
         trainingDays = detail.client.trainingDays ?? [];
         cardioDays = detail.client.cardioDays ?? null;
         longRunDay = detail.client.longRunDay ?? null;
@@ -1056,7 +1059,7 @@
 
 <LeaveGuard guard={leaveGuard} />
 {#if program}
-  <StartDateDialog mode={startDialog} program={program as SignalProgram} {logs} onconfirm={setStart} onclose={() => (startDialog = null)} />
+  <StartDateDialog mode={startDialog} program={program as SignalProgram} {logs} onconfirm={setStart} onclose={() => (startDialog = null)} {replacing} member={clientName?.split(" ")[0]} />
 {/if}
 
 <style>
