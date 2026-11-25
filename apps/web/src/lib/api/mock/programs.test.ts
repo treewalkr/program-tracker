@@ -148,3 +148,29 @@ describe("mockApi.saveProgram", () => {
     expect(mockApi.saveProgram("pg-maya-a", invalidWeeks)).rejects.toThrow("invalid weeks document");
   });
 });
+
+describe("mockApi.deleteProgram (mirrors DELETE /v1/programs/:id)", () => {
+  const weeks: ProgramWeekDto[] = [
+    {
+      week: 1,
+      sessions: [
+        {
+          id: crypto.randomUUID(), name: "Lower", seq: 1, order: 0, kind: "exercises", weekday: 1,
+          exercises: [{ id: crypto.randomUUID(), exerciseId: "ex-squat", order: 0, prescribedSets: [{ setNumber: 1, type: "working", reps: 5, amrap: false }] }],
+        },
+      ],
+    },
+  ];
+
+  test("deletes a draft; refuses an active one and one with logs", async () => {
+    const draft = await mockApi.createProgram({ clientId: "cl-maya", name: "Scrap", weeks });
+    await mockApi.deleteProgram(draft.id);
+    expect((await mockApi.programs("cl-maya")).some((p) => p.id === draft.id)).toBe(false);
+    await expect(mockApi.deleteProgram(draft.id)).rejects.toThrow("program not found");
+
+    const active = (await mockApi.programs("cl-maya")).find((p) => p.status === "active");
+    if (active) await expect(mockApi.deleteProgram(active.id)).rejects.toThrow("active");
+    // the seeded block Maya logged against
+    await expect(mockApi.deleteProgram("pg-maya-a")).rejects.toThrow(/active|logged/);
+  });
+});

@@ -1,7 +1,7 @@
 import { Elysia, t } from "elysia";
-import { and, desc, eq } from "drizzle-orm";
+import { and, count, desc, eq, ne, notExists, sql } from "drizzle-orm";
 import { z } from "zod";
-import { db, programs } from "@pt/db";
+import { db, programExamples, programs, sessionLogs } from "@pt/db";
 import { localDateOf, Phasing, ProgramWeeksWrite, startsOnIssue } from "@pt/shared";
 import { trainerContext } from "../lib/trainer-context";
 import { recordProgramEdit } from "../lib/llm-feedback";
@@ -187,6 +187,49 @@ export const programRoutes = new Elysia({ prefix: "/v1/programs", tags: ["progra
       params: t.Object({ id: t.String() }),
       body: ProgramModel.status,
       response: { 200: ProgramModel.dto, 404: ErrorBody, 422: ErrorBody },
+    }
+  )
+  /** Delete a program that was never used. Session logs cascade from programs, so one with any logs
+   *  (the member's history) or one that is live is refused — archive those instead. A program kept in the
+   *  example library is refused too: its example row would go with it. */
+  .delete(
+    "/:id",
+    async ({ params, status, trainerId }) => {
+      const [current] = await db
+        .select()
+        .from(programs)
+        .where(and(eq(programs.id, params.id), eq(programs.trainerId, trainerId)));
+      if (!current) return status(404, { error: "program not found" });
+      if (current.status === "active") {
+        return status(409, { error: "This program is active. Archive it first (activate another block), then it can be deleted if it was never logged." });
+      }
+      const [{ logs }] = await db.select({ logs: count() }).from(sessionLogs).where(eq(sessionLogs.programId, current.id));
+      if (logs > 0) {
+        return status(409, { error: "This program has logged sessions, so it can't be deleted. Archive it instead to keep the history." });
+      }
+      const [{ examples }] = await db.select({ examples: count() }).from(programExamples).where(eq(programExamples.programId, current.id));
+      if (examples > 0) {
+        return status(409, { error: "This program is in the example library. Remove it from the library first." });
+      }
+      // The same checks in the delete itself: a log or activation landing after the reads above keeps the program.
+      const [deleted] = await db
+        .delete(programs)
+        .where(
+          and(
+            eq(programs.id, current.id),
+            eq(programs.trainerId, trainerId),
+            ne(programs.status, "active"),
+            notExists(db.select({ one: sql`1` }).from(sessionLogs).where(eq(sessionLogs.programId, current.id)))
+          )
+        )
+        .returning({ id: programs.id });
+      if (!deleted) return status(409, { error: "This program changed while you were deleting it. Reload and try again." });
+      return { id: deleted.id };
+    },
+    {
+      params: t.Object({ id: t.String() }),
+      response: { 200: t.Object({ id: t.String() }), 404: ErrorBody, 409: ErrorBody },
+      detail: { summary: "Delete a draft or never-logged program; active or logged ones answer 409 (archive instead)" },
     }
   )
   /** Move Week 1's start on an active program; every block week follows (logs keep their dates). */

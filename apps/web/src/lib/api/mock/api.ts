@@ -1017,6 +1017,16 @@ const rawMockApi: TrainerApi = {
     return withNames(p);
   },
 
+  async deleteProgram(id) {
+    await delay(250);
+    const p = state.programs.find((x) => x.id === id);
+    if (!p) throw Object.assign(new Error("program not found"), { status: 404 });
+    if (p.status === "active") throw Object.assign(new Error("This program is active. Archive it first (activate another block), then it can be deleted if it was never logged."), { status: 409 });
+    if (state.logs.some((l) => l.programId === id)) throw Object.assign(new Error("This program has logged sessions, so it can't be deleted. Archive it instead to keep the history."), { status: 409 });
+    if (state.examples.some((e) => e.programId === id)) throw Object.assign(new Error("This program is in the example library. Remove it from the library first."), { status: 409 });
+    state.programs = state.programs.filter((x) => x.id !== id);
+  },
+
   async setProgramStartsOn(id, startsOn) {
     await delay(250);
     const p = state.programs.find((x) => x.id === id);

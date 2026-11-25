@@ -771,6 +771,8 @@ export interface TrainerApi {
   setProgramStatus(id: string, status: ProgramDto["status"], startsOn?: string): Promise<ProgramDto>;
   /** Move Week 1's start on an active program. */
   setProgramStartsOn(id: string, startsOn: string): Promise<ProgramDto>;
+  /** Delete a draft or never-logged program. Refused (409) when it is active, has logs, or sits in the example library. */
+  deleteProgram(id: string): Promise<void>;
   saveProgramDirection(id: string, direction: string | null): Promise<ProgramDto>;
 
   examples(programId?: string): Promise<ProgramExampleDto[]>;

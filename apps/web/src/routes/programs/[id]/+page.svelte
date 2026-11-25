@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
   import { page } from "$app/state";
+  import { goto } from "$app/navigation";
   import { createLeaveGuard } from "$lib/leaveGuard.svelte";
   import LeaveGuard from "$lib/ui/LeaveGuard.svelte";
   import { api } from "$lib/api";
@@ -179,6 +180,24 @@
   let currentWeekIndex = $state(0);
 
   let existingExample = $state<ProgramExampleDto | null>(null);
+  /** Delete is offered on a draft or an archived program nobody logged (and not one in the example library);
+   *  the API refuses the rest. */
+  const deletable = $derived(program != null && program.status !== "active" && logs.length === 0 && !existingExample);
+  let deleteError = $state<string | null>(null);
+  async function deleteProgram() {
+    if (!program) return;
+    const { id: gone, clientId } = program;
+    deleteError = null;
+    try {
+      await api.deleteProgram(gone);
+    } catch (e) {
+      deleteError = (e as Error).message || "Could not delete this program";
+      return;
+    }
+    // Gone: drop unsaved edits so the leave guard doesn't offer to save them.
+    discard();
+    await goto(clientId ? `/clients/${clientId}` : "/clients");
+  }
   let marking = $state(false);
   let markGoal = $state("");
   let markLevel = $state<ProgramExampleDto["level"]>("intermediate");
@@ -620,6 +639,11 @@
     {#each { length: 2 }, i (i)}<SkeletonPanel head rows={i % 2 ? 3 : 4} dense />{/each}
   </div>
 {:else}
+  {#snippet deleteAction()}
+    {#if deletable}
+      <ConfirmButton label="Delete" confirmLabel="Really delete? This can't be undone" variant="ghost" armedVariant="danger" small onconfirm={deleteProgram} />
+    {/if}
+  {/snippet}
   <Crumbs items={[{ href: `/clients/${program.clientId}`, label: clientName ?? "Client" }, { label: "Program" }]} />
   <div class="page-head">
     <div>
@@ -634,6 +658,7 @@
     <div class="actions">
       {#if program.status === "archived"}
         <span class="subtle readonly-note">archived — read only</span>
+        {@render deleteAction()}
       {:else}
         {#if existingExample}
           <span class="subtle lib-state">In the example library</span>
@@ -649,9 +674,11 @@
             {activating ? "Activating…" : "Activate program"}
           </button>
         {/if}
+        {@render deleteAction()}
       {/if}
     </div>
   </div>
+  {#if deleteError}<Note tone="bad" role="alert">{deleteError}</Note>{/if}
 
   {#if marking && !existingExample}
     <form

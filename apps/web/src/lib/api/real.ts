@@ -127,6 +127,7 @@ export const realApi: TrainerApi = {
     unwrap<ProgramDto>(client.v1.programs({ id }).status.patch(startsOn ? { status, startsOn } : { status })),
   setProgramStartsOn: (id, startsOn) =>
     unwrap<ProgramDto>(client.v1.programs({ id })["starts-on"].patch({ startsOn })),
+  deleteProgram: (id) => unwrap<void>(client.v1.programs({ id }).delete()),
   saveProgramDirection: (id, direction) =>
     unwrap<ProgramDto>(client.v1.programs({ id }).direction.patch({ direction })),
 
