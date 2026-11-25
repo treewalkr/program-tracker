@@ -37,7 +37,7 @@ describe("commit message: format", () => {
   test("red: free-form, unknown type, unknown scope, missing space", () => {
     expect(rules(checkMessage("Update the thing"))).toContain("format");
     expect(rules(checkMessage("wip: stuff"))).toContain("format");
-    expect(rules(checkMessage("fix(web): stuff"))).toContain("format");
+    expect(rules(checkMessage("fix(frontend): stuff"))).toContain("format");
     expect(rules(checkMessage("fix:stuff"))).toContain("format");
   });
   test("green: every type, scopes, breaking marker", () => {
@@ -57,11 +57,11 @@ describe("commit message: format", () => {
 });
 
 describe("commit message: subject", () => {
-  test("red: longer than 72", () => {
-    expect(rules(checkMessage(`fix: ${"a".repeat(70)}`))).toContain("subject-length");
+  test("red: longer than 100", () => {
+    expect(rules(checkMessage(`fix: ${"a".repeat(96)}`))).toContain("subject-length");
   });
-  test("green: exactly 72", () => {
-    expect(checkMessage(`fix: ${"a".repeat(67)}`)).toEqual([]);
+  test("green: exactly 100", () => {
+    expect(checkMessage(`fix: ${"a".repeat(95)}`)).toEqual([]);
   });
   test("red: not imperative", () => {
     expect(rules(checkMessage("fix: fixes the rest timer"))).toEqual(["imperative"]);

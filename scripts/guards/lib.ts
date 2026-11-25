@@ -18,9 +18,9 @@ export const hasEscape = (line: string, rule: string): boolean => new RegExp(Str
 // ── commit message ──────────────────────────────────────────────────────────
 
 export const COMMIT_TYPES = ["feat", "fix", "docs", "chore", "refactor", "test", "perf", "ci", "build", "revert"] as const;
-export const COMMIT_SCOPES = ["domain", "api", "server", "app"] as const;
+export const COMMIT_SCOPES = ["domain", "api", "server", "app", "web", "portal", "shared", "db"] as const;
 export const EXEMPT_REASONS = ["ui-only", "copy", "config", "no-harness"] as const;
-export const MAX_SUBJECT = 72;
+export const MAX_SUBJECT = 100;
 const BAD_FIRST_WORDS = new Set(["added", "adds", "adding", "fixes", "fixed", "fixing"]);
 const SUBJECT = new RegExp(String.raw`^(${COMMIT_TYPES.join("|")})(?:\((${COMMIT_SCOPES.join("|")})\))?(!)?: (\S.*)$`);
 

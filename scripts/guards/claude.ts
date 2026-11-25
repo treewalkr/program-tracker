@@ -74,7 +74,8 @@ if (import.meta.main) {
     process.exit(0); // not hook JSON: never get in the way
   }
   const project = process.env.CLAUDE_PROJECT_DIR;
-  if (project && !existsSync(join(project, "scripts/guards/claude.ts"))) process.exit(0);
+  // Only in this repo: no project dir, or one without the guards, is a no-op.
+  if (!project || !existsSync(join(project, "scripts/guards/claude.ts"))) process.exit(0);
   const cwd = input.cwd ?? project ?? process.cwd();
   const root = toplevel(cwd) ?? cwd;
   const env: Env = {
