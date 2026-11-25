@@ -2,6 +2,36 @@
 
 ## Unreleased
 
+### New
+- **Members see what you logged for them.** If you log a member's session, it shows on their week card. They can open it read-only and see your note first.
+  - th: เซสชันที่เทรนเนอร์บันทึกให้ เมมเบอร์จะเห็นในการ์ดของสัปดาห์นั้นด้วย เปิดดูได้แต่แก้ไม่ได้ และเห็นโน้ตของเทรนเนอร์ก่อนอย่างอื่น
+- **Portal links open well from LINE.** A link opened inside LINE, Messenger or Instagram asks the member to open it in Safari or Chrome, so their sign-in sticks. A member who's already signed in goes straight to their program. Shared links show a neutral preview title.
+  - th: ลิงก์พอร์ทัลที่เปิดจาก LINE, Messenger หรือ Instagram จะชวนเมมเบอร์ไปเปิดใน Safari หรือ Chrome แทน จะได้ไม่หลุดจากระบบ ถ้าล็อกอินไว้แล้วก็เข้าโปรแกรมได้เลย ส่วนพรีวิวตอนแชร์ลิงก์จะขึ้นชื่อกลาง ๆ ไม่บอกข้อมูลส่วนตัว
+- **Member page shows what's waiting.** A draft still being written, or a block you haven't activated yet, now shows at the top of the member's page. Until this week has chain sets, the chains panel shows last week's.
+  - th: หน้าเมมเบอร์บอกแล้วว่ามีอะไรค้างอยู่ ถ้ามีดราฟต์ที่ AI กำลังเขียน หรือบล็อกที่ยังไม่ได้เปิดใช้ จะขึ้นไว้ด้านบนเลย และถ้าสัปดาห์นี้ยังไม่มีเซ็ตในแผง chains แผงจะโชว์ของสัปดาห์ก่อนไปก่อน
+- **Try again on a failed draft.** If an AI draft fails, Try again runs it again with the same brief.
+  - th: ดราฟต์ AI ที่ล้มเหลว กด Try again ได้เลย ระบบจะรันใหม่ด้วย brief เดิม
+
+### Improved
+- **Phones and iPad, across the app.** On a touch screen, fields use 16px text so the iPhone doesn't zoom, and buttons, links and list rows are at least 44px. Bars stay clear of the notch and home indicator. Menus, dropdowns, tooltips (long-press) and wide tables fit the screen. The program editor, Generate, draft chat, templates, the library pages and Feedback were all reworked for small screens.
+  - th: บนมือถือและ iPad ทั้งแอป ช่องกรอกใช้ตัวอักษร 16px บน iPhone จะได้ไม่ซูมเอง ปุ่ม ลิงก์ และแถวรายการใหญ่อย่างน้อย 44px แถบด้านบนและล่างไม่ทับรอยบากหรือแถบโฮม เมนู ดรอปดาวน์ คำอธิบายที่ขึ้นตอนกดค้าง และตารางกว้าง ๆ พอดีจอทั้งหมด ส่วนตัวแก้โปรแกรม Generate แชตดราฟต์ เทมเพลต หน้าไลบรารี และ Feedback ก็ปรับให้ใช้บนจอเล็กได้สะดวกขึ้นแล้ว
+- **Logging on the gym floor.** Set 1 is on the member log's first screen. Tapping a pre-filled number selects it, so typing replaces it, and Enter moves to the next box. The rest timer keeps running when the member switches apps.
+  - th: บันทึกในยิมง่ายขึ้น หน้าบันทึกของเมมเบอร์มีเซ็ตแรกให้เห็นตั้งแต่หน้าแรก แตะตัวเลขที่กรอกไว้แล้วจะเลือกทั้งช่อง พิมพ์ทับได้เลย กด Enter ก็ไปช่องถัดไป ตัวจับเวลาพักก็ไม่หยุดตอนสลับแอป
+- **Nothing gets lost on the way out.** Library forms, templates, coaching rules, vocabulary, examples, member settings and a new client all ask before you leave with unsaved changes. The Generate brief survives a detour, and a new program draft saves when you leave.
+  - th: ข้อมูลไม่หายตอนออกจากหน้า ฟอร์มในไลบรารี เทมเพลต coaching rules, vocabulary, examples, ตั้งค่าเมมเบอร์ และฟอร์มเพิ่มเมมเบอร์ใหม่ จะถามก่อนทุกครั้งถ้ายังมีอะไรไม่ได้เซฟ brief ใน Generate ไม่หายถ้าแวะไปหน้าอื่น และดราฟต์โปรแกรมใหม่เซฟไว้ให้ตอนออกจากหน้า
+- **Cardio review.** Heart rate is checked against your bpm band, not its zone. The review shows the member's per-rep results. Speed, split and pace are named for the activity, and times read like 1 h 44 min.
+  - th: ตอนรีวิวคาร์ดิโอ ระบบเทียบชีพจรกับช่วง bpm ที่เทรนเนอร์ตั้งไว้ ไม่ใช่โซน แสดงผลทีละ rep ของเมมเบอร์ ใช้คำ speed, split หรือ pace ตามประเภทกิจกรรม และเขียนเวลาแบบ 1 h 44 min
+- **Plainer error messages.** Server errors and dropped connections are explained in plain words.
+  - th: ข้อความ error อ่านง่ายขึ้น เวลาเซิร์ฟเวอร์มีปัญหาหรือเน็ตหลุด จะบอกเป็นภาษาธรรมดา
+
+### Fixed
+- **Member logs are safer.** A member's draft survives going offline and works only on their own account. An older tab can no longer overwrite a newer log, and a save that already went through isn't saved twice. Your feedback stays when a member re-saves a log. They're warned first that re-saving clears your Reviewed mark, and that removing the log deletes your note.
+  - th: บันทึกของเมมเบอร์ปลอดภัยขึ้น ดราฟต์ไม่หายแม้ออฟไลน์ และผูกกับบัญชีของเมมเบอร์คนนั้นเท่านั้น แท็บเก่าเขียนทับบันทึกที่ใหม่กว่าไม่ได้แล้ว และบันทึกที่เซฟไปแล้วจะไม่ถูกเซฟซ้ำ ถ้าเมมเบอร์เซฟบันทึกใหม่ ฟีดแบ็กของเทรนเนอร์ยังอยู่ แต่ระบบจะเตือนก่อนว่าเครื่องหมาย Reviewed จะหายไป ถ้าลบบันทึก ระบบก็เตือนว่าโน้ตของเทรนเนอร์จะหายไปด้วย
+- Thai aliases keep their vowel and tone marks.
+  - th: alias ภาษาไทยไม่ทำสระและวรรณยุกต์หายแล้ว
+- A skipped cardio session shows as "not done", not as missed, on Overview and in the program editor.
+  - th: เซสชันคาร์ดิโอที่เมมเบอร์ข้าม ขึ้นว่า "not done" ทั้งใน Overview และตัวแก้โปรแกรม ไม่ขึ้นว่าพลาด
+
 ## v0.1.51 — 2026-11-24
 
 ### New
