@@ -498,6 +498,13 @@
       "when": 1799100000000,
       "tag": "0071_session_prep_done",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1799200000000,
+      "tag": "0072_lock_down_data_api",
+      "breakpoints": true
     }
   ]
 }
