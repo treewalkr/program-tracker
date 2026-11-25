@@ -1,7 +1,8 @@
 import { describe, expect, test, afterAll } from "bun:test";
 import { eq, inArray } from "drizzle-orm";
-import { db, trainers, clients, programs, sessionLogs } from "@pt/db";
+import { db, trainers, clients, clientSessions, programs, sessionLogs } from "@pt/db";
 import { localDateOf } from "@pt/shared";
+import { createClientSession } from "./lib/client-auth";
 import { getDefaultTrainerId } from "./lib/trainer";
 import { assertTestDatabaseUrl } from "./testing/test-db";
 import { app } from "./app";
@@ -152,6 +153,73 @@ describe.skipIf(!dbUp)("client basics", () => {
   });
 });
 
+describe.skipIf(!dbUp)("pausing and archiving a client", () => {
+  const ids: string[] = [];
+  let otherTrainerId = "";
+  afterAll(async () => {
+    if (ids.length) await db.delete(clients).where(inArray(clients.id, ids));
+    if (otherTrainerId) await db.delete(trainers).where(eq(trainers.id, otherTrainerId));
+  });
+
+  /** A client with the portal on and one live portal session. */
+  const withPortal = async () => {
+    const me = await getDefaultTrainerId();
+    const [c] = await db
+      .insert(clients)
+      .values({ trainerId: me, name: "Archive Me", portalEnabledAt: new Date(), portalToken: `arch-${crypto.randomUUID()}`, portalGoogleSub: `g-${crypto.randomUUID()}` })
+      .returning();
+    ids.push(c.id);
+    await createClientSession(c.id);
+    return c.id;
+  };
+  const sessionCount = async (id: string) => (await db.select().from(clientSessions).where(eq(clientSessions.clientId, id))).length;
+
+  test("pausing keeps the portal on", async () => {
+    const id = await withPortal();
+    const paused = await call("PATCH", `/v1/clients/${id}`, { status: "paused" });
+    expect(paused.body.status).toBe("paused");
+    expect((await call("GET", `/v1/clients/${id}/portal`)).body.enabled).toBe(true);
+    expect(await sessionCount(id)).toBe(1);
+  });
+
+  test("archiving turns the portal off, drops the link and signs the client out", async () => {
+    const id = await withPortal();
+    const archived = await call("PATCH", `/v1/clients/${id}`, { status: "archived" });
+    expect(archived.status).toBe(200);
+    expect(archived.body.status).toBe("archived");
+    expect((await call("GET", `/v1/clients/${id}/portal`)).body).toMatchObject({ enabled: false, link: null, googleLinked: false });
+    expect(await sessionCount(id)).toBe(0);
+  });
+
+  test("unarchiving keeps the portal off until the trainer turns it on", async () => {
+    const id = await withPortal();
+    await call("PATCH", `/v1/clients/${id}`, { status: "archived" });
+    const back = await call("PATCH", `/v1/clients/${id}`, { status: "active" });
+    expect(back.body.status).toBe("active");
+    expect((await call("GET", `/v1/clients/${id}/portal`)).body.enabled).toBe(false);
+    expect((await call("POST", `/v1/clients/${id}/portal`)).body.enabled).toBe(true);
+  });
+
+  test("an edit that doesn't archive leaves the portal alone", async () => {
+    const id = await withPortal();
+    await call("PATCH", `/v1/clients/${id}`, { goals: "more squats" });
+    expect((await call("GET", `/v1/clients/${id}/portal`)).body.enabled).toBe(true);
+  });
+
+  test("another trainer's client reads as not found, and stays as it was", async () => {
+    const [other] = await db.insert(trainers).values({ name: "Other", email: `arch.${crypto.randomUUID()}@other.dev` }).returning();
+    otherTrainerId = other.id;
+    const [theirs] = await db
+      .insert(clients)
+      .values({ trainerId: other.id, name: "Not Mine", portalEnabledAt: new Date(), portalToken: `arch-${crypto.randomUUID()}` })
+      .returning();
+    expect((await call("PATCH", `/v1/clients/${theirs.id}`, { status: "archived" })).status).toBe(404);
+    const [row] = await db.select().from(clients).where(eq(clients.id, theirs.id));
+    expect(row.status).toBe("active");
+    expect(row.portalEnabledAt).not.toBeNull();
+  });
+});
+
 describe.skipIf(!dbUp)("client roster", () => {
   const tok = `rstr${crypto.randomUUID().slice(0, 8)}`;
   const DAY = 86_400_000;
@@ -214,27 +282,27 @@ describe.skipIf(!dbUp)("client roster", () => {
     await db.insert(clients).values({ trainerId: other.id, name: `Eve ${tok}`, email: `eve.${tok}@gym.com` });
   });
 
-  test("first page: 10 rows, totals and counts; actives by name, then paused, then archived", async () => {
+  test("first page: 10 rows, totals and counts; actives by name, then paused; archived stay hidden", async () => {
     const { status, body } = await roster();
     expect(status).toBe(200);
-    expect(body.total).toBe(13);
+    expect(body.total).toBe(12);
     expect(body.page).toBe(1);
     expect(body.limit).toBe(10);
-    expect(body.counts).toEqual({ all: 13, active: 11, paused: 1, archived: 1 });
+    expect(body.counts).toEqual({ all: 12, active: 11, paused: 1, archived: 1 });
     expect(names(body)).toEqual(["Ada", "Bea", "Mailonly", "Zed01", "Zed02", "Zed03", "Zed04", "Zed05", "Zed06", "Zed07"]);
     const second = await roster({ page: 2 });
-    expect(names(second.body)).toEqual(["Zed08", "Cy", "Dee"]);
+    expect(names(second.body)).toEqual(["Zed08", "Cy"]);
   });
 
   test("a page past the end clamps to the last page", async () => {
     const { body } = await roster({ page: 9 });
     expect(body.page).toBe(2);
-    expect(body.items).toHaveLength(3);
+    expect(body.items).toHaveLength(2);
   });
 
   test("limit is one of 10/25/50", async () => {
     const { body } = await roster({ limit: 25 });
-    expect(body.items).toHaveLength(13);
+    expect(body.items).toHaveLength(12);
     expect(body.limit).toBe(25);
     expect((await roster({ limit: 20 })).status).toBe(422);
     expect((await roster({ limit: "lots" })).status).toBe(422);
@@ -247,15 +315,16 @@ describe.skipIf(!dbUp)("client roster", () => {
       ["active", 11],
       ["paused", 1],
       ["archived", 1],
-      ["all", 13],
+      ["all", 12],
     ] as const) {
       const { body } = await roster({ status: s, limit: 50 });
       expect(body.total).toBe(expected);
       expect(body.items).toHaveLength(expected);
-      expect(body.counts.all).toBe(13);
+      expect(body.counts.all).toBe(12);
     }
     expect(names((await roster({ status: "paused" })).body)).toEqual(["Cy"]);
     expect(names((await roster({ status: "archived" })).body)).toEqual(["Dee"]);
+    expect(names((await roster({ status: "all", limit: 50 })).body)).not.toContain("Dee");
   });
 
   test("q matches name or email; counts follow q; wildcards are literal", async () => {
@@ -272,12 +341,12 @@ describe.skipIf(!dbUp)("client roster", () => {
     const { body } = await roster({ sort: "last", limit: 50 });
     expect(names(body).slice(0, 2)).toEqual(["Ada", "Bea"]);
     expect(body.items.slice(2).every((i: { lastSessionAt: string | null }) => i.lastSessionAt === null)).toBe(true);
-    expect(names(body).slice(2)).toEqual(["Cy", "Dee", "Mailonly", ...Array.from({ length: 8 }, (_, i) => `Zed0${i + 1}`)]);
+    expect(names(body).slice(2)).toEqual(["Cy", "Mailonly", ...Array.from({ length: 8 }, (_, i) => `Zed0${i + 1}`)]);
   });
 
   test("sort=recent: newest client first", async () => {
     const { body } = await roster({ sort: "recent", limit: 50 });
-    expect(names(body)).toEqual(["Zed08", "Zed07", "Zed06", "Zed05", "Zed04", "Zed03", "Zed02", "Zed01", "Dee", "Cy", "Bea", "Ada", "Mailonly"]);
+    expect(names(body)).toEqual(["Zed08", "Zed07", "Zed06", "Zed05", "Zed04", "Zed03", "Zed02", "Zed01", "Cy", "Bea", "Ada", "Mailonly"]);
   });
 
   test("rows carry last session, active program with block week, and open-signal count", async () => {

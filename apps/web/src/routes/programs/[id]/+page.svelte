@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
   import { page } from "$app/state";
+  import { goto } from "$app/navigation";
   import { createLeaveGuard } from "$lib/leaveGuard.svelte";
   import LeaveGuard from "$lib/ui/LeaveGuard.svelte";
   import { api } from "$lib/api";
@@ -97,6 +98,8 @@
 
   let program = $state<ProgramDto | null>(null);
   let clientName = $state<string | null>(null);
+  /** The member's active program (other than this one): activating this draft stops it at once. */
+  let replacing = $state<string | null>(null);
   /** This program's logs — shown under each session next to what was planned. */
   let logs = $state<SessionLogDto[]>([]);
   let trainingDays = $state<number[]>([]);
@@ -179,6 +182,24 @@
   let currentWeekIndex = $state(0);
 
   let existingExample = $state<ProgramExampleDto | null>(null);
+  /** Delete is offered on a draft or an archived program nobody logged (and not one in the example library);
+   *  the API refuses the rest. */
+  const deletable = $derived(program != null && program.status !== "active" && logs.length === 0 && !existingExample);
+  let deleteError = $state<string | null>(null);
+  async function deleteProgram() {
+    if (!program) return;
+    const { id: gone, clientId } = program;
+    deleteError = null;
+    try {
+      await api.deleteProgram(gone);
+    } catch (e) {
+      deleteError = (e as Error).message || "Could not delete this program";
+      return;
+    }
+    // Gone: drop unsaved edits so the leave guard doesn't offer to save them.
+    discard();
+    await goto(clientId ? `/clients/${clientId}` : "/clients");
+  }
   let marking = $state(false);
   let markGoal = $state("");
   let markLevel = $state<ProgramExampleDto["level"]>("intermediate");
@@ -413,6 +434,7 @@
       if (p.clientId) {
         const detail = await api.client(p.clientId);
         clientName = detail.client.name;
+        replacing = detail.currentProgram && detail.currentProgram.id !== p.id ? detail.currentProgram.name : null;
         trainingDays = detail.client.trainingDays ?? [];
         cardioDays = detail.client.cardioDays ?? null;
         longRunDay = detail.client.longRunDay ?? null;
@@ -620,6 +642,11 @@
     {#each { length: 2 }, i (i)}<SkeletonPanel head rows={i % 2 ? 3 : 4} dense />{/each}
   </div>
 {:else}
+  {#snippet deleteAction()}
+    {#if deletable}
+      <ConfirmButton label="Delete" confirmLabel="Really delete? This can't be undone" variant="ghost" armedVariant="danger" small onconfirm={deleteProgram} />
+    {/if}
+  {/snippet}
   <Crumbs items={[{ href: `/clients/${program.clientId}`, label: clientName ?? "Client" }, { label: "Program" }]} />
   <div class="page-head">
     <div>
@@ -634,6 +661,7 @@
     <div class="actions">
       {#if program.status === "archived"}
         <span class="subtle readonly-note">archived — read only</span>
+        {@render deleteAction()}
       {:else}
         {#if existingExample}
           <span class="subtle lib-state">In the example library</span>
@@ -649,9 +677,11 @@
             {activating ? "Activating…" : "Activate program"}
           </button>
         {/if}
+        {@render deleteAction()}
       {/if}
     </div>
   </div>
+  {#if deleteError}<Note tone="bad" role="alert">{deleteError}</Note>{/if}
 
   {#if marking && !existingExample}
     <form
@@ -1029,7 +1059,7 @@
 
 <LeaveGuard guard={leaveGuard} />
 {#if program}
-  <StartDateDialog mode={startDialog} program={program as SignalProgram} {logs} onconfirm={setStart} onclose={() => (startDialog = null)} />
+  <StartDateDialog mode={startDialog} program={program as SignalProgram} {logs} onconfirm={setStart} onclose={() => (startDialog = null)} {replacing} member={clientName?.split(" ")[0]} />
 {/if}
 
 <style>

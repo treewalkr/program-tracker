@@ -110,7 +110,7 @@ export async function computeTrainerSignals(
       .select()
       .from(clients)
       .where(onlyClientId ? and(eq(clients.trainerId, trainerId), eq(clients.id, onlyClientId)) : eq(clients.trainerId, trainerId))
-  ).filter((c) => scoped.some((p) => p.clientId === c.id) || (c.cardioTarget && c.status !== "archived"));
+  ).filter((c) => c.status !== "archived" && (scoped.some((p) => p.clientId === c.id) || c.cardioTarget));
   if (clientRows.length === 0) return [];
 
   const clientIds = clientRows.map((c) => c.id);

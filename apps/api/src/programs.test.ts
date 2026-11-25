@@ -1,7 +1,8 @@
 import { describe, expect, test, afterAll } from "bun:test";
-import { inArray } from "drizzle-orm";
-import { db, trainers, programs } from "@pt/db";
+import { eq, inArray } from "drizzle-orm";
+import { db, trainers, clients, programs, programExamples, sessionLogs } from "@pt/db";
 import { addDays, localDateOf } from "@pt/shared";
+import { getDefaultTrainerId } from "./lib/trainer";
 import { assertTestDatabaseUrl } from "./testing/test-db";
 import { app } from "./app";
 
@@ -235,5 +236,98 @@ describe.skipIf(!dbUp)("saving from a stale version (baseVersion)", () => {
   test("baseVersion must be a whole number", async () => {
     const id = await fresh();
     expect((await call("PUT", `/v1/programs/${id}`, { weeks, baseVersion: 1.5 })).status).toBe(422);
+  });
+});
+
+describe.skipIf(!dbUp)("deleting a program", () => {
+  const programIds: string[] = [];
+  const clientIds: string[] = [];
+  let otherTrainerId = "";
+  let weeks: unknown[] = [];
+  afterAll(async () => {
+    if (programIds.length) await db.delete(programs).where(inArray(programs.id, programIds));
+    if (clientIds.length) await db.delete(clients).where(inArray(clients.id, clientIds));
+    if (otherTrainerId) await db.delete(trainers).where(eq(trainers.id, otherTrainerId));
+  });
+  const exists = async (id: string) => (await db.select().from(programs).where(eq(programs.id, id))).length === 1;
+
+  const draft = async (clientId?: string) => {
+    if (!weeks.length) weeks = weeksWith((await call("GET", "/v1/exercises?q=squat")).body[0].id);
+    const r = await call("POST", "/v1/programs", { name: "Delete me", weeks, ...(clientId ? { clientId } : {}) });
+    expect(r.status).toBe(201);
+    programIds.push(r.body.id);
+    return r.body.id as string;
+  };
+  const member = async () => {
+    const [c] = await db.insert(clients).values({ trainerId: await getDefaultTrainerId(), name: "Delete Test" }).returning();
+    clientIds.push(c.id);
+    return c.id;
+  };
+
+  test("a draft with no logs is deleted", async () => {
+    const id = await draft(await member());
+    const res = await call("DELETE", `/v1/programs/${id}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ id });
+    expect(await exists(id)).toBe(false);
+    expect((await call("GET", `/v1/programs/${id}`)).status).toBe(404);
+    expect((await call("DELETE", `/v1/programs/${id}`)).status).toBe(404);
+  });
+
+  test("an archived program that was never logged can go too", async () => {
+    const id = await draft(await member());
+    await call("PATCH", `/v1/programs/${id}/status`, { status: "archived" });
+    expect((await call("DELETE", `/v1/programs/${id}`)).status).toBe(200);
+    expect(await exists(id)).toBe(false);
+  });
+
+  test("an active program is refused (409) and stays", async () => {
+    const id = await draft(await member());
+    await call("PATCH", `/v1/programs/${id}/status`, { status: "active" });
+    const res = await call("DELETE", `/v1/programs/${id}`);
+    expect(res.status).toBe(409);
+    expect(res.body.error).toContain("active");
+    expect(await exists(id)).toBe(true);
+  });
+
+  test("a program with session logs is refused (409) — the logs stay", async () => {
+    const clientId = await member();
+    const id = await draft(clientId);
+    const [log] = await db.insert(sessionLogs).values({ clientId, programId: id, date: localDateOf(Date.now()) }).returning();
+    await call("PATCH", `/v1/programs/${id}/status`, { status: "archived" });
+    const res = await call("DELETE", `/v1/programs/${id}`);
+    expect(res.status).toBe(409);
+    expect(res.body.error).toContain("logged");
+    expect(await exists(id)).toBe(true);
+    expect((await db.select().from(sessionLogs).where(eq(sessionLogs.id, log.id))).length).toBe(1);
+  });
+
+  test("a program kept in the example library is refused until it is removed from it", async () => {
+    const id = await draft();
+    const [example] = await db
+      .insert(programExamples)
+      .values({ trainerId: await getDefaultTrainerId(), programId: id, goal: "delete test", level: "beginner", daysPerWeek: 1 })
+      .returning();
+    const res = await call("DELETE", `/v1/programs/${id}`);
+    expect(res.status).toBe(409);
+    expect(res.body.error).toContain("example library");
+    expect(await exists(id)).toBe(true);
+    await call("DELETE", `/v1/examples/${example.id}`);
+    expect((await call("DELETE", `/v1/programs/${id}`)).status).toBe(200);
+  });
+
+  test("another trainer's program reads as not found and stays", async () => {
+    const [other] = await db.insert(trainers).values({ name: "Other", email: `del.${crypto.randomUUID()}@other.dev` }).returning();
+    otherTrainerId = other.id;
+    if (!weeks.length) weeks = weeksWith((await call("GET", "/v1/exercises?q=squat")).body[0].id);
+    const [theirs] = await db.insert(programs).values({ trainerId: other.id, name: "Theirs", sessions: weeks as never }).returning();
+    programIds.push(theirs.id);
+    const res = await call("DELETE", `/v1/programs/${theirs.id}`);
+    expect(res.status).toBe(404);
+    expect(await exists(theirs.id)).toBe(true);
+  });
+
+  test("an unknown id is a 404", async () => {
+    expect((await call("DELETE", `/v1/programs/${crypto.randomUUID()}`)).status).toBe(404);
   });
 });

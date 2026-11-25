@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, ilike, inArray, max, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, ilike, inArray, max, ne, or, sql, type SQL } from "drizzle-orm";
 import { db, clients, programs, sessionLogs } from "@pt/db";
 import { clampPage, FEED_ONLY_KINDS, weekOf, type Page, type RosterSort, type RosterStatus } from "@pt/shared";
 import { openSignals, toSignalProgram } from "./signals-service";
@@ -22,6 +22,8 @@ const statusRank = sql<number>`case ${clients.status} when 'active' then 0 when 
  * last session day, active program + block week, and open-signal count.
  * Paging and sorting happen in SQL; program/week/attention only for the page.
  * `counts` honour `q` but not `status`, so status tabs show what they'd give.
+ * `all` is everyone still on the roster (active + paused): archived members
+ * are hidden unless the `archived` filter asks for them.
  */
 export async function clientRoster(trainerId: string, query: RosterQuery, now = Date.now()) {
   const q = query.q?.trim();
@@ -38,7 +40,7 @@ export async function clientRoster(trainerId: string, query: RosterQuery, now = 
   const counts = { all: 0, active: 0, paused: 0, archived: 0 };
   for (const { status, n } of grouped) {
     counts[status] += n;
-    counts.all += n;
+    if (status !== "archived") counts.all += n;
   }
   const total = counts[query.status];
   const page = clampPage(query.page, query.limit, total);
@@ -62,7 +64,7 @@ export async function clientRoster(trainerId: string, query: RosterQuery, now = 
           .select({ client: clients, lastSessionAt: last.at })
           .from(clients)
           .leftJoin(last, eq(last.clientId, clients.id))
-          .where(and(scope, query.status === "all" ? undefined : eq(clients.status, query.status)))
+          .where(and(scope, query.status === "all" ? ne(clients.status, "archived") : eq(clients.status, query.status)))
           .orderBy(...order, asc(clients.id))
           .limit(query.limit)
           .offset((page - 1) * query.limit);

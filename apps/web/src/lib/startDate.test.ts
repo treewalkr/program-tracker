@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { SignalProgram } from "@pt/shared";
-import { movedLogs, movedSummary, nextMonday, startIssue, startLine } from "./startDate";
+import { futureStartWarning, movedLogs, movedSummary, nextMonday, startIssue, startLine } from "./startDate";
 
 describe("start date dialog helpers", () => {
   test("nextMonday", () => {
@@ -15,6 +15,17 @@ describe("start date dialog helpers", () => {
     expect(startLine("2026-11-19", "2026-11-19", 6)).toBe("Today is W1 · 19–25 Nov");
     expect(startLine("2026-11-03", "2026-11-19", 6)).toBe("Today is W3 · 17–23 Nov");
     expect(startLine("2026-09-01", "2026-11-19", 6)).toBe("The block would have ended Mon 12 Oct");
+  });
+
+  test("futureStartWarning: only when a program is replaced and Week 1 is after today", () => {
+    expect(futureStartWarning("2026-11-23", "2026-11-19", "Hypertrophy", "Maya")).toBe(
+      "“Hypertrophy” stops as soon as you activate. Maya has nothing to log until Mon 23 Nov, when Week 1 starts."
+    );
+    expect(futureStartWarning("2026-11-20", "2026-11-19", "Hypertrophy", null)).toContain("The member has nothing to log until Fri 20 Nov");
+    expect(futureStartWarning("2026-11-19", "2026-11-19", "Hypertrophy", "Maya")).toBeNull();
+    expect(futureStartWarning("2026-11-10", "2026-11-19", "Hypertrophy", "Maya")).toBeNull();
+    expect(futureStartWarning("2026-11-23", "2026-11-19", null, "Maya")).toBeNull();
+    expect(futureStartWarning("", "2026-11-19", "Hypertrophy", "Maya")).toBeNull();
   });
 
   test("startIssue", () => {

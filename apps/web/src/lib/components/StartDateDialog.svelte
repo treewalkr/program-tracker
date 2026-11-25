@@ -1,8 +1,9 @@
 <script lang="ts">
   import { localDateOf, startsOnWindow, type SignalProgram } from "@pt/shared";
-  import { movedLogs, movedSummary, nextMonday, startIssue, startLine } from "$lib/startDate";
+  import { futureStartWarning, movedLogs, movedSummary, nextMonday, startIssue, startLine } from "$lib/startDate";
   import { weekdayDayMonth } from "$lib/programEdit";
   import InputDate from "$lib/ui/InputDate.svelte";
+  import Note from "$lib/ui/Note.svelte";
 
   /**
    * "Week 1 starts on": one date decides the block's calendar. On the
@@ -19,8 +20,12 @@
     /** Saves the date; a thrown error shows in the dialog. */
     onconfirm: (startsOn: string) => Promise<void>;
     onclose: () => void;
+    /** Activating: the name of the member's active program, which stops the moment this one goes live. */
+    replacing?: string | null;
+    /** The member's first name, for the warning. */
+    member?: string | null;
   }
-  let { mode, program, logs = [], onconfirm, onclose }: Props = $props();
+  let { mode, program, logs = [], onconfirm, onclose, replacing = null, member = null }: Props = $props();
 
   let dialog = $state<HTMLDialogElement>();
   let opener: HTMLElement | null = null;
@@ -36,6 +41,8 @@
 
   const issue = $derived(startIssue(date, today, weeks));
   const line = $derived(!issue && date ? startLine(date, today, weeks) : null);
+  /** Week 1 is still ahead but the current program stops now: the member has a gap with nothing to log. */
+  const gap = $derived(mode === "activate" && !issue ? futureStartWarning(date, today, replacing, member) : null);
   const moved = $derived(mode === "change" && date && !issue ? movedLogs(program, logs, date) : []);
   const unchanged = $derived(mode === "change" && date === (program.startsOn ?? ""));
 
@@ -112,6 +119,7 @@
           <button type="button" class="btn ghost small" aria-pressed={date === nextMonday(today)} onclick={() => (date = nextMonday(today))}>Next Monday</button>
         </div>
         <p class="line" aria-live="polite">{line ?? ""}</p>
+        {#if gap}<Note tone="warn" role="status" class="gap">{gap}</Note>{/if}
       {:else}
         <h2 id="{uid}-title">Move Week 1 to {weekdayDayMonth(date)}?</h2>
         <p class="lede">{line}. {movedSummary(moved)}</p>
@@ -200,6 +208,9 @@
     margin: 8px 0 18px;
     font: 500 13px/1.45 var(--font-mono);
     color: var(--ink);
+  }
+  .start :global(.note.gap) {
+    margin: -8px 0 18px;
   }
   .moved {
     margin: -6px 0 18px;

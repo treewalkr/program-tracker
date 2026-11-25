@@ -4,6 +4,7 @@
   import ClientIdentityFields from "$lib/components/ClientIdentityFields.svelte";
   import ProfileSection from "$lib/components/ProfileSection.svelte";
   import ClientDeloadRule from "$lib/components/ClientDeloadRule.svelte";
+  import ClientStatusPanel from "$lib/components/ClientStatusPanel.svelte";
   import ClientHrProfile from "$lib/components/ClientHrProfile.svelte";
   import CardioReview from "$lib/components/CardioReview.svelte";
   import LogFeedback from "$lib/components/LogFeedback.svelte";
@@ -571,7 +572,7 @@
         <Button small type="button" onclick={() => (activateOpen = true)}>Activate</Button>
       {/snippet}
     </DraftBanner>
-    <StartDateDialog mode={activateOpen ? "activate" : null} program={a.program as SignalProgram} onconfirm={activateApproved} onclose={() => (activateOpen = false)} />
+    <StartDateDialog mode={activateOpen ? "activate" : null} program={a.program as SignalProgram} onconfirm={activateApproved} onclose={() => (activateOpen = false)} replacing={current?.status === "active" ? current.name : null} member={firstName} />
   {/if}
 
   {#if visibleSignals.length > 0}
@@ -1094,6 +1095,10 @@
     <!-- First: the link a trainer comes here to copy. Saves on its own, outside the profile form. -->
     <div class="pf portal-pf">
       <ClientPortalPanel {client} />
+    </div>
+    <!-- Saves on its own; archiving also turns the portal off, which the panel above reloads to show. -->
+    <div class="pf portal-pf">
+      <ClientStatusPanel {client} onchange={(c) => (client = c)} />
     </div>
     <form
       class="pf"
