@@ -7,11 +7,12 @@ import { dirname, join } from "node:path";
 const hooks = join(import.meta.dir, "..", "githooks");
 const root = mkdtempSync(join(tmpdir(), "pt-hooks-test-"));
 const repo = join(root, "repo");
+const dumps = join(root, "dumps");
 
 const env = (extra: Record<string, string> = {}): Record<string, string> => {
   const base = { ...(process.env as Record<string, string>) };
   delete base.CI; // the suite may itself run under CI
-  return { ...base, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_SYSTEM: "/dev/null", PT_GUARDS_TMP: join(root, "scratch"), ...extra };
+  return { ...base, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_SYSTEM: "/dev/null", PT_DUMP_DIR: dumps, PT_GUARDS_TMP: join(root, "scratch"), ...extra };
 };
 const git = (args: string[], extra: Record<string, string> = {}) => {
   const p = Bun.spawnSync(["git", ...args], { cwd: repo, stdout: "pipe", stderr: "pipe", env: env(extra) });
@@ -118,8 +119,41 @@ describe("pre-commit shim", () => {
   });
 });
 
+describe("pre-push shim", () => {
+  const bare = join(root, "remote.git");
+  beforeAll(() => {
+    Bun.spawnSync(["git", "init", "-q", "--bare", bare]);
+    git(["remote", "add", "origin", bare]);
+    put("packages/db/drizzle/0051_new.sql", "ALTER TABLE a ADD COLUMN d text;\n");
+    git(["add", "-A"]);
+    expect(commit("feat: add another migration").code).toBe(0);
+  });
+  test("a push of another branch is not checked", () => {
+    expect(git(["push", "-q", "origin", "HEAD:refs/heads/other"]).code).toBe(0);
+  });
+  test("red: main with a migration and no prod dump", () => {
+    const r = git(["push", "-q", "origin", "main"]);
+    expect(r.code).not.toBe(0);
+    expect(r.err).toContain("[release-dump]");
+    expect(r.err).toContain("pg_dump");
+  });
+  test("green: with a fresh non-empty dump", () => {
+    mkdirSync(dumps, { recursive: true });
+    writeFileSync(join(dumps, "pre-v0.1.1-test.dump"), "data");
+    expect(git(["push", "-q", "origin", "main"]).code).toBe(0);
+  });
+  test("red: a release commit without its tag", () => {
+    put("CHANGELOG.md", "## Unreleased\n\n## v0.1.1\n- [draft] x\n");
+    git(["add", "-A"]);
+    expect(commit("chore: release v0.1.1").code).toBe(0);
+    const r = git(["push", "-q", "origin", "main"]);
+    expect(r.err).toContain("[release-tag]");
+    expect(r.err).toContain("[release-draft]");
+  });
+});
+
 test("the shims are executable and the helper exists", () => {
-  for (const h of ["commit-msg", "pre-commit", "post-commit"]) {
+  for (const h of ["commit-msg", "pre-commit", "post-commit", "pre-push"]) {
     expect(existsSync(join(hooks, h))).toBe(true);
     expect(Bun.spawnSync(["test", "-x", join(hooks, h)]).exitCode).toBe(0);
   }

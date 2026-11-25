@@ -364,7 +364,7 @@ export function checkReleaseShape(p: { subject: string; headSha: string; tagComm
   const m = /^chore: release v(\d+\.\d+\.\d+)$/.exec(p.subject);
   if (!m) return [];
   const out: Violation[] = [];
-  if (p.tagCommit !== p.headSha) out.push(v("release-tag", `release commit v${m[1]} is not tagged: run \`bun run release --current\` (or push with the tag on HEAD)`));
+  if (p.tagCommit !== p.headSha) out.push(v("release-tag", `release commit v${m[1]} has no tag v${m[1]} on it — \`bun run release\` makes the commit and the tag together`));
   if (p.changelog.includes("[draft]")) out.push(v("release-draft", "CHANGELOG.md still has [draft] lines"));
   return out;
 }
