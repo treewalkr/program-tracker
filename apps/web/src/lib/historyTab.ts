@@ -143,6 +143,9 @@ export interface SessionRow {
   byClient: boolean;
   /** "52 min" when the client timed it live in the portal; null otherwise. */
   duration: string | null;
+  /** When the coach marked it reviewed, and the feedback the member sees on it. */
+  reviewedAt: string | null;
+  trainerFeedback: string | null;
 }
 
 export interface WeekGroup {
@@ -221,6 +224,8 @@ export function sessionsByWeek(
       pain: flags.some((f) => f.tone === "bad"),
       byClient: l.loggedBy === "client",
       duration: l.durationMin ? `${l.durationMin} min` : null,
+      reviewedAt: l.reviewedAt ?? null,
+      trainerFeedback: l.trainerFeedback ?? null,
     };
     const start = mondayOf(date);
     const last = weeks[weeks.length - 1];
