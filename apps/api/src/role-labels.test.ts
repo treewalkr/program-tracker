@@ -39,8 +39,8 @@ describe.skipIf(!dbUp)("role labels", () => {
     await db.delete(roleLabels).where(eq(roleLabels.trainerId, await getDefaultTrainerId()));
     const res = await call("GET", "/v1/vocabulary/role-labels");
     expect(res.status).toBe(200);
-    expect(res.body.map((l: any) => l.name)).toEqual(["Movement Prep", "Power", "Primary", "Secondary", "Strength", "Strength / Supplemental", "Auxiliary", "Core", "Conditioning", "Mobility / Recovery"]);
-    expect(res.body[4]).toMatchObject({ key: "strength", chip: "Str", category: "quality", archived: false });
+    expect(res.body.map((l: any) => l.name)).toEqual(["Movement Prep", "Plyometric", "Power", "Primary", "Secondary", "Strength", "Strength / Supplemental", "Auxiliary", "Core", "Conditioning", "Mobility / Recovery"]);
+    expect(res.body[5]).toMatchObject({ key: "strength", chip: "Str", category: "quality", archived: false });
   });
 
   test("create a label after another; it sorts between its neighbours", async () => {
@@ -204,7 +204,7 @@ describe.skipIf(!dbUp)("role labels", () => {
       ] }],
     };
     const fixed = await checkDraftRoles(trainerId, draft);
-    expect(fixed.weeks[0].sessions[0].exercises.map((e) => e.role)).toEqual(["primary", "primary", "core", "power", "accessory", mine.key]);
+    expect(fixed.weeks[0].sessions[0].exercises.map((e) => e.role)).toEqual(["primary", "primary", "core", "plyometric", "accessory", mine.key]);
     expect(fixed.rationale).toContain("Role check: Lower has more than one Primary lift");
     // a revision that kept the note doesn't get it twice
     const again = await checkDraftRoles(trainerId, fixed);

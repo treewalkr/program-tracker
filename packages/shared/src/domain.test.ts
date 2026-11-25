@@ -620,10 +620,25 @@ describe("ExerciseRole", () => {
     expect(ProgramExercise.parse(baseExercise).role).toBeUndefined();
     expect(ProgramExercise.parse({ ...baseExercise, role: "primary" }).role).toBe("primary");
     expect(ProgramExercise.parse({ ...baseExercise, role: "secondary" }).role).toBe("secondary");
+    expect(ProgramExercise.parse({ ...baseExercise, role: "plyometric" }).role).toBe("plyometric");
     const custom = `label:${uuid()}` as const;
     expect(ProgramExercise.parse({ ...baseExercise, role: custom }).role).toBe(custom);
     expect(() => ProgramExercise.parse({ ...baseExercise, role: "warmup" })).toThrow();
     expect(() => ProgramExercise.parse({ ...baseExercise, role: "label:nope" })).toThrow();
+  });
+
+  test("every built-in rank is distinct; Plyometric sits between Movement Prep and Power", () => {
+    expect(EXERCISE_ROLE_INFO.plyometric).toEqual({
+      name: "Plyometric",
+      chip: "Plyo",
+      category: "quality",
+      rank: 70,
+      description: "Reactive jumps, hops and bounds — stretch-shortening work, low contacts, done fresh.",
+    });
+    const ranks = EXERCISE_ROLES.map((r) => EXERCISE_ROLE_INFO[r].rank);
+    expect(new Set(ranks).size).toBe(EXERCISE_ROLES.length); // no ties among the built-ins
+    expect(EXERCISE_ROLE_INFO.movement_prep.rank).toBeLessThan(EXERCISE_ROLE_INFO.plyometric.rank);
+    expect(EXERCISE_ROLE_INFO.plyometric.rank).toBeLessThan(EXERCISE_ROLE_INFO.power.rank);
   });
 
   test("every built-in has a name, chip, category and description; Secondary and Strength are distinct", () => {
@@ -638,16 +653,17 @@ describe("ExerciseRole", () => {
     expect(EXERCISE_ROLE_INFO.secondary.description).not.toMatch(/strength/i);
   });
 
-  test("sortExercisesByRole orders power → primary → secondary → strength → auxiliary → core", () => {
+  test("sortExercisesByRole orders plyometric → power → primary → secondary → strength → auxiliary → core", () => {
     const sorted = sortExercisesByRole([
       { name: "plank", role: "core" as const },
       { name: "row", role: "accessory" as const },
       { name: "squat", role: "primary" as const },
-      { name: "box jump", role: "power" as const },
+      { name: "box jump", role: "plyometric" as const },
+      { name: "clean", role: "power" as const },
       { name: "rdl", role: "strength" as const },
       { name: "bench", role: "secondary" as const },
     ]);
-    expect(sorted.map((e) => e.name)).toEqual(["box jump", "squat", "bench", "rdl", "row", "plank"]);
+    expect(sorted.map((e) => e.name)).toEqual(["box jump", "clean", "squat", "bench", "rdl", "row", "plank"]);
   });
 
   test("unknown labels sort last with the unset ones", () => {

@@ -3,7 +3,7 @@ import { mockApi, mockState } from "./api";
 
 describe("mockApi role labels (mirrors /v1/vocabulary/role-labels)", () => {
   test("starts with the built-ins", async () => {
-    expect((await mockApi.roleLabels()).map((l) => l.name)).toEqual(["Movement Prep", "Power", "Primary", "Secondary", "Strength", "Strength / Supplemental", "Auxiliary", "Core", "Conditioning", "Mobility / Recovery"]);
+    expect((await mockApi.roleLabels()).map((l) => l.name)).toEqual(["Movement Prep", "Plyometric", "Power", "Primary", "Secondary", "Strength", "Strength / Supplemental", "Auxiliary", "Core", "Conditioning", "Mobility / Recovery"]);
   });
 
   test("create after a label, refuse duplicates, edit, archive and restore", async () => {

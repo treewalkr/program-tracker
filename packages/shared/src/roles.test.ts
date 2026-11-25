@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { sortExercisesByRole } from "./domain";
+import { EXERCISE_ROLE_INFO, sortExercisesByRole } from "./domain";
 import { DraftExerciseRef } from "./ai";
 import type { ExerciseRole } from "./domain";
 import {
@@ -34,6 +34,7 @@ describe("mergeRoleLabels", () => {
   test("no rows → the built-ins in default order", () => {
     expect(mergeRoleLabels([]).map((l) => l.name)).toEqual([
       "Movement Prep",
+      "Plyometric",
       "Power",
       "Primary",
       "Secondary",
@@ -44,9 +45,10 @@ describe("mergeRoleLabels", () => {
       "Conditioning",
       "Mobility / Recovery",
     ]);
-    expect(mergeRoleLabels([]).map((l) => l.chip)).toEqual(["Prep", "Power", "Primary", "Secondary", "Str", "Supp", "Aux", "Core", "Cond", "Mob"]);
+    expect(mergeRoleLabels([]).map((l) => l.chip)).toEqual(["Prep", "Plyo", "Power", "Primary", "Secondary", "Str", "Supp", "Aux", "Core", "Cond", "Mob"]);
     expect(mergeRoleLabels([]).map((l) => l.category)).toEqual([
       "prep",
+      "quality",
       "quality",
       "priority",
       "priority",
@@ -61,8 +63,8 @@ describe("mergeRoleLabels", () => {
 
   test("a custom label slots in by rank, chip defaults to its name", () => {
     const merged = mergeRoleLabels([row({})]);
-    expect(merged.map((l) => l.name).slice(0, 4)).toEqual(["Movement Prep", "Power", "Speed", "Primary"]);
-    expect(merged[2]).toMatchObject({ key: `label:${id1}`, chip: "Speed", category: null, builtinKey: null, archived: false });
+    expect(merged.map((l) => l.name).slice(0, 5)).toEqual(["Movement Prep", "Plyometric", "Power", "Speed", "Primary"]);
+    expect(merged[3]).toMatchObject({ key: `label:${id1}`, chip: "Speed", category: null, builtinKey: null, archived: false });
   });
 
   test("an override row changes a built-in's chip, meaning and rank — never its key or name", () => {
@@ -109,7 +111,8 @@ describe("mergeRoleLabels", () => {
 
 describe("rankAfter", () => {
   test("halfway to the next label, or past the last", () => {
-    expect(rankAfter(BUILTIN_ROLE_LABELS, "movement_prep")).toBe(75);
+    expect(rankAfter(BUILTIN_ROLE_LABELS, "movement_prep")).toBe(60);
+    expect(rankAfter(BUILTIN_ROLE_LABELS, "plyometric")).toBe(85);
     expect(rankAfter(BUILTIN_ROLE_LABELS, "power")).toBe(150);
     expect(rankAfter(BUILTIN_ROLE_LABELS, "strength")).toBe(420);
     expect(rankAfter(BUILTIN_ROLE_LABELS, "core")).toBe(620);
@@ -127,9 +130,21 @@ describe("rankAfter", () => {
       for (const after of labels.map((l) => l.key)) ranks.add(rankAfter(labels, after));
       labels = [...ranks].map((rank, i) => ({ ...older[0], key: `label:${i}`, rank }));
     }
-    for (const key of ["supplemental", "conditioning", "mobility"]) {
+    for (const key of ["plyometric", "supplemental", "conditioning", "mobility"]) {
       expect(ranks.has(BUILTIN_ROLE_LABELS.find((l) => l.key === key)!.rank)).toBe(false);
     }
+  });
+  test("plyometric never ties with a label placed before it existed", () => {
+    // Labels made before Plyometric existed halve the gaps among the built-ins
+    // that predate it (Movement Prep 50 through Mobility 740) again and again.
+    const pre = BUILTIN_ROLE_LABELS.filter((l) => l.key !== "plyometric");
+    const ranks = new Set(pre.map((l) => l.rank));
+    let labels = [...pre];
+    for (let round = 0; round < 6; round++) {
+      for (const after of labels.map((l) => l.key)) ranks.add(rankAfter(labels, after));
+      labels = [...ranks].map((rank, i) => ({ ...pre[0], key: `label:${i}`, rank }));
+    }
+    expect(ranks.has(EXERCISE_ROLE_INFO.plyometric.rank)).toBe(false);
   });
   test("skips archived labels", () => {
     const merged = mergeRoleLabels([row({ rank: 150, archivedAt: "2026-01-01" })]);
@@ -141,10 +156,23 @@ describe("suggestRole", () => {
   const ex = (name: string, o: Partial<RoleHints> = {}): RoleHints => ({ name, ...o });
   const reps = (...r: number[]) => r.map((n) => ({ reps: n, type: "working" }));
 
-  test("explosive names → power, whatever the pattern", () => {
-    for (const n of ["Box Jump", "Med Ball Slam", "Power Clean", "Push Jerk", "Snatch Pull", "Bounds", "Sprint 20m", "Plyo Push-up"]) {
+  test("explosive lifts → power, whatever the pattern", () => {
+    for (const n of ["Med Ball Slam", "Power Clean", "Push Jerk", "Snatch Pull", "Sprint 20m", "Jump Squat", "Barbell Jump Squat", "Kettlebell Swing"]) {
       expect(suggestRole(ex(n, { movementPattern: "vertical_push" }), [], 0)).toBe("power");
     }
+  });
+
+  test("reactive jump, hop, bound and skip names → plyometric, whatever the pattern", () => {
+    for (const n of ["Pogo jumps", "Box Jump", "Depth Jump", "Drop Jump", "Hurdle Hops", "Lateral Bound", "Bounds", "A-Skip", "B Skips", "Plyo Push-up"]) {
+      expect(suggestRole(ex(n, { movementPattern: "vertical_push" }), [], 0)).toBe("plyometric");
+    }
+  });
+
+  test("plyometric vs power: the trainer's split", () => {
+    expect(suggestRole(ex("Pogo jumps"), [], 0)).toBe("plyometric");
+    expect(suggestRole(ex("Power clean"), [], 0)).toBe("power");
+    expect(suggestRole(ex("Box jump"), [], 0)).toBe("plyometric");
+    expect(suggestRole(ex("Hip thrust"), [], 0)).not.toBe("plyometric");
   });
 
   test("trunk patterns, core muscle or trunk names → core", () => {
@@ -208,12 +236,14 @@ describe("suggestRole", () => {
     expect(suggestRole(ex("Thoracic Rotation", { movementPattern: "rotation" }), [], 0)).toBe("mobility");
   });
 
-  test("clashes: sprints stay power, a plain row stays a lift", () => {
+  test("clashes: sprints stay power, a plain row stays a lift, skipping rope is conditioning, hip is not a hop", () => {
     expect(suggestRole(ex("Sprint 20m"), [], 0)).toBe("power");
     expect(suggestRole(ex("Hill Sprints"), [], 0)).toBe("power");
     expect(suggestRole(ex("Bike Sprints"), [], 0)).toBe("power");
     expect(suggestRole(ex("Sled Push"), [], 0)).toBe("conditioning");
-    expect(suggestRole(ex("Box Jump"), [], 0)).toBe("power");
+    expect(suggestRole(ex("Skipping Rope"), [], 0)).toBe("conditioning");
+    expect(suggestRole(ex("Box Jump"), [], 0)).toBe("plyometric");
+    expect(suggestRole(ex("Hip Thrust", { movementPattern: "hip_dominant" }), [], 0)).toBe("primary");
     expect(suggestRole(ex("Barbell Row", { prescribedSets: reps(5) }), [], 0)).toBe("primary");
     expect(suggestRole(ex("Seated Cable Row", { prescribedSets: reps(10) }), [], 0)).toBe("strength");
     expect(suggestRole(ex("Bicycle Crunch"), [], 0)).toBe("core");
@@ -240,7 +270,7 @@ describe("suggestRole", () => {
       ex("Leg Curl", { movementPattern: "isolation", prescribedSets: reps(12) }),
       ex("Plank"),
     ];
-    expect(suggestRoles(session)).toEqual(["power", "primary", "secondary", "strength", "accessory", "core"]);
+    expect(suggestRoles(session)).toEqual(["plyometric", "primary", "secondary", "strength", "accessory", "core"]);
   });
 
   test("compound work above 6 reps → strength, and doesn't take the primary slot", () => {

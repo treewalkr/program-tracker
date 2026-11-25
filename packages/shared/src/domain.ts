@@ -395,14 +395,15 @@ export type SetType = z.infer<typeof SetType>;
  * The label on a program exercise: what the trainer emphasizes with it in the
  * session. Built-in keys, in their default order. Labels come from four
  * categories — priority (Primary, Secondary, Auxiliary), training quality
- * (Power, Strength, Strength / Supplemental, Conditioning), body region (Core)
- * and prep & recovery (Movement Prep, Mobility / Recovery). Secondary,
- * Strength and Strength / Supplemental are different labels. "core" here is
- * the body-region label, not the `core` muscle group. Trainers add their own
- * labels (`label:<uuid>`, roles.ts).
+ * (Plyometric, Power, Strength, Strength / Supplemental, Conditioning), body
+ * region (Core) and prep & recovery (Movement Prep, Mobility / Recovery).
+ * Secondary, Strength and Strength / Supplemental are different labels. "core"
+ * here is the body-region label, not the `core` muscle group. Trainers add
+ * their own labels (`label:<uuid>`, roles.ts).
  */
 export const EXERCISE_ROLES = [
   "movement_prep",
+  "plyometric",
   "power",
   "primary",
   "secondary",
@@ -439,9 +440,10 @@ export const ROLE_CATEGORY_NAMES: Record<RoleCategory, string> = {
 /**
  * Name (pickers), chip (the trainer's shorthand), category, default rank and
  * meaning per built-in label; the meaning is also fed to the AI prompt.
- * Ranks of the labels added later (Supplemental 440, Conditioning 640,
- * Mobility 740) sit at a non-dyadic fraction of the 100 gap, so they never tie
- * with a trainer label placed by `rankAfter` (midpoints: 450, 425, 650, 700 …).
+ * Ranks of the labels added later (Plyometric 70, Supplemental 440,
+ * Conditioning 640, Mobility 740) sit at a non-dyadic fraction of the 100 gap,
+ * so they never tie with a trainer label placed by `rankAfter` (midpoints:
+ * 450, 425, 650, 700 …).
  */
 export const EXERCISE_ROLE_INFO: Record<
   BuiltinRole,
@@ -453,6 +455,13 @@ export const EXERCISE_ROLE_INFO: Record<
     category: "prep",
     rank: 50,
     description: "Prepare the body for training — activation, dynamic warm-up, ramp-up drills.",
+  },
+  plyometric: {
+    name: "Plyometric",
+    chip: "Plyo",
+    category: "quality",
+    rank: 70,
+    description: "Reactive jumps, hops and bounds — stretch-shortening work, low contacts, done fresh.",
   },
   power: {
     name: "Power",
