@@ -35,10 +35,15 @@
   let busy = $state(false);
   let error = $state<string | null>(null);
 
-  // Follow the stored status when it changes from outside this panel.
+  // Follow the stored status when it changes from outside this panel — only the status,
+  // so saving the profile form below doesn't cancel an open archive question.
+  const stored = $derived(client.status);
   $effect(() => {
-    choice = client.status;
-    confirming = false;
+    const status = stored;
+    untrack(() => {
+      choice = status;
+      confirming = false;
+    });
   });
 
   const firstName = $derived(client.name.trim().split(/\s+/)[0] ?? client.name);
@@ -78,7 +83,7 @@
 <ProfileSection title="Member status" purpose="who still shows up on your lists">
   <SelectDescribed label="Status" options={OPTIONS} bind:value={choice} onchange={pick} disabled={busy} />
   {#if confirming}
-    <Note tone="warn" role="alertdialog">
+    <Note tone="warn" role="alert">
       <p class="ask">
         Archive {firstName}? This turns off their member portal: their link stops working and they're signed out.
         They disappear from Overview and the default Members list; their program and logs are kept.

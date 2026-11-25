@@ -219,7 +219,8 @@ export const programRoutes = new Elysia({ prefix: "/v1/programs", tags: ["progra
             eq(programs.id, current.id),
             eq(programs.trainerId, trainerId),
             ne(programs.status, "active"),
-            notExists(db.select({ one: sql`1` }).from(sessionLogs).where(eq(sessionLogs.programId, current.id)))
+            notExists(db.select({ one: sql`1` }).from(sessionLogs).where(eq(sessionLogs.programId, current.id))),
+            notExists(db.select({ one: sql`1` }).from(programExamples).where(eq(programExamples.programId, current.id)))
           )
         )
         .returning({ id: programs.id });

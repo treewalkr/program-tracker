@@ -146,8 +146,11 @@ export const clientRoutes = new Elysia({ prefix: "/v1/clients", tags: ["clients"
     async ({ params, body, status, trainerId }) => {
       const invalid = basicsError(body);
       if (invalid) return status(422, { error: invalid });
-      // Archiving is the delete: it also turns the portal off, in the same write.
-      const archiving = body.status === "archived";
+      // Archiving is the delete: it also turns the portal off, in the same write — on the
+      // change to archived only, so a later edit of an archived member leaves the portal alone.
+      const [before] = await db.select({ status: clients.status }).from(clients).where(eq(clients.id, params.id));
+      if (!before) return status(404, { error: "client not found" });
+      const archiving = body.status === "archived" && before.status !== "archived";
       const [updated] = await db
         .update(clients)
         .set({ ...normPhone(normEmail(body)), ...(archiving ? PORTAL_OFF : {}) })
