@@ -28,12 +28,26 @@ jobs:
       PUBLIC_API_URL: http://localhost:4000
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history and tags: the guards step below walks the commits this push or PR adds,
+          # and floors the range at the guards-v1 tag.
+          fetch-depth: 0
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.4
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
       - run: bun run test
+
+      # Git hooks can be skipped (--no-verify, another agent); this can't. Re-checks the commit
+      # messages and re-runs the red proofs of the commits added here, so a bad commit on main
+      # stops the deploy. Warn-only until the guards-v1 tag exists; never looks before it.
+      # Rules and exemptions: scripts/guards/README.md.
+      - name: Verify commit messages and red proofs
+        env:
+          GUARDS_BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          GUARDS_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: bun scripts/guards/verify-range.ts "$GUARDS_BASE" "$GUARDS_HEAD"
 
   deploy:
     needs: test
