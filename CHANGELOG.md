@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+### New
+- **Members can log last week's sessions.** A session the member forgot (say Sunday's, remembered on Monday) shows under "Last week — not logged" on their week page and can still be logged. It's dated on its planned day. Anything older than last week stays closed.
+  - th: เมมเบอร์บันทึกเซสชันของสัปดาห์ที่แล้วได้ เช่น ลืมบันทึกวันอาทิตย์แล้วเพิ่งนึกได้วันจันทร์ เซสชันนั้นจะขึ้นในหัวข้อ "สัปดาห์ที่แล้ว — ยังไม่ได้บันทึก" ในหน้าสัปดาห์ และยังบันทึกได้ วันที่จะเป็นวันที่วางแผนไว้ ส่วนเซสชันที่เก่ากว่าสัปดาห์ที่แล้วยังบันทึกไม่ได้เหมือนเดิม
+- **Pause or archive a member.** The member's Settings tab has a Member status: Active, Paused or Archived. Archiving hides them from Overview and the default Members list and turns their portal off. Their program and logs are kept, and you can set them back to Active any time.
+  - th: พักหรือเก็บเมมเบอร์เข้าคลังได้แล้ว แท็บ Settings ของเมมเบอร์มีสถานะให้เลือก Active, Paused หรือ Archived ถ้าเลือก Archived เมมเบอร์จะหายจาก Overview และรายชื่อ Members ปกติ พอร์ทัลของเขาก็จะปิดด้วย แต่โปรแกรมกับบันทึกยังอยู่ครบ และเปลี่ยนกลับเป็น Active เมื่อไหร่ก็ได้
+- **Delete a program that was never used.** A draft, or an archived program with no logged sessions, now has a Delete button. Programs with logs can't be deleted, so a member's history is never lost.
+  - th: ลบโปรแกรมที่ไม่เคยใช้ได้แล้ว ดราฟต์ หรือโปรแกรมที่ archive แล้วแต่ไม่มีเซสชันที่บันทึกไว้ จะมีปุ่ม Delete ส่วนโปรแกรมที่มีบันทึกแล้วลบไม่ได้ ประวัติของเมมเบอร์จึงไม่หาย
+- **Feedback on strength logs.** Open a strength session in the member's History tab to mark it reviewed and leave a note. The member sees it in their portal, the same as cardio feedback.
+  - th: ให้ฟีดแบ็กบันทึกเวทได้แล้ว เปิดเซสชันเวทในแท็บ History ของเมมเบอร์ เพื่อกดว่ารีวิวแล้วและเขียนโน้ตถึงเขา เมมเบอร์จะเห็นในพอร์ทัลเหมือนฟีดแบ็กคาร์ดิโอ
+- **Plyometric label.** A new built-in exercise label for reactive jumps, hops and bounds. Auto-suggest picks it for names like pogo jumps, box jumps and bounds. Cleans, throws and swings stay Power.
+  - th: มีป้ายท่าใหม่ชื่อ Plyometric สำหรับท่ากระโดด กระโดดสั้น ๆ และ bound ระบบเลือกป้ายนี้ให้เองกับท่าอย่าง pogo jump, box jump และ bound ส่วน clean, throw และ swing ยังเป็น Power เหมือนเดิม
+
+### Improved
+- When you activate a block whose Week 1 starts later, a warning says the current program stops now and the member has nothing to log until then.
+  - th: ตอนเปิดใช้บล็อกที่ Week 1 เริ่มทีหลัง จะมีคำเตือนว่าโปรแกรมปัจจุบันจะหยุดทันที และเมมเบอร์จะไม่มีอะไรให้บันทึกจนถึงวันนั้น
+
+### Fixed
+- A session you log for a member can no longer be dated in the future.
+  - th: เซสชันที่เทรนเนอร์บันทึกให้เมมเบอร์ ใส่วันที่ในอนาคตไม่ได้แล้ว
+
 ## v0.1.52 — 2026-11-26
 
 ### New
