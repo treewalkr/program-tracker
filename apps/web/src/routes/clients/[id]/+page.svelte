@@ -4,6 +4,7 @@
   import ClientIdentityFields from "$lib/components/ClientIdentityFields.svelte";
   import ProfileSection from "$lib/components/ProfileSection.svelte";
   import ClientDeloadRule from "$lib/components/ClientDeloadRule.svelte";
+  import ClientStatusPanel from "$lib/components/ClientStatusPanel.svelte";
   import ClientHrProfile from "$lib/components/ClientHrProfile.svelte";
   import CardioReview from "$lib/components/CardioReview.svelte";
   import WeekBars from "$lib/components/WeekBars.svelte";
@@ -1084,6 +1085,10 @@
     <!-- First: the link a trainer comes here to copy. Saves on its own, outside the profile form. -->
     <div class="pf portal-pf">
       <ClientPortalPanel {client} />
+    </div>
+    <!-- Saves on its own; archiving also turns the portal off, which the panel above reloads to show. -->
+    <div class="pf portal-pf">
+      <ClientStatusPanel {client} onchange={(c) => (client = c)} />
     </div>
     <form
       class="pf"

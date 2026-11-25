@@ -908,6 +908,8 @@ const rawMockApi: TrainerApi = {
     await delay(300);
     const i = state.clients.findIndex((c) => c.id === id);
     state.clients[i] = { ...state.clients[i], ...patch };
+    // like the API: archiving a member turns their portal off
+    if (patch.status === "archived") delete state.portal[id];
     return clientDto(state.clients[i]);
   },
 
@@ -2870,8 +2872,12 @@ function mockRoster(query: RosterQuery): RosterPageDto {
   const scoped = state.clients.filter(
     (c) => !q || c.name.toLowerCase().includes(q) || (c.email ?? "").toLowerCase().includes(q)
   );
-  const counts = { all: scoped.length, active: 0, paused: 0, archived: 0 };
-  for (const c of scoped) counts[c.status]++;
+  // `all` is everyone still on the roster: archived members only show under the archived filter.
+  const counts = { all: 0, active: 0, paused: 0, archived: 0 };
+  for (const c of scoped) {
+    counts[c.status]++;
+    if (c.status !== "archived") counts.all++;
+  }
 
   const lastOf = new Map<string, string>();
   for (const l of state.logs) {
@@ -2880,7 +2886,7 @@ function mockRoster(query: RosterQuery): RosterPageDto {
   }
   const byName = (a: ClientDto, b: ClientDto) => a.name.localeCompare(b.name);
   const sorted = scoped
-    .filter((c) => status === "all" || c.status === status)
+    .filter((c) => (status === "all" ? c.status !== "archived" : c.status === status))
     .sort(
       query.sort === "last"
         ? (a, b) => (lastOf.get(b.id) ?? "").localeCompare(lastOf.get(a.id) ?? "") || byName(a, b)

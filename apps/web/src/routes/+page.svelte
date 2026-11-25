@@ -87,10 +87,13 @@
   async function load() {
     loadError = null;
     try {
-      const [cs, ps, sigs] = await Promise.all([api.clients(), api.providers(), api.notifications()]);
+      const [everyone, ps, sigs] = await Promise.all([api.clients(), api.providers(), api.notifications()]);
+      // Archived members are off Overview; Settings and the Members list still reach them.
+      const cs = everyone.filter((c) => c.status !== "archived");
+      const shown = new Set(cs.map((c) => c.id));
       clients = cs;
       providers = ps;
-      signals = sigs.filter((s) => s.clientId);
+      signals = sigs.filter((s) => s.clientId && shown.has(s.clientId));
       // Per-client detail + logs in parallel — sequential calls scaled linearly with the roster.
       const built = await Promise.all(
         cs.map(async (c) => {

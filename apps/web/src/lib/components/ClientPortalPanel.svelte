@@ -26,8 +26,10 @@
   let busy = $state(false);
   let error = $state<string | null>(null);
 
+  // Reloads when the member changes or their status does: archiving turns the portal off.
   $effect(() => {
     const id = client.id;
+    void client.status;
     portal = null;
     api.clientPortal(id).then(
       (p) => (portal = p),
@@ -58,6 +60,10 @@
 <ProfileSection title="Client portal" purpose="their own link to see this week and log sessions">
   {#if portal === null && !error}
     <p class="muted">Loading…</p>
+  {:else if portal && !portal.enabled && client.status === "archived"}
+    <p class="lead">
+      {firstName} is archived, so their portal is off. Set them back to Active under Member status to turn it on again.
+    </p>
   {:else if portal && !portal.enabled}
     <div class="row">
       <p class="lead">

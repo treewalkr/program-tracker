@@ -59,6 +59,9 @@ const portalStatus = (c: ClientRow) => ({
   lastSeenAt: c.portalLastSeenAt,
 });
 
+/** Everything that switches a client's portal off. `deleteClientSessions` signs them out as well. */
+const PORTAL_OFF = { portalEnabledAt: null, portalToken: null, portalGoogleSub: null } as const;
+
 export const clientRoutes = new Elysia({ prefix: "/v1/clients", tags: ["clients"] })
   .use(trainerContext)
   .get("/", async ({ trainerId }) => {
@@ -143,18 +146,22 @@ export const clientRoutes = new Elysia({ prefix: "/v1/clients", tags: ["clients"
     async ({ params, body, status, trainerId }) => {
       const invalid = basicsError(body);
       if (invalid) return status(422, { error: invalid });
+      // Archiving is the delete: it also turns the portal off, in the same write.
+      const archiving = body.status === "archived";
       const [updated] = await db
         .update(clients)
-        .set(normPhone(normEmail(body)))
+        .set({ ...normPhone(normEmail(body)), ...(archiving ? PORTAL_OFF : {}) })
         .where(eq(clients.id, params.id))
         .returning();
       if (!updated) return status(404, { error: "client not found" });
+      if (archiving) await deleteClientSessions(updated.id);
       return clientDto(updated, await trainerDeloadSettings(trainerId));
     },
     {
       params: t.Object({ id: t.String() }),
       body: ClientModel.update,
       response: { 200: ClientModel.dto, 404: ErrorBody, 422: ErrorBody },
+      detail: { summary: "Edit a client; status archived also turns the client portal off" },
     }
   )
   .put(
@@ -238,7 +245,7 @@ export const clientRoutes = new Elysia({ prefix: "/v1/clients", tags: ["clients"
     async ({ params, status }) => {
       const [updated] = await db
         .update(clients)
-        .set({ portalEnabledAt: null, portalToken: null, portalGoogleSub: null })
+        .set(PORTAL_OFF)
         .where(eq(clients.id, params.id))
         .returning();
       if (!updated) return status(404, { error: "client not found" });

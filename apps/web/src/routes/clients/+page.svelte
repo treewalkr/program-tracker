@@ -72,11 +72,13 @@
 
   const sub = $derived.by(() => {
     if (!roster) return "…";
-    if (roster.all === 0) return "No clients yet";
-    if (roster.active === roster.all) return `${roster.all} on the roster`;
-    return `${roster.active} active · ${roster.all} on the roster`;
+    // `all` leaves archived members out; they get their own tab and a note here.
+    const archived = roster.archived ? ` · ${roster.archived} archived` : "";
+    if (roster.all === 0) return roster.archived ? `Nobody on the roster${archived}` : "No clients yet";
+    if (roster.active === roster.all) return `${roster.all} on the roster${archived}`;
+    return `${roster.active} active · ${roster.all} on the roster${archived}`;
   });
-  const emptyRoster = $derived(data !== null && !list.filtering && data.counts.all === 0);
+  const emptyRoster = $derived(data !== null && !list.filtering && data.counts.all === 0 && data.counts.archived === 0);
   const resultCount = $derived(
     data && list.q.trim() ? `${data.total} ${data.total === 1 ? "match" : "matches"}` : undefined
   );
@@ -209,7 +211,7 @@
         {#if list.q.trim()}
           No {list.params.status === "all" ? "" : `${list.params.status} `}client matches “{list.q.trim()}”.
         {:else}
-          No {list.params.status} clients.
+          {list.params.status === "all" ? "Nobody on the roster. Archived members are under the Archived tab." : `No ${list.params.status} clients.`}
         {/if}
         {#snippet actions()}<Button onclick={() => list.clear(["sort"])}>Clear filters</Button>{/snippet}
       </EmptyState>

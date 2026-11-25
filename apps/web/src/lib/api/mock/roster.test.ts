@@ -2,14 +2,17 @@ import { describe, expect, test } from "bun:test";
 import { mockApi } from "./api";
 
 describe("mockApi roster (mirrors /v1/clients/roster)", () => {
-  test("pages every client with counts; archived included", async () => {
+  test("pages every client with counts; `all` leaves archived out, the archived filter shows them", async () => {
     const all = await mockApi.clients();
     const page = await mockApi.roster({});
     expect(page.page).toBe(1);
     expect(page.limit).toBe(10);
     expect(page.counts.all).toBe(page.total);
-    expect(page.counts.active + page.counts.paused + page.counts.archived).toBe(page.total);
-    expect(page.total).toBeGreaterThanOrEqual(all.length);
+    expect(page.counts.active + page.counts.paused).toBe(page.total);
+    expect(page.total).toBeGreaterThanOrEqual(all.filter((c) => c.status !== "archived").length);
+    const archived = await mockApi.roster({ status: "archived", limit: 50 });
+    expect(archived.total).toBe(page.counts.archived);
+    expect(archived.items.every((c) => c.status === "archived")).toBe(true);
   });
 
   test("status filters rows but not counts; q narrows both", async () => {
@@ -26,6 +29,7 @@ describe("mockApi roster (mirrors /v1/clients/roster)", () => {
   test("name sort puts actives first; a page past the end clamps", async () => {
     const { items } = await mockApi.roster({ limit: 50 });
     const rank = { active: 0, paused: 1, archived: 2 };
+    expect(items.every((c) => c.status !== "archived")).toBe(true);
     expect(items.map((c) => rank[c.status])).toEqual([...items.map((c) => rank[c.status])].sort());
     const last = await mockApi.roster({ page: 99 });
     expect(last.page).toBe(Math.max(1, Math.ceil(last.total / 10)));

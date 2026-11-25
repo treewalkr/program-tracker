@@ -263,7 +263,8 @@
     restoreUnits();
     api.displayUnits().then(applyUnits, () => {});
     try {
-      clientCount = (await api.clients()).length;
+      // archived members are off the list, so off the count
+      clientCount = (await api.clients()).filter((c) => c.status !== "archived").length;
     } catch {
       clientCount = null;
     }
