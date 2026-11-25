@@ -78,6 +78,31 @@ export function unsafeChanges(sql: string): string[] {
   return found;
 }
 
+/** Migrations up to this number predate the RLS rule; 0072 turned RLS on for every table then. */
+export const LAST_WITHOUT_RLS = 72;
+
+/**
+ * Tables a migration creates without turning RLS on in the same file. Supabase exposes the
+ * public schema through its Data API, so every table needs RLS (no policies: the API connects
+ * as the owner and bypasses it).
+ */
+export function tablesMissingRls(sql: string): string[] {
+  const code = stripComments(sql).replace(/'(?:[^']|'')*'/g, "''");
+  const name = String.raw`(?:"?public"?\.)?"?([A-Za-z_][A-Za-z0-9_]*)"?`;
+  const created = [...code.matchAll(new RegExp(String.raw`\bCREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?${name}`, "gi"))];
+  const secured = new Set(
+    [...code.matchAll(new RegExp(String.raw`\bALTER\s+TABLE\s+(?:ONLY\s+)?${name}\s+ENABLE\s+ROW\s+LEVEL\s+SECURITY\b`, "gi"))].map(
+      (m) => m[1].toLowerCase(),
+    ),
+  );
+  return created.map((m) => m[1]).filter((t) => !secured.has(t.toLowerCase()));
+}
+
+export const RLS_HELP = `Every new table needs row level security, or Supabase's Data API exposes it to
+anyone with the anon key. Add, in the same migration:
+  ALTER TABLE "things" ENABLE ROW LEVEL SECURITY;
+No policies: the API connects as the table owner and bypasses RLS.`;
+
 /** The migration number from a file name like `0063_foo.sql`, or null. */
 export function migrationNumber(file: string): number | null {
   const m = /^(\d+)_.*\.sql$/.exec(file);
