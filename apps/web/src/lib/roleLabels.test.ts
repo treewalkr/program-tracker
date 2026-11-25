@@ -21,6 +21,7 @@ describe("searchRoleLabels", () => {
   test("empty query → every active label by rank", () => {
     expect(searchRoleLabels(labels, "").map((l) => l.name)).toEqual([
       "Movement Prep",
+      "Plyometric",
       "Power",
       "Speed",
       "Primary",
@@ -38,6 +39,8 @@ describe("searchRoleLabels", () => {
     expect(searchRoleLabels(labels, "str").map((l) => l.name)[0]).toBe("Strength");
     expect(searchRoleLabels(labels, "trunk").map((l) => l.name)).toEqual(["Core"]);
     expect(searchRoleLabels(labels, "spd").map((l) => l.name)).toEqual(["Speed"]);
+    expect(searchRoleLabels(labels, "plyo").map((l) => l.name)).toEqual(["Plyometric"]);
+    expect(searchRoleLabels(labels, "stretch-shortening").map((l) => l.name)).toEqual(["Plyometric"]);
     expect(searchRoleLabels(labels, "heavy loads").map((l) => l.name)).toEqual(["Strength"]);
     expect(searchRoleLabels(labels, "supp").map((l) => l.name)[0]).toBe("Strength / Supplemental");
     expect(searchRoleLabels(labels, "mob").map((l) => l.name)[0]).toBe("Mobility / Recovery");
@@ -54,7 +57,7 @@ describe("groupRoleLabels", () => {
     const groups = groupRoleLabels(searchRoleLabels(labels, ""));
     expect(groups.map((g) => [g.label, g.items.map((l) => l.name)])).toEqual([
       ["Priority", ["Primary", "Secondary", "Auxiliary"]],
-      ["Training quality", ["Power", "Strength", "Strength / Supplemental", "Conditioning"]],
+      ["Training quality", ["Plyometric", "Power", "Strength", "Strength / Supplemental", "Conditioning"]],
       ["Body region", ["Core"]],
       ["Prep & recovery", ["Movement Prep", "Mobility / Recovery"]],
       ["Your labels", ["Speed"]],

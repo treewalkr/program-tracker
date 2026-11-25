@@ -10,7 +10,7 @@
       docs: {
         description: {
           component:
-            'Role chip for an exercise — Prep / Power / Primary / Secondary / Str / Supp / Aux / Core / Cond / Mob, or one of the trainer’s own labels, in their shorthand. Neutral well pill; the primary lift reads in default ink. Hover for the meaning.',
+            'Role chip for an exercise — Prep / Plyo / Power / Primary / Secondary / Str / Supp / Aux / Core / Cond / Mob, or one of the trainer’s own labels, in their shorthand. Neutral well pill; the primary lift reads in default ink. Hover for the meaning.',
         },
       },
     },
@@ -18,6 +18,7 @@
 </script>
 
 <Story name="Movement Prep" args={{ role: 'movement_prep' }} />
+<Story name="Plyometric" args={{ role: 'plyometric' }} />
 <Story name="Power" args={{ role: 'power' }} />
 <Story name="Primary" args={{ role: 'primary' }} />
 <Story name="Secondary" args={{ role: 'secondary' }} />
@@ -40,6 +41,7 @@
   <div class="session" style="max-width: 420px;">
     <div class="session-body">
       <div class="exrow"><div class="ex"><RoleChip role="movement_prep" /> Glute Activation</div></div>
+      <div class="exrow"><div class="ex"><RoleChip role="plyometric" /> Pogo Jump</div></div>
       <div class="exrow"><div class="ex"><RoleChip role="primary" /> Back Squat</div></div>
       <div class="exrow"><div class="ex"><RoleChip role="secondary" /> Bench Press</div></div>
       <div class="exrow"><div class="ex"><RoleChip role="strength" /> Romanian Deadlift</div></div>

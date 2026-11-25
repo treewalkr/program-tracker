@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { sortExercisesByRole } from "./domain";
+import { EXERCISE_ROLE_INFO, sortExercisesByRole } from "./domain";
 import { DraftExerciseRef } from "./ai";
 import type { ExerciseRole } from "./domain";
 import {
@@ -34,6 +34,7 @@ describe("mergeRoleLabels", () => {
   test("no rows → the built-ins in default order", () => {
     expect(mergeRoleLabels([]).map((l) => l.name)).toEqual([
       "Movement Prep",
+      "Plyometric",
       "Power",
       "Primary",
       "Secondary",
@@ -44,9 +45,10 @@ describe("mergeRoleLabels", () => {
       "Conditioning",
       "Mobility / Recovery",
     ]);
-    expect(mergeRoleLabels([]).map((l) => l.chip)).toEqual(["Prep", "Power", "Primary", "Secondary", "Str", "Supp", "Aux", "Core", "Cond", "Mob"]);
+    expect(mergeRoleLabels([]).map((l) => l.chip)).toEqual(["Prep", "Plyo", "Power", "Primary", "Secondary", "Str", "Supp", "Aux", "Core", "Cond", "Mob"]);
     expect(mergeRoleLabels([]).map((l) => l.category)).toEqual([
       "prep",
+      "quality",
       "quality",
       "priority",
       "priority",
@@ -61,8 +63,8 @@ describe("mergeRoleLabels", () => {
 
   test("a custom label slots in by rank, chip defaults to its name", () => {
     const merged = mergeRoleLabels([row({})]);
-    expect(merged.map((l) => l.name).slice(0, 4)).toEqual(["Movement Prep", "Power", "Speed", "Primary"]);
-    expect(merged[2]).toMatchObject({ key: `label:${id1}`, chip: "Speed", category: null, builtinKey: null, archived: false });
+    expect(merged.map((l) => l.name).slice(0, 5)).toEqual(["Movement Prep", "Plyometric", "Power", "Speed", "Primary"]);
+    expect(merged[3]).toMatchObject({ key: `label:${id1}`, chip: "Speed", category: null, builtinKey: null, archived: false });
   });
 
   test("an override row changes a built-in's chip, meaning and rank — never its key or name", () => {
@@ -109,7 +111,8 @@ describe("mergeRoleLabels", () => {
 
 describe("rankAfter", () => {
   test("halfway to the next label, or past the last", () => {
-    expect(rankAfter(BUILTIN_ROLE_LABELS, "movement_prep")).toBe(75);
+    expect(rankAfter(BUILTIN_ROLE_LABELS, "movement_prep")).toBe(60);
+    expect(rankAfter(BUILTIN_ROLE_LABELS, "plyometric")).toBe(85);
     expect(rankAfter(BUILTIN_ROLE_LABELS, "power")).toBe(150);
     expect(rankAfter(BUILTIN_ROLE_LABELS, "strength")).toBe(420);
     expect(rankAfter(BUILTIN_ROLE_LABELS, "core")).toBe(620);
@@ -127,9 +130,21 @@ describe("rankAfter", () => {
       for (const after of labels.map((l) => l.key)) ranks.add(rankAfter(labels, after));
       labels = [...ranks].map((rank, i) => ({ ...older[0], key: `label:${i}`, rank }));
     }
-    for (const key of ["supplemental", "conditioning", "mobility"]) {
+    for (const key of ["plyometric", "supplemental", "conditioning", "mobility"]) {
       expect(ranks.has(BUILTIN_ROLE_LABELS.find((l) => l.key === key)!.rank)).toBe(false);
     }
+  });
+  test("plyometric never ties with a label placed before it existed", () => {
+    // Labels made before Plyometric existed halve the gaps among the built-ins
+    // that predate it (Movement Prep 50 through Mobility 740) again and again.
+    const pre = BUILTIN_ROLE_LABELS.filter((l) => l.key !== "plyometric");
+    const ranks = new Set(pre.map((l) => l.rank));
+    let labels = [...pre];
+    for (let round = 0; round < 6; round++) {
+      for (const after of labels.map((l) => l.key)) ranks.add(rankAfter(labels, after));
+      labels = [...ranks].map((rank, i) => ({ ...pre[0], key: `label:${i}`, rank }));
+    }
+    expect(ranks.has(EXERCISE_ROLE_INFO.plyometric.rank)).toBe(false);
   });
   test("skips archived labels", () => {
     const merged = mergeRoleLabels([row({ rank: 150, archivedAt: "2026-01-01" })]);

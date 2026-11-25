@@ -223,13 +223,14 @@ describe("buildGenerationMessages", () => {
       trainerInstructions: "",
     });
     expect(system).toContain(
-      '"role": "power" | "primary" | "secondary" | "strength" | "supplemental" | "accessory" | "core" | "conditioning" | "mobility"'
+      '"role": "plyometric" | "power" | "primary" | "secondary" | "strength" | "supplemental" | "accessory" | "core" | "conditioning" | "mobility"'
     );
     expect(system).toContain("One Primary per exercise session");
     expect(system).not.toContain("movement_prep");
     expect(system).toContain('"block": "prep" | "main"');
     expect(system).toContain("- Session blocks: an exercise session is optional Movement prep");
     for (const line of [
+      "plyometric (Plyometric): Reactive jumps, hops and bounds",
       "power (Power): Develop explosive force",
       "primary (Primary): The main exercise around which the session is structured.",
       "secondary (Secondary): Secondary compound movement supporting the primary objective.",
@@ -282,7 +283,7 @@ describe("buildGenerationMessages", () => {
       buildGenerationMessages(base),
       buildWeekMessages({ ...base, targetWeek: 2, plannedWeeks: 4, targetDirective: null, target: null }),
     ]) {
-      expect(system).toContain(`"role": "power" | "label:${id}" | "primary"`);
+      expect(system).toContain(`"role": "plyometric" | "power" | "label:${id}" | "primary"`);
       expect(system).toContain(`label:${id} (Speed): Fast, light reps.`);
       expect(system).toContain("core (Core): Abs, my way.");
       expect(system).not.toContain(gone);
