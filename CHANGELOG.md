@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.1.53 — 2026-11-26
+
 ### New
 - **Members can log last week's sessions.** A session the member forgot (say Sunday's, remembered on Monday) shows under "Last week — not logged" on their week page and can still be logged. It's dated on its planned day. Anything older than last week stays closed.
   - th: เมมเบอร์บันทึกเซสชันของสัปดาห์ที่แล้วได้ เช่น ลืมบันทึกวันอาทิตย์แล้วเพิ่งนึกได้วันจันทร์ เซสชันนั้นจะขึ้นในหัวข้อ "สัปดาห์ที่แล้ว — ยังไม่ได้บันทึก" ในหน้าสัปดาห์ และยังบันทึกได้ วันที่จะเป็นวันที่วางแผนไว้ ส่วนเซสชันที่เก่ากว่าสัปดาห์ที่แล้วยังบันทึกไม่ได้เหมือนเดิม
