@@ -639,6 +639,90 @@ describe.skipIf(!dbUp)("portal week and logs", () => {
     }
   });
 
+  describe("last week's grace window", () => {
+    /** Week 2 is on (Week 1 started a week ago): Week 1's sessions are last week's. */
+    const inWeekTwo = async (run: () => Promise<void>, startsOn = addDays(today, -7)) => {
+      // earlier tests leave logs behind: start from none
+      await db.delete(sessionLogs).where(eq(sessionLogs.programId, programId));
+      await db.update(programs).set({ startsOn }).where(eq(programs.id, programId));
+      try {
+        await run();
+      } finally {
+        await db.delete(sessionLogs).where(eq(sessionLogs.programId, programId));
+        await db.update(programs).set({ startsOn: null }).where(eq(programs.id, programId));
+      }
+    };
+
+    test("/week lists last week's unlogged sessions apart from the weeks, and drops one once logged", () =>
+      inWeekTwo(async () => {
+        const w = await call("GET", "/v1/portal/week", { token });
+        expect(w.body.currentWeek).toBe(2);
+        expect(w.body.weeks.map((x: any) => [x.week, x.loggable])).toEqual([[2, true]]);
+        expect(w.body.lastWeek).toMatchObject({ week: 1, startDate: addDays(today, -7), endDate: addDays(today, -1), loggable: true });
+        expect(w.body.lastWeek.sessions.map((s: any) => s.id).sort()).toEqual([s1, s2, cardio1].sort());
+        for (const leak of ["SECRET", "percent1rm"]) expect(w.text).not.toContain(leak);
+
+        const r = await call("POST", "/v1/portal/logs", { token, body: logBody(s1, { date: addDays(today, -6) }) });
+        expect(r.status).toBe(201);
+        expect(r.body).toMatchObject({ programSessionId: s1, date: addDays(today, -6), loggedBy: "client" });
+        const after = await call("GET", "/v1/portal/week", { token });
+        expect(after.body.lastWeek.sessions.map((s: any) => s.id)).not.toContain(s1);
+      }));
+
+    test("last week's session can be logged on the last day, or today (a Sunday remembered on Monday)", () =>
+      inWeekTwo(async () => {
+        expect((await call("POST", "/v1/portal/logs", { token, body: logBody(s1, { date: addDays(today, -1) }) })).status).toBe(201);
+        expect((await call("POST", "/v1/portal/logs", { token, body: logBody(s2, { date: today }) })).status).toBe(201);
+      }));
+
+    test("a date before last week, or in the future, is still refused", () =>
+      inWeekTwo(async () => {
+        const early = await call("POST", "/v1/portal/logs", { token, body: logBody(s1, { date: addDays(today, -8) }) });
+        expect(early.status).toBe(422);
+        expect(early.body.error).toBe("date is before last week");
+        const ahead = await call("POST", "/v1/portal/logs", { token, body: logBody(s1, { date: addDays(today, 1), today }) });
+        expect(ahead.status).toBe(422);
+        expect(ahead.body.error).toBe("date is in the future");
+        expect((await call("POST", "/v1/portal/logs", { token, body: logBody(s1, { date: addDays(today, 2) }) })).status).toBe(422);
+        expect(await db.select().from(sessionLogs).where(eq(sessionLogs.programId, programId))).toHaveLength(0);
+      }));
+
+    test("this week's sessions keep their own floor: never before this week's start", () =>
+      inWeekTwo(async () => {
+        expect((await call("POST", "/v1/portal/logs", { token, body: logBody(next1, { date: addDays(today, -1) }) })).status).toBe(422);
+        expect((await call("POST", "/v1/portal/logs", { token, body: logBody(next1, { date: today }) })).status).toBe(201);
+      }));
+
+    test("two weeks back is refused, and so is a session of next week", () =>
+      inWeekTwo(
+        async () => {
+          // Week 3 is on: Week 1 is two weeks back, Week 2 is last week
+          const w = await call("GET", "/v1/portal/week", { token });
+          expect(w.body.currentWeek).toBe(3);
+          expect(w.body.lastWeek.sessions.map((s: any) => s.id)).toEqual([next1]);
+          const old = await call("POST", "/v1/portal/logs", { token, body: logBody(s1, { date: addDays(today, -10) }) });
+          expect(old.status).toBe(422);
+          expect(old.body.error).toContain("last week's");
+          expect((await call("POST", "/v1/portal/logs", { token, body: logBody(next1, { date: addDays(today, -3) }) })).status).toBe(201);
+        },
+        addDays(today, -14),
+      ));
+
+    test("in Week 1 there is no last week", async () => {
+      const w = await call("GET", "/v1/portal/week", { token });
+      expect(w.body.lastWeek ?? null).toBeNull();
+    });
+
+    test("removing your own log works for last week's session, not for two weeks back", () =>
+      inWeekTwo(async () => {
+        const r = await call("POST", "/v1/portal/logs", { token, body: logBody(s1, { date: addDays(today, -6) }) });
+        expect((await call("DELETE", `/v1/portal/logs/${r.body.id}`, { token })).status).toBe(204);
+        const [old] = await db.insert(sessionLogs).values({ clientId, programId, programSessionId: s2, date: addDays(today, -6), kind: "exercises", loggedBy: "client" }).returning();
+        await db.update(programs).set({ startsOn: addDays(today, -14) }).where(eq(programs.id, programId));
+        expect((await call("DELETE", `/v1/portal/logs/${old.id}`, { token })).status).toBe(409);
+      }));
+  });
+
   test("a client can't log against another client's session or another trainer's client", async () => {
     // the sibling has no active program; s1 belongs to Mai's program
     expect((await call("POST", "/v1/portal/logs", { token: siblingToken, body: logBody(s1) })).status).toBe(422);

@@ -58,6 +58,10 @@ export interface PortalWeekContext {
   started: boolean;
   /** Program session ids planned in the current week. */
   currentSessionIds: Set<string>;
+  /** First day of the previous block week (7 days back from `startDate`); null in Week 1. */
+  lastWeekStart: string | null;
+  /** Program session ids planned in the previous block week: still loggable as a grace window. */
+  lastWeekSessionIds: Set<string>;
 }
 
 /** Block-week math for the active program — the same anchor as signals and the client page. */
@@ -76,6 +80,8 @@ export async function portalWeekContext(clientId: string, now = Date.now()): Pro
     endDate: addDays(startDate, 6),
     started: localDateOf(now) >= startDate,
     currentSessionIds: new Set(weekSessions(program.sessions, currentWeek).map((s) => s.id)),
+    lastWeekStart: currentWeek > 1 ? addDays(startDate, -7) : null,
+    lastWeekSessionIds: new Set(currentWeek > 1 ? weekSessions(program.sessions, currentWeek - 1).map((s) => s.id) : []),
   };
 }
 
@@ -83,7 +89,7 @@ export async function portalWeekContext(clientId: string, now = Date.now()): Pro
 export async function loadPortalWeek(clientId: string, now = Date.now()): Promise<PortalWeekDto> {
   const ctx = await portalWeekContext(clientId, now);
   if (!ctx) return { program: null, currentWeek: null, weeks: [] };
-  const { program, currentWeek, startDate, started } = ctx;
+  const { program, currentWeek, startDate, started, lastWeekStart } = ctx;
   const [client] = await db
     .select({ oneRepMaxes: clients.oneRepMaxes, cardioTarget: clients.cardioTarget })
     .from(clients)
@@ -102,6 +108,28 @@ export async function loadPortalWeek(clientId: string, now = Date.now()): Promis
   const done = await withEntries(latestLogBySession(logs));
   const hrVersions = await db.select().from(clientHrProfiles).where(eq(clientHrProfiles.clientId, clientId));
   const loads = { ...(await loadContext(clientId, program, startDate)), hrZones: profileOn(hrVersions, localDateOf(now))?.zones ?? null };
+
+  /** Last week's sessions without a log yet, for the "not logged" catch-up; null when none. */
+  async function lastWeekCatchUp(): Promise<PortalWeek | null> {
+    if (!started || !lastWeekStart) return null;
+    const week = currentWeek - 1;
+    const doc = program.sessions.find((w) => w.week === week);
+    if (!doc) return null;
+    const open = (await withExerciseNames(doc)).sessions.filter((s) => !done.has(s.id));
+    if (open.length === 0) return null;
+    const start = lastWeekStart;
+    return {
+      week,
+      startDate: start,
+      endDate: addDays(start, 6),
+      loggable: true,
+      weekLabel: portalWeekLabel(program.phasing, week),
+      sessions: portalSessions(open, client?.oneRepMaxes ?? null, () => null, {
+        ...loads,
+        hrZonesFor: (weekday) => profileOn(hrVersions, sessionDateIn(start, weekday))?.zones ?? null,
+      }),
+    };
+  }
 
   const weeks: PortalWeek[] = [];
   for (const week of [currentWeek, currentWeek + 1]) {
@@ -125,7 +153,8 @@ export async function loadPortalWeek(clientId: string, now = Date.now()): Promis
         : [],
     });
   }
-  return { program: { id: program.id, name: program.name, startsOn: program.startsOn ?? null }, currentWeek, weeks, cardio: await cardioThisWeek(clientId, client?.cardioTarget ?? null, now) };
+  const lastWeek = await lastWeekCatchUp();
+  return { program: { id: program.id, name: program.name, startsOn: program.startsOn ?? null }, currentWeek, weeks, lastWeek, cardio: await cardioThisWeek(clientId, client?.cardioTarget ?? null, now) };
 }
 
 /** How many recent cardio logs the progress tab lists. */

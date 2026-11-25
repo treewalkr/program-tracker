@@ -187,6 +187,21 @@ describe("sessionsByWeek", () => {
     expect(sessionsByWeek([log({ programSessionId: "s1", sets: [set("bench", 45, 5)] })], [program], nameOf)[0].sessions[0].prep).toBeNull();
   });
 
+  test("a session carries the coach's review and feedback, for the History tab's feedback box", () => {
+    const [week] = sessionsByWeek(
+      [
+        log({ sets: [set("bench", 45, 5)], reviewedAt: "2026-10-20T08:00:00Z", trainerFeedback: "Bar speed looked great." }),
+        log({ date: "2026-10-19", sets: [set("bench", 45, 5)] }),
+      ],
+      [program],
+      nameOf,
+    );
+    expect(week.sessions.map((s) => [s.reviewedAt, s.trainerFeedback])).toEqual([
+      ["2026-10-20T08:00:00Z", "Bar speed looked great."],
+      [null, null],
+    ]);
+  });
+
   test("a session the client timed in the portal shows how long it took", () => {
     const [week] = sessionsByWeek([log({ sets: [set("bench", 45, 5)], durationMin: 52 }), log({ date: "2026-10-20", sets: [set("bench", 45, 5)] })], [program], nameOf);
     expect(week.sessions.map((s) => s.duration)).toEqual([null, "52 min"]);

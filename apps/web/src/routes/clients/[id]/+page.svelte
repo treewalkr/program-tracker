@@ -6,6 +6,7 @@
   import ClientDeloadRule from "$lib/components/ClientDeloadRule.svelte";
   import ClientHrProfile from "$lib/components/ClientHrProfile.svelte";
   import CardioReview from "$lib/components/CardioReview.svelte";
+  import LogFeedback from "$lib/components/LogFeedback.svelte";
   import WeekBars from "$lib/components/WeekBars.svelte";
   import StatTile from "$lib/ui/StatTile.svelte";
   import { distanceUnit, fmtDistance, fmtTonnage, fmtWeightRound, showWeight, weightUnit } from "$lib/units.svelte";
@@ -341,9 +342,13 @@
     }
   }
 
-  async function reviewCardio(logId: string, input: LogReviewInput) {
+  /** Review or give feedback on any log (cardio or strength): both lists that show it follow. */
+  async function reviewLogEntry(logId: string, input: LogReviewInput) {
     const out = await api.reviewSessionLog(logId, input);
-    sessionLogRows = sessionLogRows.map((l) => (l.id === logId ? { ...l, reviewedAt: out.reviewedAt, reviewedBy: out.reviewedBy, trainerFeedback: out.trainerFeedback } : l));
+    const reviewed = (l: SessionLogDto): SessionLogDto =>
+      l.id === logId ? { ...l, reviewedAt: out.reviewedAt, reviewedBy: out.reviewedBy, trainerFeedback: out.trainerFeedback } : l;
+    sessionLogRows = sessionLogRows.map(reviewed);
+    if (historyLogs) historyLogs = historyLogs.map(reviewed);
     return out;
   }
 
@@ -954,6 +959,7 @@
                     <span class="sess-date tnum">{s.dateLabel}</span>
                     <span class="sess-name">{s.name}</span>
                     {#if s.byClient}<span class="pill neutral by-client" title="Logged by the client in the portal">by client</span>{/if}
+                    {#if s.kind !== "cardio" && s.reviewedAt}<Pill tone="good">Reviewed</Pill>{/if}
                     {#if s.flags.length > 0}
                       <span class={`pill sess-flag ${s.pain ? "bad" : "neutral"}`} title={s.flags.map((f) => f.text).join(", ")}>
                         <Icon name="flag" size={11} />{s.pain ? "Pain" : s.flags.length === 1 ? "1 flag" : `${s.flags.length} flags`}
@@ -984,6 +990,10 @@
                       </ul>
                     {/if}
                     {#if s.notes}<p class="sess-notes subtle">{s.notes}</p>{/if}
+                    <!-- cardio logs are reviewed on the Cardio tab, beside plan against actual -->
+                    {#if s.kind !== "cardio"}
+                      <div class="sess-review"><LogFeedback log={s} member={firstName} onreview={(input) => reviewLogEntry(s.id, input)} /></div>
+                    {/if}
                   </div>
                 {/if}
               </li>
@@ -1058,7 +1068,7 @@
           <div class="panel-body">
             {#if reviewLog?.cardio}
               {#key reviewLog.id}
-                <CardioReview log={reviewLog} member={firstName} metric={metricOf(reviewLog.cardio.modality)} zonesApprox={maxHrUntested(profileOn(hrVersions ?? [], reviewLog.date))} onreview={(input) => reviewCardio(reviewLog.id, input)} />
+                <CardioReview log={reviewLog} member={firstName} metric={metricOf(reviewLog.cardio.modality)} zonesApprox={maxHrUntested(profileOn(hrVersions ?? [], reviewLog.date))} onreview={(input) => reviewLogEntry(reviewLog.id, input)} />
               {/key}
             {:else}
               <p class="cardio-foot">Pick a log to see plan against actual.</p>
@@ -1347,6 +1357,7 @@
   .sess-sets { display: flex; flex-wrap: wrap; gap: 4px; }
   .sess-line { margin: 0; }
   .sess-notes { margin: 0; font-size: 12.5px; white-space: pre-line; }
+  .sess-review { margin-top: 6px; padding-top: 10px; border-top: 1px solid var(--line-soft); }
   .sess-flag { display: inline-flex; align-items: center; gap: 4px; padding: 0 6px; font-size: 11px; white-space: nowrap; }
   .sess-ready { margin: 0; font-size: 12px; font-family: var(--font-mono); }
   .sess-flags { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; list-style: none; }

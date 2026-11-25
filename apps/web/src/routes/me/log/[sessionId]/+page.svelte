@@ -20,6 +20,7 @@
   import {
     buildPortalLog,
     cardioFormOf,
+    cachedLastWeekSession,
     cachedSession,
     defaultLogDate,
     extraRow,
@@ -31,6 +32,7 @@
     portalWeekCacheJson,
     readPortalDraft,
     PORTAL_WEEK_CACHE_KEY,
+    PORTAL_WEEK_DTO_CACHE_KEY,
     sameForm,
     saveSummary,
     setLoad,
@@ -65,6 +67,8 @@
   const today = localDateOf(Date.now());
 
   let week = $state<PortalWeek | null>(null);
+  /** The session is one of last week's still-unlogged ones (the grace window), not this week's. */
+  let lastWeek = $state(false);
   let session = $state<PortalSession | null>(null);
   /** Where this session's draft is kept: the member's own key. */
   const draftKey = $derived(me && session ? portalDraftKey(me.client.id, session.id) : null);
@@ -122,7 +126,7 @@
   const block = $derived(blocks[Math.min(current, blocks.length - 1)] ?? null);
   /** The form as the page opened it — nothing touched yet, so nothing worth a draft. */
   /** The form as the page opened it — the client's own saved log, else the plan. */
-  const freshForm = (s: PortalSession): PortalLogForm => formOfSession(s, defaultLogDate(s, week?.startDate ?? null, today));
+  const freshForm = (s: PortalSession): PortalLogForm => formOfSession(s, defaultLogDate(s, week?.startDate ?? null, today, week?.endDate ?? null));
   const pristine = $derived(session ? freshForm(session).rows : []);
   const touched = $derived(touchedExercises(pristine, rows));
   const missingKg = $derived(kgChecked && session ? setsMissingKg(session, rows) : []);
@@ -207,6 +211,7 @@
     showRpe = false;
     feelOpen = false;
     let w: PortalWeek | null;
+    let last = false;
     try {
       const dto = await portalApi.week();
       w = dto.weeks.find((x) => x.loggable) ?? null;
@@ -217,15 +222,25 @@
       } catch {
         // storage full or private mode: no offline copy, nothing else changes
       }
+      // not in this week: last week's open sessions are loggable too (the home page's "Last week" list)
+      if (!w?.sessions.some((x) => x.id === id) && dto.lastWeek?.sessions.some((x) => x.id === id)) {
+        w = dto.lastWeek;
+        last = true;
+      }
     } catch {
       const cached = me ? cachedSession(readStored(PORTAL_WEEK_CACHE_KEY), id, today, me.client.id) : null;
-      if (!cached) {
+      // the home page's copy also holds last week's open sessions
+      const cachedLast = !cached && me ? cachedLastWeekSession(readStored(PORTAL_WEEK_DTO_CACHE_KEY), id, today, me.client.id) : null;
+      const found = cached ?? cachedLast;
+      if (!found) {
         loadState = "failed";
         return;
       }
-      w = cached.week;
+      w = found.week;
+      last = !cached;
       offline = true;
     }
+    lastWeek = last;
     const s = w?.sessions.find((x) => x.id === id) ?? null;
     week = w;
     session = s;
@@ -645,7 +660,8 @@
   );
   /** The week as it stands after this save: how far along, and what's next. */
   const after = $derived.by(() => {
-    if (!saved || !week || !session) return null;
+    // last week's list holds only its open sessions: "n of m" would miscount, so no week summary there
+    if (!saved || !week || !session || lastWeek) return null;
     const id = session.id;
     const log = { id: saved.log.id, loggedBy: "client" as const, date: saved.log.date, ...(savedSkipped ? { skipped: true } : {}) };
     const w: PortalWeek = { ...week, sessions: week.sessions.map((s) => (s.id === id ? { ...s, log } : s)) };

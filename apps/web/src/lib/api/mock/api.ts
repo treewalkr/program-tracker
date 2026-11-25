@@ -1159,6 +1159,8 @@ const rawMockApi: TrainerApi = {
 
   async logSession(input: SessionLogInput) {
     await delay(500);
+    // Same rule as the API: never in the future (a day of slack for a phone ahead of the server).
+    if (input.date > addDays(localDateOf(Date.now()), 1)) throw validationError("date is in the future");
     // Same cardio rule as the API: a completed log needs seconds and RPE (a minutes-only one is the old build's).
     if (input.kind === "cardio" && input.cardio && !(input.cardio.durationSec == null && input.cardio.durationMin != null)) {
       const issues = cardioLogIssues(upgradeCardioLog(input.cardio));

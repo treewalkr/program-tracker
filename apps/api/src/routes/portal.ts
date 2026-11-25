@@ -176,7 +176,7 @@ export const portalRoutes = new Elysia({ prefix: "/v1/portal", tags: ["portal"] 
       detail: { summary: "This week's cardio, recent cardio and a VO₂max trend for the signed-in client" },
     },
   )
-  /** Log a session from the portal: current week only, dated today or earlier. */
+  /** Log a session from the portal: this week or last week, dated today or earlier. */
   .post(
     "/logs",
     async ({ body, status, clientId, trainerId }) => {
@@ -191,12 +191,15 @@ export const portalRoutes = new Elysia({ prefix: "/v1/portal", tags: ["portal"] 
       const ctx = await portalWeekContext(clientId, nowOfDate(today));
       if (!ctx) return status(422, { error: "no active program" });
       if (!ctx.started) return status(422, { error: `your program starts on ${ctx.startDate}` });
-      if (!ctx.currentSessionIds.has(input.programSessionId)) {
-        return status(422, { error: "only this week's sessions can be logged" });
+      // this week's sessions, plus last week's as a grace window (a Sunday session remembered on Monday)
+      const lastWeek = ctx.lastWeekSessionIds.has(input.programSessionId);
+      if (!lastWeek && !ctx.currentSessionIds.has(input.programSessionId)) {
+        return status(422, { error: "only this week's and last week's sessions can be logged" });
       }
       if (input.date > latest) return status(422, { error: "date is in the future" });
-      // never before the week: an earlier date would move the block's anchor
-      if (input.date < ctx.startDate) return status(422, { error: "date is before this week" });
+      // never before the earliest week it may be logged in: an earlier date would move the block's anchor
+      const earliest = lastWeek ? ctx.lastWeekStart! : ctx.startDate;
+      if (input.date < earliest) return status(422, { error: lastWeek ? "date is before last week" : "date is before this week" });
 
       const result = await createSessionLog({
         trainerId,
@@ -224,8 +227,8 @@ export const portalRoutes = new Elysia({ prefix: "/v1/portal", tags: ["portal"] 
     },
     { body: t.Any(), detail: { summary: "Log a session as the signed-in client" } },
   )
-  /** Undo: delete one of the client's own logs, while its session is in this week.
-   *  A trainer's log, or anyone else's, is a 404; an earlier week's own log is a 409. */
+  /** Undo: delete one of the client's own logs, while its session is in this week or last week's grace window.
+   *  A trainer's log, or anyone else's, is a 404; an older week's own log is a 409. */
   .delete(
     "/logs/:id",
     async ({ params, query, status, clientId, trainerId }) => {
@@ -237,14 +240,18 @@ export const portalRoutes = new Elysia({ prefix: "/v1/portal", tags: ["portal"] 
       if (!own) return status(404, { error: "log not found" });
       const today = portalToday(query.today, Date.now()) ?? portalToday(undefined, Date.now())!;
       const ctx = await portalWeekContext(clientId, nowOfDate(today));
-      const thisWeek = !!ctx && own.programId === ctx.program.id && !!own.programSessionId && ctx.currentSessionIds.has(own.programSessionId);
-      if (!thisWeek) return status(409, { error: "only this week's logs can be removed" });
+      const open =
+        !!ctx &&
+        own.programId === ctx.program.id &&
+        !!own.programSessionId &&
+        (ctx.currentSessionIds.has(own.programSessionId) || ctx.lastWeekSessionIds.has(own.programSessionId));
+      if (!open) return status(409, { error: "only this week's and last week's logs can be removed" });
       if (!(await deleteSessionLog(trainerId, mine))) return status(404, { error: "log not found" });
       return status(204);
     },
     {
       params: t.Object({ id: t.String({ format: "uuid" }) }),
       query: t.Object({ today: t.Optional(t.String({ maxLength: 10 })) }),
-      detail: { summary: "Delete one of the client's own logs from this week" },
+      detail: { summary: "Delete one of the client's own logs from this week or last" },
     },
   );

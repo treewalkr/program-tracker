@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { logToInput } from "@pt/shared";
+import { addDays, localDateOf, logToInput } from "@pt/shared";
 import { mockApi, mockState } from "./api";
 import { DuplicateLogError, type SessionLogInput } from "../types";
 
@@ -16,6 +16,17 @@ const base = async (): Promise<SessionLogInput> => {
 
 const mine = (input: SessionLogInput) =>
   mockApi.sessionLogs(input.clientId, input.programId).then((ls) => ls.filter((l) => l.programSessionId === input.programSessionId));
+
+describe("mockApi session log dates", () => {
+  test("a date in the future is a 422, like the API; tomorrow gets a day of slack", async () => {
+    const input = await base();
+    const today = localDateOf(Date.now());
+    const err = await mockApi.logSession({ ...input, date: addDays(today, 2) }).catch((e) => e);
+    expect(err).toMatchObject({ status: 422, message: "date is in the future" });
+    expect((await mine(input)).length).toBe(0);
+    expect((await mockApi.logSession({ ...input, date: addDays(today, 1) })).id).toBeString();
+  });
+});
 
 describe("mockApi session log duplicates", () => {
   test("logSession returns the saved log with its id", async () => {

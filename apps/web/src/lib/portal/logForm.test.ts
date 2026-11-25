@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { PortalSession } from "@pt/shared";
 import { EMPTY_READINESS, setFlagNote, toggleFlag } from "$lib/logFlags";
 import { setSkipReason, skipExercise } from "$lib/logSheet";
-import { buildPortalLog, cachedSession, cachedWeekDto, cardioFormOf, defaultLogDate, draftWrite, extraRow, formOfSession, parsePortalDraft, portalDraftKey, portalWeekCacheJson, portalWeekDtoCacheJson, portalDraftJson, readPortalDraft, rowsOfSession, sameForm, saveSummary, setLoad, setsMissingKg, touchedExercises, type PortalLogForm, type PortalRow } from "./logForm";
+import { buildPortalLog, cachedLastWeekSession, cachedSession, cachedWeekDto, cardioFormOf, defaultLogDate, draftWrite, extraRow, formOfSession, parsePortalDraft, portalDraftKey, portalWeekCacheJson, portalWeekDtoCacheJson, portalDraftJson, readPortalDraft, rowsOfSession, sameForm, saveSummary, setLoad, setsMissingKg, touchedExercises, type PortalLogForm, type PortalRow } from "./logForm";
 
 const exerciseSession: PortalSession = {
   id: "ps1", name: "Lower", kind: "exercises", seq: 1, weekday: 1, order: 0, cardio: null, log: null,
@@ -395,6 +395,21 @@ describe("offline: the opened week is kept on this phone", () => {
   });
 });
 
+describe("offline: last week's open sessions", () => {
+  const cur = { week: 3, startDate: "2026-11-23", endDate: "2026-11-29", loggable: true, sessions: [exerciseSession] };
+  const last = { week: 2, startDate: "2026-11-16", endDate: "2026-11-22", loggable: true, sessions: [{ ...exerciseSession, id: "old1" }] };
+  const dto = { program: { id: "p1", name: "Base" }, currentWeek: 3, weeks: [cur], lastWeek: last, cardio: null };
+  test("opens from the kept week page while this week lasts, for the member who kept it", () => {
+    const raw = portalWeekDtoCacheJson(dto, "c1");
+    expect(cachedLastWeekSession(raw, "old1", "2026-11-24", "c1")?.week.startDate).toBe("2026-11-16");
+    expect(cachedLastWeekSession(raw, "old1", "2026-11-24", "c2")).toBeNull();
+    expect(cachedLastWeekSession(raw, "old1", "2026-11-30", "c1")).toBeNull();
+    expect(cachedLastWeekSession(raw, "ps1", "2026-11-24", "c1")).toBeNull();
+    expect(cachedLastWeekSession(portalWeekDtoCacheJson({ ...dto, lastWeek: null }, "c1"), "old1", "2026-11-24", "c1")).toBeNull();
+    expect(cachedLastWeekSession(null, "old1", "2026-11-24", "c1")).toBeNull();
+  });
+});
+
 describe("drafts are kept per member", () => {
   const memory = (init: Record<string, string> = {}) => {
     const m = new Map(Object.entries(init));
@@ -473,6 +488,12 @@ describe("defaultLogDate", () => {
     expect(defaultLogDate({ weekday: 6 }, "2026-11-16", "2026-11-19")).toBe("2026-11-19");
     expect(defaultLogDate({ weekday: null }, "2026-11-16", "2026-11-19")).toBe("2026-11-19");
     expect(defaultLogDate({ weekday: 2 }, null, "2026-11-19")).toBe("2026-11-19");
+    // last week's catch-up opens on the planned day, or the week's last day when there is none
+    expect(defaultLogDate({ weekday: 7 }, "2026-11-16", "2026-11-23", "2026-11-22")).toBe("2026-11-22");
+    expect(defaultLogDate({ weekday: 2 }, "2026-11-16", "2026-11-23", "2026-11-22")).toBe("2026-11-17");
+    expect(defaultLogDate({ weekday: null }, "2026-11-16", "2026-11-23", "2026-11-22")).toBe("2026-11-22");
+    // a week still on is unchanged
+    expect(defaultLogDate({ weekday: null }, "2026-11-16", "2026-11-19", "2026-11-22")).toBe("2026-11-19");
   });
 });
 

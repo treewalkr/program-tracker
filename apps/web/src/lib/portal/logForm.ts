@@ -233,11 +233,14 @@ function portalSet(r: PortalRow) {
 /**
  * The date a new log opens on: the planned day when it has already passed this
  * week (a Tuesday run logged on Thursday was done Tuesday, most likely), else today.
+ * For a week that has ended, a session with no planned day opens on the week's last day.
  */
-export function defaultLogDate(session: Pick<PortalSession, "weekday">, weekStart: string | null, today: string): string {
-  if (!weekStart || !session.weekday) return today;
+export function defaultLogDate(session: Pick<PortalSession, "weekday">, weekStart: string | null, today: string, weekEnd: string | null = null): string {
+  // a week that has ended (last week's catch-up) never opens past its last day
+  const latest = weekEnd && weekEnd < today ? weekEnd : today;
+  if (!weekStart || !session.weekday) return latest;
   const planned = sessionDateIn(weekStart, session.weekday);
-  return planned < today ? planned : today;
+  return planned < latest ? planned : latest;
 }
 
 export function formOfSession(session: PortalSession, today: string): PortalLogForm {
@@ -465,4 +468,14 @@ export function cachedSession(raw: string | null, sessionId: string, today: stri
   if (!w.success || !w.data.loggable || w.data.endDate < today) return null;
   const session = w.data.sessions.find((s) => s.id === sessionId);
   return session ? { week: w.data, session } : null;
+}
+
+/**
+ * One of last week's open sessions from this member's cached week page, while this week is still on
+ * (last week's list rides in the page copy, not the current-week copy); anything else → null.
+ */
+export function cachedLastWeekSession(raw: string | null, sessionId: string, today: string, clientId: string): { week: PortalWeek; session: PortalSession } | null {
+  const last = cachedWeekDto(raw, today, clientId)?.lastWeek;
+  const session = last?.loggable ? last.sessions.find((s) => s.id === sessionId) : undefined;
+  return last && session ? { week: last, session } : null;
 }

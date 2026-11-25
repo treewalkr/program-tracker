@@ -83,3 +83,15 @@ export function calendarDays(week: PortalWeek, today: string, hidden: Iterable<s
     .map((g) => ({ ...g, sessions: g.sessions.filter((s) => !skip.has(s.id)) }))
     .filter((g) => g.sessions.length > 0);
 }
+
+/**
+ * Last week's sessions still without a log, by day: the "Last week — not logged"
+ * catch-up. The API already sends only the open ones; a log made on this phone
+ * since is left out too. Nothing when there is no last week.
+ */
+export function lastWeekOpen(week: PortalWeek | null | undefined, today: string): DayGroup[] {
+  if (!week) return [];
+  return dayGroups(week, today)
+    .map((g) => ({ ...g, sessions: g.sessions.filter((s) => !s.log) }))
+    .filter((g) => g.sessions.length > 0);
+}

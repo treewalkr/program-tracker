@@ -4,15 +4,14 @@
   import { dayLabel, planIntervals, planSource, repResults, reviewRows } from "$lib/cardioTab";
   import { SKIP_REASON_LABEL } from "$lib/cardioForm";
   import { MAX_HR_UNTESTED } from "$lib/hrProfile";
-  import InputNote from "$lib/ui/InputNote.svelte";
-  import Button from "$lib/ui/Button.svelte";
+  import LogFeedback from "./LogFeedback.svelte";
   import Pill from "$lib/ui/Pill.svelte";
 
   /**
    * One cardio log, plan beside actual. The plan is the copy saved with the
    * log, so later program edits don't change it. The trainer's feedback is
    * what the member sees on the session in the portal; "Mark reviewed" clears
-   * it from the to-review list.
+   * it from the to-review list (`LogFeedback`, shared with strength logs).
    */
   interface Props {
     log: SessionLogDto;
@@ -35,25 +34,6 @@
   const VS_BAND = { below: "below the work target", in: "in the work target", above: "above the work target" } as const;
   const skipped = $derived(cardio.skipped ?? null);
   const reviewed = $derived(!!log.reviewedAt);
-
-  // svelte-ignore state_referenced_locally
-  let feedback = $state(log.trainerFeedback ?? "");
-  let busy = $state(false);
-  let error = $state<string | null>(null);
-  const dirty = $derived(feedback.trim() !== (log.trainerFeedback ?? ""));
-
-  async function send(input: LogReviewInput) {
-    busy = true;
-    error = null;
-    try {
-      const out = await onreview(input);
-      feedback = out.trainerFeedback ?? "";
-    } catch (e) {
-      error = (e as Error).message || "Could not save";
-    } finally {
-      busy = false;
-    }
-  }
 </script>
 
 <article class="review" aria-label="Review of {plan?.session.name ?? cardio.modality} on {dayLabel(log.date)}">
@@ -132,18 +112,7 @@
     {/if}
   </dl>
 
-  <InputNote label="Feedback for {member}" placeholder="What went well, and what to change next time" optional maxlength={2000} rows={2} bind:value={feedback} disabled={busy} hint="{member} sees this on the session in the portal." />
-
-  <div class="acts">
-    {#if error}<p class="err" role="alert">{error}</p>{/if}
-    {#if reviewed}
-      {#if dirty}<Button small variant="primary" type="button" disabled={busy} onclick={() => send({ reviewed: true, feedback: feedback.trim() || null })}>Save feedback</Button>{/if}
-      <Button small variant="ghost" type="button" disabled={busy} onclick={() => send({ reviewed: false })}>Mark not reviewed</Button>
-    {:else}
-      {#if dirty}<Button small variant="ghost" type="button" disabled={busy} onclick={() => send({ reviewed: false, feedback: feedback.trim() || null })}>Save feedback only</Button>{/if}
-      <Button small variant="primary" type="button" disabled={busy} onclick={() => send({ reviewed: true, feedback: feedback.trim() || null })}>{busy ? "Saving…" : "Mark reviewed"}</Button>
-    {/if}
-  </div>
+  <LogFeedback {log} {member} {onreview} />
 </article>
 
 <style>
@@ -181,8 +150,6 @@
   .facts dt { font: 500 12px var(--font-ui); color: var(--muted); }
   .facts dd { margin: 2px 0 0; font-size: 13px; color: var(--ink); }
   .facts dd.bad { color: var(--bad); font-weight: 500; }
-  .acts { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
-  .acts .err { margin: 0 auto 0 0; color: var(--bad); font-size: 12px; }
   .approx {
     margin: 6px 0 0;
     font-size: 12px;
