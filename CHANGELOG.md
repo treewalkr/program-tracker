@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.1.52 — 2026-11-26
+
 ### New
 - **Members see what you logged for them.** If you log a member's session, it shows on their week card. They can open it read-only and see your note first.
   - th: เซสชันที่เทรนเนอร์บันทึกให้ เมมเบอร์จะเห็นในการ์ดของสัปดาห์นั้นด้วย เปิดดูได้แต่แก้ไม่ได้ และเห็นโน้ตของเทรนเนอร์ก่อนอย่างอื่น
