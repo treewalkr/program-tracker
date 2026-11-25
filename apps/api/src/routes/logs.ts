@@ -2,6 +2,7 @@ import { Elysia, t } from "elysia";
 import { z } from "zod";
 import { and, desc, eq, gte, inArray, lte } from "drizzle-orm";
 import { db, clients, sessionLogs, setLogs, exercises } from "@pt/db";
+import { addDays, localDateOf } from "@pt/shared";
 import { trainerContext } from "../lib/trainer-context";
 import { buildHistory } from "../lib/history";
 import { createSessionLog, deleteSessionLog, SessionLogInput, serializeSets } from "../lib/log-service";
@@ -49,6 +50,9 @@ export const logRoutes = new Elysia({ prefix: "/v1/logs", tags: ["logs"] })
       if (!parsed.success) {
         return status(422, { error: "invalid log", issues: z.treeifyError(parsed.error) });
       }
+      // never in the future: the portal's rule too. A trainer's phone can be a day ahead of the
+      // server (Thai time), so — like the portal for an app that sends no date — a day of slack.
+      if (parsed.data.date > addDays(localDateOf(Date.now()), 1)) return status(422, { error: "date is in the future" });
       const result = await createSessionLog({ trainerId, input: parsed.data });
       switch (result.outcome) {
         case "program_not_found":
@@ -64,7 +68,7 @@ export const logRoutes = new Elysia({ prefix: "/v1/logs", tags: ["logs"] })
       }
       return status(201, { ...result.log, sets: result.sets, replaced: result.replaced });
     },
-    { body: t.Any() }
+    { body: t.Any(), detail: { summary: "Log a completed session for a client (not dated in the future)" } }
   )
   /** Remove a log (Undo after save). Its sets go by cascade. */
   .delete(
