@@ -53,14 +53,15 @@ const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 /**
  * Demo states for browser checks, picked with `?mock=` on any portal URL and
  * kept for the tab: `empty` (no program yet), `midweek` (the block week
- * started 3 days ago, so earlier days are open), `cardio` (Nok, the cardio
+ * started 3 days ago, so earlier days are open), `lastweek` (Week 2 began yesterday: Week 1's
+ * unlogged sessions sit in "Last week — not logged"), `cardio` (Nok, the cardio
  * member: intervals with bpm targets, coach feedback, VO₂max tests), `off`
  * clears it. Link token `expired` (`/me/link/expired`) is always the dead-link page;
  * `again` is a link this browser already opened (straight to the week). Any other
  * token shows "Open my program", as in a browser that isn't signed in yet.
  */
-export type MockPortalScenario = "empty" | "midweek" | "cardio" | null;
-const SCENARIOS = ["empty", "midweek", "cardio"] as const;
+export type MockPortalScenario = "empty" | "midweek" | "lastweek" | "cardio" | null;
+const SCENARIOS = ["empty", "midweek", "lastweek", "cardio"] as const;
 const isScenario = (v: string | null): v is Exclude<MockPortalScenario, null> => (SCENARIOS as readonly (string | null)[]).includes(v);
 const SCENARIO_KEY = "pt.mock.portal";
 export const EXPIRED_TOKEN = "expired";
@@ -89,9 +90,9 @@ const clientIdOf = (scenario = mockScenario()) => demoClient(scenario).id;
  * week's `ps-nat-next-<n>`; a save maps back.
  */
 const realIdOf = new Map<string, string>();
-const aliasOf = (real: string, n: number, loggable: boolean, clientId: string) => {
+const aliasOf = (real: string, n: number, which: "this" | "next" | "last", clientId: string) => {
   const who = clientId.replace(/^cl-/, "");
-  const alias = loggable ? `ps-${who}-${n}` : `ps-${who}-next-${n}`;
+  const alias = which === "this" ? `ps-${who}-${n}` : `ps-${who}-${which}-${n}`;
   realIdOf.set(alias, real);
   return alias;
 };
@@ -110,11 +111,19 @@ function context(now = Date.now(), scenario = mockScenario()) {
   const program = activeProgram(clientIdOf(scenario));
   if (!program) return null;
   const logs = mockState.logs.filter((l) => l.programId === program.id).map((l) => ({ programId: l.programId, date: l.date, sets: [] }));
-  const currentWeek = weekOf(program, logs, now);
+  const lastweek = scenario === "lastweek";
+  const currentWeek = lastweek ? 2 : weekOf(program, logs, now);
   const anchored = blockWeekStart(blockAnchorDate(program, logs).slice(0, 10), currentWeek);
-  const startDate = scenario === "midweek" ? addDays(localDateOf(now), -3) : anchored;
+  const startDate = scenario === "midweek" ? addDays(localDateOf(now), -3) : lastweek ? addDays(localDateOf(now), -1) : anchored;
   // before Week 1's start date nothing is loggable, like the API
-  return { program, currentWeek, startDate, started: localDateOf(now) >= startDate };
+  return {
+    program,
+    currentWeek,
+    startDate,
+    started: localDateOf(now) >= startDate,
+    // last week is a grace window for logging: 7 days back from this week's start, none in Week 1
+    lastWeekStart: currentWeek > 1 ? addDays(startDate, -7) : null,
+  };
 }
 
 const named = (sessions: ProgramSession[]): ProgramSession[] =>
@@ -147,6 +156,27 @@ export function mockPortalWeek(now = Date.now(), scenario = mockScenario()): Por
     // the zones in effect today, so a zone target shows as bpm like the API
     hrZones: profileOn(mockState.hrProfiles.filter((p) => p.clientId === CLIENT_ID), localDateOf(now))?.zones ?? null,
   };
+  /** Last week's sessions without a log: the "not logged" catch-up (null when none). */
+  const lastWeek = ((): PortalWeek | null => {
+    if (!started || !ctx.lastWeekStart) return null;
+    const week = currentWeek - 1;
+    const doc = program.weeks.find((w) => w.week === week);
+    const start = ctx.lastWeekStart;
+    const open = doc ? named(doc.sessions).filter((s) => !done.has(s.id)) : [];
+    if (open.length === 0) return null;
+    return {
+      week,
+      startDate: start,
+      endDate: addDays(start, 6),
+      loggable: true,
+      weekLabel: portalWeekLabel(program.phasing, week),
+      sessions: portalSessions(open, maxes, () => null, {
+        ...loads,
+        hrZonesFor: (weekday) => profileOn(mockState.hrProfiles.filter((p) => p.clientId === CLIENT_ID), sessionDateIn(start, weekday))?.zones ?? null,
+      }).map((s, i) => ({ ...s, id: aliasOf(s.id, i + 1, "last", CLIENT_ID) })),
+    };
+  })();
+
   const weeks: PortalWeek[] = [];
   for (const week of [currentWeek, currentWeek + 1]) {
     const doc = program.weeks.find((w) => w.week === week);
@@ -164,14 +194,14 @@ export function mockPortalWeek(now = Date.now(), scenario = mockScenario()): Por
             hrZonesFor: (weekday) => profileOn(mockState.hrProfiles.filter((p) => p.clientId === CLIENT_ID), sessionDateIn(start, weekday))?.zones ?? null,
           }).map((s, i) => ({
             ...s,
-            id: aliasOf(s.id, i + 1, week === currentWeek, CLIENT_ID),
+            id: aliasOf(s.id, i + 1, week === currentWeek ? "this" : "next", CLIENT_ID),
           }))
         : [],
     });
   }
   const target = mockState.clients.find((c) => c.id === CLIENT_ID)?.cardioTarget ?? null;
   const cardio = portalCardio(target, mockState.logs.filter((l) => l.clientId === CLIENT_ID).map((l) => ({ date: l.date, kind: l.kind, cardio: l.cardio ?? null })), now);
-  return { program: { id: program.id, name: program.name, startsOn: program.startsOn ?? null }, currentWeek, weeks, cardio };
+  return { program: { id: program.id, name: program.name, startsOn: program.startsOn ?? null }, currentWeek, weeks, lastWeek, cardio };
 }
 
 /** Same shape and rules as `GET /v1/portal/progress`: this week, the recent cardio, one VO₂max trend. */
@@ -259,11 +289,14 @@ const rawMockPortalApi: PortalApi = {
     const ctx = context(nowOfDate(today));
     if (!ctx) throw fail(422, "no active program");
     if (!ctx.started) throw fail(422, `your program starts on ${ctx.startDate}`);
-    if (!weekSessions(ctx.program.weeks, ctx.currentWeek).some((s) => s.id === input.programSessionId)) {
-      throw fail(422, "only this week's sessions can be logged");
+    // this week's sessions, plus last week's as a grace window
+    const lastWeek = ctx.lastWeekStart != null && weekSessions(ctx.program.weeks, ctx.currentWeek - 1).some((s) => s.id === input.programSessionId);
+    if (!lastWeek && !weekSessions(ctx.program.weeks, ctx.currentWeek).some((s) => s.id === input.programSessionId)) {
+      throw fail(422, "only this week's and last week's sessions can be logged");
     }
     if (input.date > today) throw fail(422, "date is in the future");
-    if (input.date < ctx.startDate) throw fail(422, "date is before this week");
+    const earliest = lastWeek ? ctx.lastWeekStart! : ctx.startDate;
+    if (input.date < earliest) throw fail(422, lastWeek ? "date is before last week" : "date is before this week");
     const prepDone = mockPrepDone(ctx.program.id, input.programSessionId, input.sets, input.prepDone);
     const dupes = mockState.logs.filter(
       (l) => l.clientId === CLIENT_ID && l.programId === ctx.program.id && l.programSessionId === input.programSessionId,
@@ -304,11 +337,12 @@ const rawMockPortalApi: PortalApi = {
   async deleteLog(id) {
     await delay(200);
     const CLIENT_ID = clientIdOf();
-    // like the API: only a log whose session is in this week
+    // like the API: only a log whose session is in this week or last week's grace window
     const own = mockState.logs.find((l) => l.sessionLogId === id && l.clientId === CLIENT_ID && l.loggedBy === "client");
     const ctx = context();
-    if (own && (!ctx || !weekSessions(ctx.program.weeks, ctx.currentWeek).some((s) => s.id === own.programSessionId))) {
-      throw fail(409, "only this week's logs can be removed");
+    const open = (week: number) => !!ctx && weekSessions(ctx.program.weeks, week).some((s) => s.id === own?.programSessionId);
+    if (own && !(ctx && (open(ctx.currentWeek) || (ctx.lastWeekStart != null && open(ctx.currentWeek - 1))))) {
+      throw fail(409, "only this week's and last week's logs can be removed");
     }
     const before = mockState.logs.length;
     mockState.logs = mockState.logs.filter((l) => !(l.sessionLogId === id && l.clientId === CLIENT_ID && l.loggedBy === "client"));

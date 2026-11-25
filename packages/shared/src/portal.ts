@@ -190,7 +190,7 @@ export const PortalWeek = z.object({
   /** First and last calendar day of this block week (YYYY-MM-DD). */
   startDate: z.string(),
   endDate: z.string(),
-  /** Only the current week can be logged from the portal. */
+  /** The current week, and last week's unlogged sessions (`lastWeek`), can be logged from the portal. */
   loggable: z.boolean(),
   /** Why this week looks different, in words the client can have — never the directive itself. */
   weekLabel: z.enum(["deload", "test"]).nullable().optional(),
@@ -215,6 +215,11 @@ export const PortalWeekDto = z.object({
   program: z.object({ id: z.string(), name: z.string(), startsOn: z.string().nullable().optional() }).nullable(),
   currentWeek: z.number().int().nullable(),
   weeks: z.array(PortalWeek),
+  /**
+   * Last week's sessions that still have no log: a grace window so a Sunday session
+   * remembered on Monday isn't lost. Absent when there is nothing to catch up on.
+   */
+  lastWeek: PortalWeek.nullable().optional(),
   /** Null when the coach set no cardio target. */
   cardio: PortalCardio.nullable().optional(),
 });

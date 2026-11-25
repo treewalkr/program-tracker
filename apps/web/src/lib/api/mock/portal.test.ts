@@ -155,6 +155,18 @@ describe("mock portal (the demo client over the trainer mock)", () => {
     expect(await mockPortalApi.linkInfo(SIGNED_IN_TOKEN)).toMatchObject({ signedIn: true });
   });
 
+  test("last-week demo: Week 1's unlogged sessions come as a separate loggable list, none in Week 1 itself", () => {
+    const today = localDateOf(Date.now());
+    const dto = mockPortalWeek(Date.now(), "lastweek");
+    expect(dto.currentWeek).toBe(2);
+    expect(dto.lastWeek).toMatchObject({ week: 1, loggable: true });
+    expect(dto.lastWeek!.endDate < today).toBe(true);
+    expect(dto.lastWeek!.sessions.length).toBeGreaterThan(0);
+    expect(dto.lastWeek!.sessions.every((s) => s.log === null && /^ps-nat-last-\d+$/.test(s.id))).toBe(true);
+    // the ordinary demo is in Week 1: nothing to catch up on
+    expect(mockPortalWeek().lastWeek ?? null).toBeNull();
+  });
+
   test("cardio demo: Nok's intervals with bpm from her HR zones, nothing of the profile itself", () => {
     const dto = mockPortalWeek(Date.now(), "cardio");
     expect(dto.program?.name).toBe("General Fitness — 8 wk");

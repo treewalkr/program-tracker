@@ -8,7 +8,7 @@
   import PortalBar from "$lib/portal/PortalBar.svelte";
   import PortalSessionCard from "$lib/portal/PortalSessionCard.svelte";
   import PortalProgress from "$lib/portal/PortalProgress.svelte";
-  import { calendarDays, dayGroups, doneCount, earlierOpen, focusSession, skippedCount } from "$lib/portal/week";
+  import { calendarDays, dayGroups, doneCount, earlierOpen, focusSession, lastWeekOpen, skippedCount, type DayGroup } from "$lib/portal/week";
   import { cardioSummary } from "$lib/portal/progress";
   import Button from "$lib/ui/Button.svelte";
   import Icon from "$lib/ui/Icon.svelte";
@@ -84,7 +84,7 @@
     const ids = new Set<string>();
     const clientId = me?.client.id;
     if (!clientId || typeof localStorage === "undefined") return ids;
-    for (const w of dto?.weeks ?? []) for (const x of w.sessions) if (!x.log && readPortalDraft(localStorage, clientId, x.id)) ids.add(x.id);
+    for (const w of [...(dto?.weeks ?? []), ...(dto?.lastWeek ? [dto.lastWeek] : [])]) for (const x of w.sessions) if (!x.log && readPortalDraft(localStorage, clientId, x.id)) ids.add(x.id);
     return ids;
   });
 
@@ -111,6 +111,9 @@
   const nextUpDay = $derived(current && nextUp ? (dayGroups(current, today).find((g) => g.sessions.some((s) => s.id === nextUp.id)) ?? null) : null);
   const earlier = $derived(current?.loggable ? earlierOpen(current, today, nextUp?.id ?? null) : []);
   const earlierN = $derived(earlier.reduce((n, g) => n + g.sessions.length, 0));
+  /** Last week's sessions that never got a log: a Sunday remembered on Monday can still be logged. */
+  const lastWeek = $derived(startsOn ? [] : lastWeekOpen(dto?.lastWeek, today));
+  const lastWeekN = $derived(lastWeek.reduce((n, g) => n + g.sessions.length, 0));
   /** This week's calendar leaves out what "Next up" and "Earlier this week" already show. */
   const groups = $derived(
     !shown
@@ -230,19 +233,23 @@
     <p class="all-done"><Icon name="check" />{skippedN ? t("week.allResolved", { done: doneCount(current), skipped: skippedN }) : t("week.allDone", { total: current.sessions.length })}</p>
   {/if}
 
-  {#if earlier.length > 0}
+  {#snippet catchUp(title: string, n: number, days: DayGroup[], id: string)}
     <details class="earlier">
       <summary>
-        <span>{t("week.earlier")}</span>
-        <span class="pill warn">{t("week.earlierCount", { n: earlierN })}</span>
+        <span>{title}</span>
+        <span class="pill warn">{t("week.earlierCount", { n })}</span>
         <Icon name="chevron" />
       </summary>
       <div class="earlier-days">
-        {#each earlier as g (g.weekday)}
-          <section class="day" aria-labelledby={`e-${g.weekday}`}>
-            <h3 id={`e-${g.weekday}`}>
-              <span>{weekdayName(g.weekday)}</span>
-              {#if g.date}<span class="date tnum">{fmtShortDate(g.date)}</span>{/if}
+        {#each days as g (g.weekday)}
+          <section class="day" aria-labelledby={`${id}-${g.weekday}`}>
+            <h3 id={`${id}-${g.weekday}`}>
+              {#if g.weekday === 0}
+                <span>{t("week.anyDay")}</span>
+              {:else}
+                <span>{weekdayName(g.weekday)}</span>
+                {#if g.date}<span class="date tnum">{fmtShortDate(g.date)}</span>{/if}
+              {/if}
             </h3>
             <div class="cards">
               {#each g.sessions as s (s.id)}
@@ -253,7 +260,10 @@
         {/each}
       </div>
     </details>
-  {/if}
+  {/snippet}
+
+  {#if earlier.length > 0}{@render catchUp(t("week.earlier"), earlierN, earlier, "e")}{/if}
+  {#if lastWeek.length > 0}{@render catchUp(t("week.lastWeek"), lastWeekN, lastWeek, "lw")}{/if}
 
   <div class="tabs wk" role="tablist" aria-label={t("app.title")}>
     <button type="button" role="tab" id="wk-this" aria-selected={tab === "this"} aria-controls="wk-panel" tabindex={tab === "this" ? 0 : -1} class:on={tab === "this"} onclick={() => (tab = "this")} onkeydown={onTabKey}>

@@ -36,6 +36,7 @@ export const en = {
   "week.allDone": "All {total} done this week. Nice work.",
   "week.earlier": "Earlier this week",
   "week.earlierCount": "{n} not logged",
+  "week.lastWeek": "Last week — not logged",
 
   "session.loggedByYou": "Logged by you",
   "session.loggedByCoach": "Logged by your coach",
@@ -392,6 +393,7 @@ export const th: Record<MessageKey, string> = {
   "week.allDone": "ครบทั้ง {total} เซสชันของสัปดาห์นี้แล้ว เยี่ยมมาก",
   "week.earlier": "ก่อนหน้านี้ในสัปดาห์นี้",
   "week.earlierCount": "ยังไม่ได้บันทึก {n}",
+  "week.lastWeek": "สัปดาห์ที่แล้ว — ยังไม่ได้บันทึก",
 
   "session.loggedByYou": "คุณบันทึกแล้ว",
   "session.loggedByCoach": "โค้ชบันทึกแล้ว",
