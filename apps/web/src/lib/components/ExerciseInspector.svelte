@@ -1,5 +1,6 @@
 <script lang="ts">
   import { untrack } from "svelte";
+  import { liftFeedback } from "$lib/feedback/lift";
   import type { ExerciseDto } from "$lib/api/types";
   import {
     EQUIPMENT_OPTIONS,
@@ -227,7 +228,8 @@
     {/if}
   </form>
 
-  <div class="foot">
+  <!-- The Feedback pill rides above the footer instead of covering its buttons. -->
+  <div class="foot" {@attach liftFeedback}>
     <span class="dirty" role="status">{saveError || (exercise ? (dirty ? "Unsaved changes" : "No changes") : "")}</span>
     <button type="button" class="btn" onclick={onclose}>Cancel</button>
     <button type="submit" form="exercise-form" class="btn primary" disabled={saving || (exercise !== null && !dirty)}>
