@@ -227,6 +227,17 @@ describe("weekTabDates", () => {
     expect(weekLine(d)).toBe("Week 1 started Tue 10 Nov · ended");
   });
 
+  test("an archived block marks no week now; the week under way stopped and later weeks never came", () => {
+    // Today sits inside W2's window, but the block is archived.
+    const d = weekTabDates(prog({ status: "archived" }), [], "2026-11-19")!;
+    expect(d.map((w) => w.state)).toEqual(["past", "past", "upcoming", "upcoming"]);
+    expect(d[1].stopped).toBe(true);
+    expect(weekLine(d)).toBe("Week 1 started Tue 10 Nov · ended");
+    expect(endedNote(d, 1, "Ann Lee")).toBe("W1 ended 16 Nov — the block has ended.");
+    expect(endedNote(d, 2, "Ann Lee")).toBe("W2 was under way when the block was archived.");
+    expect(currentWeekIndex(d)).toBe(1);
+  });
+
   test("labels", () => {
     const d = weekTabDates(prog(), [], "2026-11-19")!;
     expect(weekRangeLabel(d[1].start, d[1].end)).toBe("17–23 Nov");

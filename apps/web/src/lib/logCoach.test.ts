@@ -35,8 +35,19 @@ const at = (e1rm: number, reps: number, rpe: number, eq: Equipment = "barbell") 
 describe("suggested load", () => {
   test("an RPE-only set gets a load from history, with its source", () => {
     const c = coachSheet([row()], ctx());
-    expect(c.suggest.get("pe1-1")).toEqual({ kg: at(123.3, 5, 7)!, source: "From Nov 2, 100 × 5 @ 8 · e1RM 123.3", adjusted: false });
+    expect(c.suggest.get("pe1-1")).toEqual({ kg: at(123.3, 5, 7)!, source: "From Nov 2, 100 kg × 5 @ 8 · e1RM 123.3", adjusted: false });
     expect(c.suggest.get("pe1-1")!.kg).toBe(95);
+  });
+
+  test("lb: the source set reads in the display unit like the rest of the line", () => {
+    applyUnits({ weight: "lb", distance: "km" });
+    try {
+      // 100 kg → 220.5 lb; the e1RM 123.3 kg → 271.8 lb
+      const c = coachSheet([row()], ctx());
+      expect(c.suggest.get("pe1-1")).toMatchObject({ source: "From Nov 2, 220.5 lb × 5 @ 8 · e1RM 271.8" });
+    } finally {
+      applyUnits({ weight: "kg", distance: "km" });
+    }
   });
 
   test("no target RPE, a timed hold, an AMRAP or an extra set → no suggestion", () => {
@@ -88,7 +99,7 @@ describe("suggested load", () => {
     const rows = [row({ weight: 100, reps: 5, rpe: 7 }), row({ setNumber: 2 })];
     const c = coachSheet(rows, ctx());
     expect(c.suggest.get("pe1-2")).toMatchObject({ kg: 100, adjusted: false });
-    expect(c.suggest.get("pe1-2")!.source).toStartWith("From today's set 1: 100 × 5 @ 7");
+    expect(c.suggest.get("pe1-2")!.source).toStartWith("From today's set 1: 100 kg × 5 @ 7");
     expect(c.adjusted.size).toBe(0);
   });
 });

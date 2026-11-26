@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { bestE1rm, e1rmAtRpe, estimate1rm, loadFor, roundLoad, shortDate } from "./index";
+import { bestE1rm, e1rmAtRpe, estimate1rm, fmtE1rmSet, loadFor, roundLoad, shortDate } from "./index";
 
 describe("e1rmAtRpe", () => {
   test("adds reps in reserve to Epley", () => {
@@ -102,6 +102,17 @@ describe("bestE1rm", () => {
     const b = bestE1rm(ex, { history: [{ exerciseId: ex, date: "2026-11-01", kg: 100, reps: 5 }], now });
     expect(b?.e1rm).toBe(estimate1rm(100, 5));
     expect(b?.label).toBe("Nov 1, 100 × 5");
+  });
+
+  test("fmtKg renders the source set's load in the caller's unit", () => {
+    const lb = (kg: number) => `${(kg * 2.2046226218).toFixed(1)} lb`;
+    expect(fmtE1rmSet({ kg: 100, reps: 5, rpe: 8 }, lb)).toBe("220.5 lb × 5 @ 8");
+    const b = bestE1rm(ex, { today: [], history, stored, now, fmtKg: lb });
+    expect(b?.label).toBe("Nov 2, 220.5 lb × 5 @ 8");
+    const t = bestE1rm(ex, { today: [{ exerciseId: ex, setNumber: 2, kg: 105, reps: 5, rpe: 9.5 }], history, stored, now, fmtKg: lb });
+    expect(t?.label).toBe("today's set 2: 231.5 lb × 5 @ 9.5");
+    // The default stays the stored kg, untouched.
+    expect(fmtE1rmSet({ kg: 100, reps: 5, rpe: 8 })).toBe("100 × 5 @ 8");
   });
 });
 
