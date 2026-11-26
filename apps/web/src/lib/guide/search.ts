@@ -259,7 +259,9 @@ export function searchGuides(query: string, locale: Locale, { admin = false } = 
   // The query as typed, then each word swapped for its alias ("client" →
   // "member"): the renamed answers still surface for the old word. A unit
   // keeps its best score across the two tries.
-  for (const variant of [words, words.map((w) => ALIASES[w]?.[0] ?? w)]) {
+  const swapped = words.map((w) => ALIASES[w]?.[0] ?? w);
+  // search again with the alias only when the query has one: plain queries run once
+  for (const variant of swapped.some((w, i) => w !== words[i]) ? [words, swapped] : [words]) {
     const whole = variant.join(" ");
     for (const unit of units) {
       const pair = locales.map((l) => foldUnit(byLocale.get(l)!.get(unit.key)!, l));

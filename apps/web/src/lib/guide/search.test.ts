@@ -1,8 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { GUIDE_IDS } from "./clientPortal";
 import { PROGRAMS_GUIDE_IDS } from "./programsWeeks";
-import { commonQuestions, guideSections, guideUnits, plain, searchGuides, snippet } from "./search";
-import * as search from "./search";
+import { commonQuestions, expandWords, guideSections, guideUnits, plain, searchGuides, snippet } from "./search";
 import { TRAINER_ACCESS_IDS } from "./trainerAccess";
 import { CARDIO_GUIDE_IDS } from "./cardio";
 
@@ -87,13 +86,13 @@ describe("searchGuides", () => {
     const addMember = searchGuides("client add", "en").find((h) => h.unit.title === "Add the member");
     expect(addMember).toBeDefined();
     expect(searchGuides("client", "en").some((h) => h.unit.guide === "portal")).toBe(true);
-    expect(searchGuides("clients", "en")[0]).toBeDefined();
+    expect(searchGuides("clients", "en").map((h) => h.unit.key)).toEqual(searchGuides("members", "en").map((h) => h.unit.key));
   });
 
   test("expandWords maps the alias only", () => {
-    expect(search.expandWords(["client"])).toEqual(["client", "member"]);
-    expect(search.expandWords(["clients", "week"])).toEqual(["clients", "members", "week"]);
-    expect(search.expandWords(["member"])).toEqual(["member"]);
+    expect(expandWords(["client"])).toEqual(["client", "member"]);
+    expect(expandWords(["clients", "week"])).toEqual(["clients", "members", "week"]);
+    expect(expandWords(["member"])).toEqual(["member"]);
   });
 });
 
