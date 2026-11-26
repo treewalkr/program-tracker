@@ -32,7 +32,14 @@ const cardio = (seq: number): ProgramSession => ({
   exercises: [],
   cardio: { modality: "Bike", durationMin: 30, hrZone: 2 },
 });
-const patterns: Record<string, string> = { squat: "knee_dominant", dl: "hip_dominant", bench: "horizontal_push", row: "horizontal_pull" };
+const patterns: Record<string, string> = {
+  squat: "knee_dominant",
+  dl: "hip_dominant",
+  bench: "horizontal_push",
+  row: "horizontal_pull",
+  lunge: "knee_dominant",
+  "sl-rdl": "hip_dominant",
+};
 const patternOf = (id: string) => patterns[id];
 const dayOf = (out: ProgramSession[], id: string) => out.find((s) => s.id === id)?.weekday;
 
@@ -397,5 +404,49 @@ describe("placeSessions — AI draft for Ploy (tempo on the heavy lower day)", (
 
   test("the other AI weekdays that pass stay: intervals Wed, long run Sat", () => {
     expect([dayOf(out, "C2"), dayOf(out, "C3")]).toEqual([3, 6]);
+  });
+});
+
+describe("placeSessions — approval with a skipped key run", () => {
+  // Real case: lifts Mon/Tue/Thu/Fri (Tue is single-leg stability work), cardio
+  // days Tue/Thu/Sat, long run Sat. The AI put the tempo on Tue — the day after
+  // Monday's heavy lower, and on Tuesday's own lower-ish session — so 0b skips
+  // it. The easy run's Fri suggestion used to lock before the tempo was
+  // re-placed, forcing the tempo onto Friday: two runs on one day while Tue sat
+  // run-free.
+  const days = { trainingDays: [1, 2, 4, 5], cardioDays: [2, 4, 6], longRunDay: 6 };
+  const week: ProgramSession[] = [
+    { ...lift(1, ["squat", "dl"]), name: "Lower — heavy", weekday: 1 },
+    { ...lift(2, ["lunge", "sl-rdl"]), name: "Stability — single leg", weekday: 2 },
+    { ...lift(3, ["bench", "row"]), name: "Upper — push", weekday: 4 },
+    { ...lift(4, ["bench", "row"]), name: "Upper — pull", weekday: 5 },
+    { ...run(1, "Tempo run", 30, 3, "tempo"), weekday: 2 },
+    { ...run(2, "Threshold intervals", 30, 4, "threshold"), weekday: 4 },
+    { ...run(3, "Easy run", 40, 2), weekday: 5 },
+    { ...run(4, "Long run", 80, 2), weekday: 6 },
+  ];
+  const out = placeSessions(week, days, patternOf, { keepWeekdays: true });
+
+  test("no day carries two runs while a run-free cardio day exists", () => {
+    const runsPerDay = new Map<number, number>();
+    for (const s of out) {
+      if (s.kind !== "cardio" || s.weekday == null) continue;
+      runsPerDay.set(s.weekday, (runsPerDay.get(s.weekday) ?? 0) + 1);
+    }
+    // The cardio pool (Mon/Tue/Thu/Fri/Sat) has a free day for each of the
+    // four runs, so none of them may share a day.
+    expect([...runsPerDay.values()].every((n) => n <= 1)).toBe(true);
+  });
+
+  test("every session stays on the calendar", () => {
+    expect(out.every((s) => s.weekday != null)).toBe(true);
+  });
+
+  test("the lifts and the passing key run keep their suggested days", () => {
+    expect([dayOf(out, "L1"), dayOf(out, "L2"), dayOf(out, "L3"), dayOf(out, "L4"), dayOf(out, "C2")]).toEqual([1, 2, 4, 5, 4]);
+  });
+
+  test("the approved week breaks no placement rule", () => {
+    expect(placementConflicts(out, days, patternOf)).toEqual([]);
   });
 });

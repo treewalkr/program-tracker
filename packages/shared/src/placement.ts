@@ -323,11 +323,15 @@ function placeOnce(
   // 0b. Suggested weekdays (AI drafts) stay where they break no rule. Exercise
   //     sessions first (they may only use trainingDays, so they can't move far),
   //     then key runs (cardio days are a superset: a clashing run finds another
-  //     day), then easy cardio.
+  //     day). Easy cardio is not locked here — a key run still to be placed may
+  //     need the easy run's day, and locking it first can force two runs onto
+  //     one day while a run-free day sits empty; 0c takes over once the key
+  //     runs have their days.
   if (opts.keepWeekdays) {
     const rank = (s: ProgramSession) => (s.kind === "exercises" ? 0 : isKey(ctx.load.get(s.id)) ? 1 : 2);
     const candidates = ordered.filter((s) => s.weekday != null && !isFixed.has(s.id)).sort((a, b) => rank(a) - rank(b));
     for (const s of candidates) {
+      if (s.kind === "cardio" && !isKey(ctx.load.get(s.id))) continue;
       const d = s.weekday!;
       if (count(fixed, d) >= MAX_SESSIONS_PER_WEEKDAY) continue;
       const trial = [...fixed.map(([x, xd]) => ({ ...x, weekday: xd })), { ...s, weekday: d }];
@@ -386,6 +390,23 @@ function placeOnce(
   for (const s of freeExerciseSessions.slice(head.length)) {
     const d = bestDay(placed, s, avail.exercises);
     if (d != null) placed.push([s, d]);
+  }
+
+  // 0c. Easy cardio's suggested weekdays, now that every key run has its day:
+  //     keep a suggestion that breaks no rule and doesn't put a second run on
+  //     its day; the rest fall through to the cost-based pass below.
+  if (opts.keepWeekdays) {
+    for (const s of ordered) {
+      if (s.kind !== "cardio" || isKey(ctx.load.get(s.id)) || s.weekday == null || isFixed.has(s.id)) continue;
+      const d = s.weekday;
+      if (count(placed, d) >= MAX_SESSIONS_PER_WEEKDAY) continue;
+      if (placed.some(([x, xd]) => x.kind === "cardio" && xd === d)) continue;
+      const trial = [...placed.map(([x, xd]) => ({ ...x, weekday: xd })), { ...s, weekday: d }];
+      if (!placementConflicts(trial, days, patternOf).some((c) => c.sessionIds.includes(s.id))) {
+        placed.push([s, d]);
+        isFixed.add(s.id);
+      }
+    }
   }
 
   // 3. Easy cardio, in seq order.
