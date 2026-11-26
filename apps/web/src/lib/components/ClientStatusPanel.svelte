@@ -2,6 +2,7 @@
   import { untrack } from "svelte";
   import type { ClientStatus } from "@pt/shared";
   import { api } from "$lib/api";
+  import { memberCount } from "$lib/memberCount.svelte";
   import type { ClientDto } from "$lib/api/types";
   import ProfileSection from "./ProfileSection.svelte";
   import Button from "$lib/ui/Button.svelte";
@@ -53,6 +54,7 @@
     error = null;
     try {
       onchange(await api.updateClient(client.id, { status }));
+      void memberCount.refresh(() => api.clients());
       confirming = false;
     } catch (e) {
       choice = client.status;

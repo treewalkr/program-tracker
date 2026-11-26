@@ -3,6 +3,7 @@
   import { page } from "$app/state";
   import { afterNavigate, goto } from "$app/navigation";
   import { api, apiMode } from "$lib/api";
+  import { memberCount } from "$lib/memberCount.svelte";
   import type { ExerciseDto } from "$lib/api/types";
   import ClientProfileFields from "$lib/components/ClientProfileFields.svelte";
   import ClientIdentityFields from "$lib/components/ClientIdentityFields.svelte";
@@ -125,6 +126,7 @@
       autosave = false;
       clearTimeout(saveTimer);
       clearNewClientDraft(draftKey);
+      void memberCount.refresh(() => api.clients());
       goto(then === "generate" ? `/clients/${created.id}/generate` : `/clients/${created.id}`);
     } catch (err) {
       createError = (err as Error).message;

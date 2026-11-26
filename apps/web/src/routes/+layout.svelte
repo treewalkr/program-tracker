@@ -13,6 +13,7 @@
   import Icon, { type IconName } from "$lib/ui/Icon.svelte";
   import { openGuideSearch, searchShortcut } from "$lib/guide/searchState.svelte";
   import { feedbackUnread } from "$lib/feedback/unread.svelte";
+  import { memberCount } from "$lib/memberCount.svelte";
   import { installRuntimeCapture, runtime } from "$lib/feedback/runtime";
   import { syncThemeAttribute } from "$lib/theme.svelte";
   import { roleLabels } from "$lib/roleLabelStore.svelte";
@@ -53,8 +54,6 @@
     await authApi.signOut();
     await goto("/login", { invalidateAll: true });
   }
-
-  let clientCount = $state<number | null>(null);
 
   syncThemeAttribute();
 
@@ -262,12 +261,8 @@
     if (bare) return;
     restoreUnits();
     api.displayUnits().then(applyUnits, () => {});
-    try {
-      // archived members are off the list, so off the count
-      clientCount = (await api.clients()).filter((c) => c.status !== "archived").length;
-    } catch {
-      clientCount = null;
-    }
+    // archived members are off the list, so off the count
+    void memberCount.refresh(() => api.clients());
   });
 </script>
 
@@ -291,8 +286,8 @@
     <Icon name={item.icon} />
     <span class="nav-text">{item.label}</span>
     <span class="nav-short" aria-hidden="true">{item.short ?? item.label}</span>
-    {#if item.href === "/clients" && clientCount !== null}
-      <span class="count">{clientCount}</span>
+    {#if item.href === "/clients" && memberCount.value !== null}
+      <span class="count">{memberCount.value}</span>
     {/if}
     {#if item.href === "/guide"}
       <kbd class="hint" aria-hidden="true">{searchShortcut}</kbd>
