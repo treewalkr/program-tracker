@@ -101,7 +101,8 @@
   /* Phone and touch screens: drop in from the top. The bottom edge is where save bars and the
      Feedback pill live, and a toast there covered "Save profile". The message may wrap. */
   @media (max-width: 640px), (hover: none) and (pointer: coarse) {
-    .toast { top: calc(env(safe-area-inset-top, 0px) + 8px); bottom: auto; animation-name: toast-down; }
+    /* Below the top bar's menu and search buttons (their 44px hit areas end 54px down), never over them. */
+    .toast { top: calc(env(safe-area-inset-top, 0px) + 60px); bottom: auto; animation-name: toast-down; }
     .msg { flex: 1; }
   }
   @keyframes toast-down {
