@@ -33,9 +33,28 @@ export function autoChip(name: string): string {
   return chars.length <= ROLE_LABEL_CHIP_MAX ? first : `${chars.slice(0, ROLE_LABEL_CHIP_MAX - 1).join("")}…`;
 }
 
+const cutChip = (text: string): string => {
+  const chars = Array.from(text);
+  return chars.length <= ROLE_LABEL_CHIP_MAX ? text : `${chars.slice(0, ROLE_LABEL_CHIP_MAX - 1).join("")}…`;
+};
+
+/**
+ * Chips tried, in order, when the auto chip is already another label's: the
+ * first word plus the second word's initial ("Speed L"), then the first two
+ * words. Empty for a one-word name. Cut by characters, like `autoChip`.
+ */
+function chipFallbacks(name: string): string[] {
+  const [first, second] = name.trim().split(/\s+/);
+  if (!first || !second) return [];
+  return [cutChip(`${first} ${Array.from(second)[0].toUpperCase()}`), cutChip(`${first} ${second}`)];
+}
+
 /** The chip is the one worked out from the name, not one the trainer typed: edit
- *  forms show it blank and saving keeps it untyped, so a rename still moves it. */
-export const isAutoChip = (l: { name: string; chip: string }): boolean => l.chip === l.name || l.chip === autoChip(l.name);
+ *  forms show it blank and saving keeps it untyped, so a rename still moves it.
+ *  A merged own label says so itself (`chipAuto`), so a typed chip that happens
+ *  to equal a collision fallback ("Speed L") stays typed. */
+export const isAutoChip = (l: { name: string; chip: string; chipAuto?: boolean }): boolean =>
+  l.chipAuto ?? (l.chip === l.name || l.chip === autoChip(l.name));
 
 /** One entry of a trainer's label list: a built-in (overrides applied) or their own. */
 export interface RoleLabel {
@@ -52,6 +71,8 @@ export interface RoleLabel {
   category: RoleCategory | null;
   rank: number;
   archived: boolean;
+  /** Own labels: no chip was typed, so it's worked out from the name (and may fall back on a collision). */
+  chipAuto?: boolean;
 }
 
 /** A `role_labels` row as the merge needs it (db rows and mock rows both fit). */
@@ -124,9 +145,24 @@ export function mergeRoleLabels(rows: readonly RoleLabelRowLike[]): RoleLabel[] 
         category: null,
         rank: r.rank,
         archived: r.archivedAt !== null,
+        chipAuto: !r.chip?.trim(),
       })
     );
-  return [...builtins, ...own].sort((a, b) => a.rank - b.rank);
+  // Two live auto chips (or a live auto one and another live label's chip) must not read the same:
+  // the auto one falls back. Archived labels never move a live one, but their chips stay taken.
+  const all = [...builtins, ...own];
+  const norm = (c: string) => c.toLowerCase();
+  const live = new Map<string, number>();
+  for (const l of all) if (!l.archived) live.set(norm(l.chip), (live.get(norm(l.chip)) ?? 0) + 1);
+  const taken = new Set(all.map((l) => norm(l.chip)));
+  for (const l of own) {
+    if (l.archived || !l.chipAuto || (live.get(norm(l.chip)) ?? 0) < 2) continue;
+    const alt = chipFallbacks(l.name).find((c) => !taken.has(norm(c)));
+    if (!alt) continue;
+    taken.add(norm(alt));
+    l.chip = alt;
+  }
+  return all.sort((a, b) => a.rank - b.rank);
 }
 
 /** The label a stored role points at, or null (unknown / not loaded). */

@@ -242,7 +242,8 @@ export function similarNames(list: readonly ExerciseDto[], name: string, exceptI
     .filter((e) => {
       const en = norm(e.name);
       const hit = words.filter((w) => en.includes(w)).length;
-      return words.length > 0 && hit >= Math.ceil(words.length / 2);
+      // Half the words, but never a lone shared word out of two ("biceps" alone isn't a likeness).
+      return words.length > 0 && hit >= Math.min(words.length, Math.max(2, Math.ceil(words.length / 2)));
     })
     .slice(0, 3);
   return { exact, similar };

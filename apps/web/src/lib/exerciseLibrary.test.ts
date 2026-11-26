@@ -210,6 +210,13 @@ describe("edit rules", () => {
     expect(validateForm(formFrom(list[0]), list, list[0].id)).toEqual({});
   });
 
+  test("one shared word out of two is not a likeness", () => {
+    const l = [ex({ name: "Biceps rope curl" }), ex({ name: "Pendlay Row" })];
+    expect(similarNames(l, "BB standing biceps").similar).toEqual([]);
+    expect(similarNames(l, "Pendlay Barbell Row").similar.map((e) => e.name)).toEqual(["Pendlay Row"]);
+    expect(similarNames(l, "rope curl biceps").similar.map((e) => e.name)).toEqual(["Biceps rope curl"]);
+  });
+
   test("copies get a free name", () => {
     expect(copyName(list, "Pendlay Row")).toBe("Pendlay Row (mine)");
     expect(copyName([...list, ex({ name: "Pendlay Row (mine)" })], "Pendlay Row")).toBe("Pendlay Row (mine 2)");
