@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.1.54 — 2026-11-27
+
 ### Improved
 - **"Member" everywhere.** The app, the guides, the AI's notes and its warnings now say member instead of client. Searching the guides for "client" still finds the member answers.
   - th: ใช้คำว่า "เมมเบอร์" ทุกที่แล้ว ทั้งในแอป คู่มือ โน้ตและคำเตือนของ AI ถ้าค้นคู่มือด้วยคำว่า "client" ก็ยังเจอคำตอบเรื่องเมมเบอร์เหมือนเดิม
