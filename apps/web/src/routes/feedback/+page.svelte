@@ -1221,10 +1221,9 @@
     color: var(--muted);
     cursor: pointer;
   }
-  /* Touch: the 24px text button gets a 44px hit area without growing. */
+  /* Touch: a real 44px target, so it never reaches into the tab row above it when the bar wraps. */
   @media (pointer: coarse) {
-    .details-toggle { position: relative; }
-    .details-toggle::after { content: ""; position: absolute; inset: -10px 0; }
+    .details-toggle { min-height: 44px; }
   }
   .details-toggle:hover {
     color: var(--ink);

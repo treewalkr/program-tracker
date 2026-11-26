@@ -1070,7 +1070,7 @@
   .lib-link:hover { text-decoration: underline; }
   @media (pointer: coarse) {
     .lib-link { position: relative; }
-    .lib-link::after { content: ""; position: absolute; inset: -12px -6px; }
+    .lib-link::after { content: ""; position: absolute; inset: -16px -6px; }
   }
 
   .mark-form {

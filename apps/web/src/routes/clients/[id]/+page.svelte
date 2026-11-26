@@ -1220,10 +1220,10 @@
   .prog-row .lift { color: var(--ink); font-weight: 500; text-decoration: none; }
   .prog-row .lift.dim { color: var(--muted); }
   .prog-row .lift:hover { text-decoration: underline; }
-  /* Touch: the 21px name link gets a 44px hit area inside its row. */
+  /* Touch: the name link is a real 44px target filling its row (an overlay would reach into the next row). */
   @media (pointer: coarse) {
-    .prog-row .lift { position: relative; }
-    .prog-row .lift::after { content: ""; position: absolute; inset: -12px -4px; }
+    .prog-row { padding: 0; align-items: center; }
+    .prog-row .lift { display: inline-flex; align-items: center; min-height: 44px; }
   }
   .prog-row .num { font-size: 11.5px; color: var(--muted); white-space: nowrap; }
 
