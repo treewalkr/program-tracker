@@ -46,7 +46,7 @@
     <ToggleChip>Weekly volume</ToggleChip>
     <ToggleChip on>
       <Icon name="check" />
-      ห้ามกระโดดสำหรับลูกค้าที่เจ็บเข่า 🦵 no jumping, no plyometrics, low-impact cardio only
+      ห้ามกระโดดสำหรับเมมเบอร์ที่เจ็บเข่า 🦵 no jumping, no plyometrics, low-impact cardio only
     </ToggleChip>
     <ToggleChip>Deload</ToggleChip>
   </div>
