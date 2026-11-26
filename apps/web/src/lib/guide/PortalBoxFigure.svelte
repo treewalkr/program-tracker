@@ -5,12 +5,12 @@
   import { i18n } from "$lib/portal/i18n.svelte";
   import { lineMessage } from "$lib/portal/lineMessage";
 
-  /** The trainer's Client portal box once it's on, drawn with sample data (illustrative link and client). */
+  /** The trainer's Member portal box once it's on, drawn with sample data (illustrative link and member). */
   const link = "https://app.example.com/me/link/k3Qx…9fA2";
 </script>
 
 <div class="box">
-  <ProfileSection title="Client portal" purpose="their own link to see this week and log sessions">
+  <ProfileSection title="Member portal" purpose="their own link to see this week and log sessions">
     <div class="field">
       <span class="label">Access link</span>
       <div class="link-row">

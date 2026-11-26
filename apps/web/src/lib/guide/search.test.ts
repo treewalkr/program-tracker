@@ -46,7 +46,7 @@ describe("searchGuides", () => {
   test("“sick” ranks the Quick answers row first", () => {
     const [top] = searchGuides("sick", "en");
     expect(top.unit.key).toBe(sick);
-    expect(top.unit.title).toBe("“My client was sick for a week.”");
+    expect(top.unit.title).toBe("“My member was sick for a week.”");
   });
 
   test("“ป่วย” finds the same row", () => {

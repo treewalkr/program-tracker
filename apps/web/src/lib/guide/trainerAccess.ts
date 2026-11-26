@@ -60,7 +60,7 @@ const en: ProgramsGuide = {
       h: "Turn access off and on",
       blocks: [
         {
-          p: "*Turn access off* signs them out everywhere straight away and blocks their next sign-in. Their clients, programs and logs are kept.",
+          p: "*Turn access off* signs them out everywhere straight away and blocks their next sign-in. Their members, programs and logs are kept.",
         },
         { p: "*Turn access on* lets them back in with the same Google account, with everything as they left it." },
       ],
@@ -70,7 +70,7 @@ const en: ProgramsGuide = {
       h: "Remove an invite",
       blocks: [
         {
-          p: "You can remove a trainer only while they're ⟦neutral|Invited⟧ and have no clients — a mistyped email, or someone who never started. Once they've signed in or have clients, turn their access off instead.",
+          p: "You can remove a trainer only while they're ⟦neutral|Invited⟧ and have no members — a mistyped email, or someone who never started. Once they've signed in or have members, turn their access off instead.",
         },
         { p: "When there are two or more unused invites, *Remove N unused invites* under the list clears them in one go." },
       ],
