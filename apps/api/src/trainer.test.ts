@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import postgres from "postgres";
 import { db, trainers } from "@pt/db";
 import { getDefaultTrainerId } from "./lib/trainer";
@@ -18,7 +18,9 @@ try {
 describe.skipIf(!dbUp)("getDefaultTrainerId", () => {
   test("parallel first requests seed exactly one default trainer, no throw", async () => {
     // The race needs every caller to find the table empty, so clear it all —
-    // trainer references cascade, and later test files re-seed their own.
+    // trainer references cascade, and later test files re-seed their own. A set
+    // logged on a trainer's own exercise restricts that cascade: clear those first.
+    await db.execute(sql`delete from set_logs where exercise_id in (select id from exercises where trainer_id is not null)`);
     await db.delete(trainers);
     const email = process.env.DEFAULT_TRAINER_EMAIL ?? "trainer@localhost.dev";
 
@@ -35,7 +37,7 @@ describe.skipIf(!dbUp)("getDefaultTrainerId", () => {
       // Let the racers run their selects and queue their inserts on the
       // uncommitted row before the winner commits (then commit regardless).
       for (let i = 0; i < 100; i++) {
-        const [{ waiting }] = await winner`select count(*)::int as waiting from pg_stat_activity where wait_event_type = 'Lock'`;
+        const [{ waiting }] = await winner`select count(*)::int as waiting from pg_stat_activity where wait_event_type = 'Lock' and datname = current_database()`;
         if (waiting > 0) break;
         await Bun.sleep(20);
       }
