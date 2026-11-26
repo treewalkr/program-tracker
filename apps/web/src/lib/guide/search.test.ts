@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { GUIDE_IDS } from "./clientPortal";
 import { PROGRAMS_GUIDE_IDS } from "./programsWeeks";
 import { commonQuestions, guideSections, guideUnits, plain, searchGuides, snippet } from "./search";
+import * as search from "./search";
 import { TRAINER_ACCESS_IDS } from "./trainerAccess";
 import { CARDIO_GUIDE_IDS } from "./cardio";
 
@@ -79,6 +80,20 @@ describe("searchGuides", () => {
 
   test("a section title outranks a body mention", () => {
     expect(searchGuides("quick answers", "en")[0].unit.kind).toBe("section");
+  });
+
+  test("the old word still finds the member answers", () => {
+    // “client”/“clients” alias to member/members, so old habits find the answers.
+    const addMember = searchGuides("client add", "en").find((h) => h.unit.title === "Add the member");
+    expect(addMember).toBeDefined();
+    expect(searchGuides("client", "en").some((h) => h.unit.guide === "portal")).toBe(true);
+    expect(searchGuides("clients", "en")[0]).toBeDefined();
+  });
+
+  test("expandWords maps the alias only", () => {
+    expect(search.expandWords(["client"])).toEqual(["client", "member"]);
+    expect(search.expandWords(["clients", "week"])).toEqual(["clients", "members", "week"]);
+    expect(search.expandWords(["member"])).toEqual(["member"]);
   });
 });
 
