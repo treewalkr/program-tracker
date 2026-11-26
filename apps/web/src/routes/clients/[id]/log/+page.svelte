@@ -212,14 +212,18 @@
   const lastSets = $derived(program ? lastBySlot(program, pastLogs) : new Map<string, LastSet>());
 
   const counts = $derived(sheetCounts(rows));
-  const tally = $derived(
-    [`${counts.logged} logged`, counts.skipped ? `${counts.skipped} skipped` : "", counts.open ? `${counts.open} open` : ""]
-      .filter(Boolean)
-      .join(" · ")
-  );
   /** programSessionId → its logs in this program, newest first. */
   const logged = $derived(program ? loggedBySession(pastLogs, program.id) : new Map<string, never[]>());
   const sessionLogged = $derived(logged.get(sessionId)?.[0] ?? null);
+  /** The log this page just saved for the open session, while the sheet is still the fresh one after it. */
+  const justSaved = $derived(sessionLogged && sessionLogged.id === savedLogId && counts.logged + counts.skipped === 0 ? sessionLogged : null);
+  const tally = $derived(
+    justSaved
+      ? `Logged · ${justSaved.setCount} ${justSaved.setCount === 1 ? "set" : "sets"}`
+      : [`${counts.logged} logged`, counts.skipped ? `${counts.skipped} skipped` : "", counts.open ? `${counts.open} open` : ""]
+          .filter(Boolean)
+          .join(" · ")
+  );
   /** Warn about an earlier log, never about the one just saved here. */
   const loggedNote = $derived(sessionLogged && sessionLogged.id !== savedLogId ? sessionLogged : null);
   const prefillable = $derived(rows.some((r) => !r.skipped && isBlank(r.reps) && r.rx));
@@ -747,6 +751,7 @@
     recap = recapOf(p, saved);
     void findNext();
     savedLogId = saved.id;
+    pickNote = null; // "not logged yet" is no longer true
     undo = {
       logId: saved.id,
       count: p.count,
