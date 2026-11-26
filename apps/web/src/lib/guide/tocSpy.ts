@@ -26,3 +26,12 @@ export function activeSection(
   for (const s of sections) if (s.top <= opts.line) current = s.id;
   return current;
 }
+
+/** The section id a location hash names ("#missed" → "missed"); "" when the hash is malformed ("#50%"). */
+export function hashId(hash: string): string {
+  try {
+    return decodeURIComponent(hash.replace(/^#/, ""));
+  } catch {
+    return "";
+  }
+}

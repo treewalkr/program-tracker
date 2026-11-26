@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, type Snippet } from "svelte";
-  import { activeSection } from "./tocSpy";
+  import { activeSection, hashId } from "./tocSpy";
 
   /**
    * The guides' page body: a sticky "On this page" rail beside the article
@@ -25,6 +25,10 @@
   onMount(() => {
     const ids = toc.map(([id]) => id);
     let frame = 0;
+    // The hash names the section a TOC click or search jump went to (goto() changes it without a
+    // hashchange, so it's read on every update). Once the reader scrolls by hand it's forgotten, so a
+    // stale jump never outranks what's on screen at the page bottom.
+    let handHash: string | null = null;
     const update = () => {
       frame = 0;
       const sections = ids.flatMap((id) => {
@@ -36,17 +40,24 @@
         line: window.innerHeight * 0.35,
         viewport: window.innerHeight,
         atBottom: window.scrollY + window.innerHeight >= root.scrollHeight - 2,
-        hash: decodeURIComponent(location.hash.slice(1)),
+        hash: location.hash === handHash ? "" : hashId(location.hash),
       });
     };
     const schedule = () => {
       if (!frame) frame = requestAnimationFrame(update);
     };
+    const onHandScroll = () => {
+      handHash = location.hash;
+    };
     update();
     // scrollend lands the final position of a smooth jump; hashchange covers a TOC click or search jump.
-    for (const type of ["scroll", "scrollend", "resize", "hashchange"]) window.addEventListener(type, schedule, { passive: true });
+    const spyOn = ["scroll", "scrollend", "resize", "hashchange"];
+    const hand = ["wheel", "touchmove", "keydown"];
+    for (const type of spyOn) window.addEventListener(type, schedule, { passive: true });
+    for (const type of hand) window.addEventListener(type, onHandScroll, { passive: true });
     return () => {
-      for (const type of ["scroll", "scrollend", "resize", "hashchange"]) window.removeEventListener(type, schedule);
+      for (const type of spyOn) window.removeEventListener(type, schedule);
+      for (const type of hand) window.removeEventListener(type, onHandScroll);
       cancelAnimationFrame(frame);
     };
   });

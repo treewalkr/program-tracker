@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { activeSection, type SpySection } from "./tocSpy";
+import * as spy from "./tocSpy";
 
 // The /en/exercises case: move-in's tail (-308..222) still overlaps the top of the screen
 // while answers (234..724) is where search landed, at the bottom of the page.
@@ -44,5 +45,15 @@ describe("activeSection", () => {
 
   test("no sections, no current", () => {
     expect(activeSection([], { line: 280, viewport: 800, atBottom: false })).toBeNull();
+  });
+});
+
+describe("hashId", () => {
+  test("decodes a hash, and a malformed one reads as none instead of throwing", () => {
+    expect(spy.hashId("#missed")).toBe("missed");
+    expect(spy.hashId("#%E0%B8%81")).toBe("ก");
+    expect(spy.hashId("")).toBe("");
+    expect(spy.hashId("#50%")).toBe("");
+    expect(spy.hashId("#%E0%A4%A")).toBe("");
   });
 });
