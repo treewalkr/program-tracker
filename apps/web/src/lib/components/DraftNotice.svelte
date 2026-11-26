@@ -32,10 +32,20 @@
     if (notices.length <= max) expanded = false;
   });
 
+  // Phones stack these across the top, where the release toast also drops in: say how far
+  // down they reach (--draft-notices-gap on the root), so the toast sits under them.
+  let stackH = $state(0);
+  $effect(() => {
+    const root = document.documentElement.style;
+    if (stackH > 0) root.setProperty("--draft-notices-gap", `${stackH + 12}px`);
+    else root.removeProperty("--draft-notices-gap");
+    return () => root.removeProperty("--draft-notices-gap");
+  });
+
   const enter = $derived({ y: prefersReducedMotion.current ? 0 : 12, duration: prefersReducedMotion.current ? 0 : 180, easing: cubicOut });
 </script>
 
-<section class="draft-notices" aria-label="Draft notifications" aria-live="polite" data-no-lift>
+<section class="draft-notices" aria-label="Draft notifications" aria-live="polite" data-no-lift bind:clientHeight={stackH}>
   {#each shown as n (n.id)}
     <article class="notice {n.tone}" transition:fly={enter} aria-labelledby="dn-{n.id}">
       <span class="lamp {n.tone === 'ready' ? 'green' : 'red'}" aria-hidden="true"></span>

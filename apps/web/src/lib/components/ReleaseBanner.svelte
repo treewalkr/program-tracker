@@ -105,6 +105,10 @@
     .toast { top: calc(env(safe-area-inset-top, 0px) + 60px); bottom: auto; animation-name: toast-down; }
     .msg { flex: 1; }
   }
+  /* Phones: draft notices stack across the top from 64px down; drop in under them. */
+  @media (max-width: 520px) {
+    .toast { top: calc(env(safe-area-inset-top, 0px) + 60px + var(--draft-notices-gap, 0px)); }
+  }
   /* Touch: the link and Dismiss keep their look and get a 44px hit area. */
   @media (pointer: coarse) {
     a, .close { position: relative; }
