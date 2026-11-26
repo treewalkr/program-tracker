@@ -10,12 +10,17 @@ class MemberCount {
   /** null until first loaded, or when the list couldn't be read: the badge hides. */
   value = $state<number | null>(null);
 
-  /** Re-reads the member list; a failure clears the badge rather than showing an old number. */
+  #seq = 0;
+
+  /** Re-reads the member list; a failure clears the badge rather than showing an old number.
+   *  The latest call wins: an older read that answers late never overwrites a newer one. */
   async refresh(load: () => Promise<readonly { status: string }[]>) {
+    const seq = ++this.#seq;
     try {
-      this.value = activeMembers(await load());
+      const n = activeMembers(await load());
+      if (seq === this.#seq) this.value = n;
     } catch {
-      this.value = null;
+      if (seq === this.#seq) this.value = null;
     }
   }
 }

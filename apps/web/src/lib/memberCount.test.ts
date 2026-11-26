@@ -25,4 +25,13 @@ describe("memberCount", () => {
     });
     expect(memberCount.value).toBeNull();
   });
+
+  test("a late answer from an older refresh never overwrites a newer one", async () => {
+    let answerOld!: (v: { status: string }[]) => void;
+    const old = memberCount.refresh(() => new Promise((r) => (answerOld = r)));
+    await memberCount.refresh(list("active", "active"));
+    answerOld([{ status: "active" }, { status: "active" }, { status: "active" }, { status: "active" }]);
+    await old;
+    expect(memberCount.value).toBe(2);
+  });
 });
