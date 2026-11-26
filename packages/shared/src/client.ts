@@ -38,7 +38,7 @@ export function birthDateError(birthDate: string, today: string): string | null 
 
 /** Why a `YYYY-MM-DD` "client since" day is out of range for `today`, or null when it's fine. */
 export function startedOnError(startedOn: string, today: string): string | null {
-  if (startedOn < STARTED_ON_MIN) return "Client since must be 2000 or later";
-  if (startedOn > startedOnMax(today)) return "Client since can't be more than a year ahead";
+  if (startedOn < STARTED_ON_MIN) return "Member since must be 2000 or later";
+  if (startedOn > startedOnMax(today)) return "Member since can't be more than a year ahead";
   return null;
 }

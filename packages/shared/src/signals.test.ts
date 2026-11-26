@@ -30,7 +30,7 @@ describe("cardioBehindSignal", () => {
     expect(signal!.programId).toBe("pg-1");
     expect(signal!.clientId).toBe("cl-1");
     expect(signal!.altHref).toBe("/clients/cl-1");
-    expect(signal!.altLabel).toBe("Review client");
+    expect(signal!.altLabel).toBe("Review member");
   });
 
   test("Fri further behind → still fires", () => {

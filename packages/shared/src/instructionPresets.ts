@@ -100,7 +100,7 @@ export const INSTRUCTION_PRESETS: readonly InstructionPreset[] = [
   {
     key: "short-sessions",
     name: "Short on time (45 min)",
-    summary: "When the client can only give 45 minutes: keep the work that counts.",
+    summary: "When the member can only give 45 minutes: keep the work that counts.",
     sources: ["Iversen 2021 time-efficient training review"],
     content: `Rules:
 - Cap the session at about 45 minutes including warm-up: 5-6 exercises, 2-4 hard sets each.

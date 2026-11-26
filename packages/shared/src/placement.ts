@@ -231,7 +231,7 @@ export function placementConflicts(
       out.push({
         rule: "off-day",
         sessionIds: [s.id],
-        text: `"${s.name}" is on ${dayName(d)}, not one of the client's ${s.kind === "exercises" ? "exercises" : "cardio"} days`,
+        text: `"${s.name}" is on ${dayName(d)}, not one of the member's ${s.kind === "exercises" ? "exercises" : "cardio"} days`,
       });
     }
   }

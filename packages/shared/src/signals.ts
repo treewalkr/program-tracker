@@ -360,7 +360,7 @@ export function computeSignals(
       title: "Low adherence — check in",
       evidence: `${logged} of ~${Math.round(expected)} exercise sessions due so far (${perWeek}/week over ${elapsedDays} days since the block started).`,
       altHref: `/clients/${program.clientId}`,
-      altLabel: "Review client",
+      altLabel: "Review member",
     });
   }
 
@@ -407,7 +407,7 @@ export function cardioBehindSignal(
     programId: owner.programId,
     clientId: owner.clientId,
     altHref: `/clients/${owner.clientId}`,
-    altLabel: "Review client",
+    altLabel: "Review member",
   };
 }
 
@@ -464,7 +464,7 @@ export function painFlagSignals(
       programId: owner.programId,
       clientId: owner.clientId,
       altHref: `/clients/${owner.clientId}`,
-      altLabel: "Review client",
+      altLabel: "Review member",
     });
   }
   return signals;
@@ -516,11 +516,11 @@ export function lowReadinessSignals<L extends Pick<SignalLog, "date" | "perceive
       kind: "low-readiness",
       severity: "attention",
       title: "Low readiness — check in before loading",
-      evidence: `Client-reported going in — ${evidence}. Consider holding loads or trimming volume.`,
+      evidence: `Member-reported going in — ${evidence}. Consider holding loads or trimming volume.`,
       programId: owner.programId,
       clientId: owner.clientId,
       altHref: `/clients/${owner.clientId}`,
-      altLabel: "Review client",
+      altLabel: "Review member",
     },
   ];
 }
@@ -546,12 +546,12 @@ export function clientNoteSignals<L extends Pick<SignalLog, "date" | "notes" | "
       id: `client-note:${owner.clientId}:${notes[0].date.slice(0, 10)}`,
       kind: "client-note",
       severity: "info",
-      title: notes.length > 1 ? `${notes.length} notes from the client` : "Note from the client",
+      title: notes.length > 1 ? `${notes.length} notes from the member` : "Note from the member",
       evidence: notes.map((l) => `${shortDate(l.date.slice(0, 10))} “${quote(l.notes!)}”`).join("; "),
       programId: owner.programId,
       clientId: owner.clientId,
       altHref: `/clients/${owner.clientId}`,
-      altLabel: "Review client",
+      altLabel: "Review member",
     },
   ];
 }
@@ -586,7 +586,7 @@ export function clientLogSignals<L extends Pick<SignalLog, "date" | "notes" | "l
       programId: owner.programId,
       clientId: owner.clientId,
       altHref: `/clients/${owner.clientId}`,
-      altLabel: "Review client",
+      altLabel: "Review member",
     },
   ];
 }

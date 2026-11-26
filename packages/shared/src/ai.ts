@@ -582,7 +582,7 @@ export const ChatMessage = z.object({
 export type ChatMessage = z.infer<typeof ChatMessage>;
 
 export function mockChatReply(message: string, clientName: string | null): string {
-  return `(${clientName ?? "this client"}) You asked: “${message}” — mock reply. This client's profile, current program, recent logs, and latest draft are in the assistant's context; pick a live provider for real answers.`;
+  return `(${clientName ?? "this member"}) You asked: “${message}” — mock reply. This member's profile, current program, recent logs, and latest draft are in the assistant's context; pick a live provider for real answers.`;
 }
 
 export function draftNoticeText(d: AiProgramDraft): string {

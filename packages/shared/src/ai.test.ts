@@ -207,10 +207,10 @@ describe("ChatMessage schema, mockChatReply, draftNoticeText", () => {
     expect(ChatMessage.parse(fullRow).kind).toBe("draft");
 
     expect(mockChatReply("hi", "Maya")).toBe(
-      "(Maya) You asked: “hi” — mock reply. This client's profile, current program, recent logs, and latest draft are in the assistant's context; pick a live provider for real answers."
+      "(Maya) You asked: “hi” — mock reply. This member's profile, current program, recent logs, and latest draft are in the assistant's context; pick a live provider for real answers."
     );
     expect(mockChatReply("hi", null)).toBe(
-      "(this client) You asked: “hi” — mock reply. This client's profile, current program, recent logs, and latest draft are in the assistant's context; pick a live provider for real answers."
+      "(this member) You asked: “hi” — mock reply. This member's profile, current program, recent logs, and latest draft are in the assistant's context; pick a live provider for real answers."
     );
 
     const draftSample: AiProgramDraft = draftFromSessions({
