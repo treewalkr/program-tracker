@@ -204,7 +204,7 @@
             max={today}
             required
             hint={trainingDays?.length
-              ? "Days land on the client's training days; a weekday in a day's name wins."
+              ? "Days land on the member's training days; a weekday in a day's name wins."
               : "No training days set, so days fall on consecutive dates; a weekday in a day's name wins."}
             bind:value={latest}
           />

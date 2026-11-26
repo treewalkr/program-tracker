@@ -567,13 +567,13 @@
     title="Write a program by hand"
     sub="Saved as a draft. Nothing goes live until you activate it."
     actions={["175px", "169px", "120px"]}
-    label="Loading client…"
+    label="Loading member…"
   />
   <div class="mode" inert>
     <Tabs label="How to write it" idPrefix="np-mode-skel" value="hand" onchange={() => {}} items={[{ id: "hand", label: "Build by hand" }, { id: "paste", label: "Paste notes" }]} />
   </div>
   <div class="cols" aria-hidden="true">
-    <SkeletonPanel title="Basics" label="Loading client…">
+    <SkeletonPanel title="Basics" label="Loading member…">
       <div class="panel-body basics-body">
         <div class="stack ident">
           <Field label="Name"><Skeleton h="29px" /></Field>

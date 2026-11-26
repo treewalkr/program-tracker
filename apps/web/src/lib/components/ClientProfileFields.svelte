@@ -92,7 +92,7 @@
   </div>
   <div class="basics-row">
     <InputDate label="Date of birth" {today} min={BIRTH_DATE_MIN} max={today} hint={age != null ? `${age} yrs` : null} error={errs.birth} bind:value={form.birthDate} />
-    <InputDate label="Client since" {today} min={STARTED_ON_MIN} max={startedOnMax(today)} error={errs.since} bind:value={form.startedOn} />
+    <InputDate label="Member since" {today} min={STARTED_ON_MIN} max={startedOnMax(today)} error={errs.since} bind:value={form.startedOn} />
   </div>
   <div class="basics-row">
     <InputUnit

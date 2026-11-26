@@ -395,7 +395,7 @@
   {/if}
 {/snippet}
 
-<Crumbs items={[{ href: "/clients", label: "Clients" }, { href: `/clients/${client.id}`, label: client.name }, { label: "Draft review" }]} />
+<Crumbs items={[{ href: "/clients", label: "Members" }, { href: `/clients/${client.id}`, label: client.name }, { label: "Draft review" }]} />
 <div class="rv-head">
   <div class="rv-title">
     <h1>

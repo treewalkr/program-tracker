@@ -14,7 +14,7 @@
   const TEXT = {
     en: {
       title: "Guide",
-      sub: "How the app works, in your clients' terms too. Each guide is in English and Thai.",
+      sub: "How the app works, in your members' terms too. Each guide is in English and Thai.",
       count: (n: number) => `${n} sections`,
     },
     th: {

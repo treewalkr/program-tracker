@@ -15,7 +15,7 @@
 
 	/** Sections a broken link most often sits under — longest prefix wins. */
 	const sections: Dest[] = [
-		{ href: '/clients', label: 'Clients', icon: 'users', hint: 'Every client, their program and log' },
+		{ href: '/clients', label: 'Members', icon: 'users', hint: 'Every member, their program and log' },
 		{ href: '/exercises', label: 'Exercise library', icon: 'dumbbell', hint: 'Catalog and custom exercises' },
 		{ href: '/session-types', label: 'Session types', icon: 'layers', hint: 'Session templates by type' },
 		{ href: '/vocabulary', label: 'Vocabulary', icon: 'pencil', hint: 'Your shorthand and terms' },
@@ -23,12 +23,12 @@
 		{ href: '/templates', label: 'Templates', icon: 'file', hint: 'Instruction templates' },
 		{ href: '/examples', label: 'Examples', icon: 'star', hint: 'Programs the AI learns from' },
 		{ href: '/rules', label: 'Coaching rules', icon: 'list-check', hint: 'Learned preferences' },
-		{ href: '/admin/clients', label: 'All clients', icon: 'users', hint: 'Every client on the platform' },
+		{ href: '/admin/clients', label: 'All members', icon: 'users', hint: 'Every member on the platform' },
 		{ href: '/admin', label: 'Trainers', icon: 'lock', hint: 'Platform trainers' },
 		{ href: '/feedback', label: 'Feedback', icon: 'comment', hint: 'Reports and replies' },
 		{ href: '/settings', label: 'Settings', icon: 'gear', hint: 'Account, models and preferences' },
 	];
-	const overview: Dest = { href: '/', label: 'Overview', icon: 'grid', hint: 'This week across all clients' };
+	const overview: Dest = { href: '/', label: 'Overview', icon: 'grid', hint: 'This week across all members' };
 	const clients = sections[0];
 
 	const status = $derived(page.status);

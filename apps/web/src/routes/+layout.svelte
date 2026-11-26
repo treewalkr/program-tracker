@@ -90,7 +90,7 @@
             label: "Platform",
             items: [
               { href: "/admin", label: "Trainers", icon: "lock" },
-              { href: "/admin/clients", label: "All clients", short: "Clients", icon: "users" },
+              { href: "/admin/clients", label: "All members", short: "Members", icon: "users" },
               { href: "/admin/emails/outbox", label: "Outbox", icon: "send" },
             ],
           },

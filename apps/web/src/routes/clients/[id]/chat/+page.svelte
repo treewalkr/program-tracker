@@ -202,7 +202,7 @@
   });
   const elapsed = $derived(building ? fmtElapsed(now - building.startedAt) : null);
   const busy = $derived(sending || building !== null);
-  const firstName = $derived(client?.name.split(" ")[0] ?? "this client");
+  const firstName = $derived(client?.name.split(" ")[0] ?? "this member");
   const programName = $derived(preview.target?.draft?.name ?? null);
   const sub = $derived(
     [
@@ -670,12 +670,12 @@
     </div>
   </section>
 {:else if !client}
-  <EmptyState>Client not found.</EmptyState>
+  <EmptyState>Member not found.</EmptyState>
 {:else}
   <PageHead
     title={`${firstName}'s next block`}
     crumbs={[
-      { href: "/clients", label: "Clients" },
+      { href: "/clients", label: "Members" },
       { href: `/clients/${id}`, label: client.name },
       { label: "Draft chat" },
     ]}

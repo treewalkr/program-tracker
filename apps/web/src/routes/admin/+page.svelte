@@ -39,7 +39,7 @@
   function plain(act: Act, detail: string): string {
     if (/not found/i.test(detail)) return "This account is gone — reload the page to see the latest list.";
     if (/signed in/i.test(detail)) return "They've signed in since this list loaded — turn their access off instead.";
-    if (/has clients/i.test(detail)) return "They have clients now — turn their access off instead.";
+    if (/has clients/i.test(detail)) return "They have members now — turn their access off instead.";
     if (/can't be disabled/i.test(detail)) return "The admin's access always stays on.";
     const what = act === "remove" ? "remove the invite" : `turn access ${act}`;
     return `Couldn't ${what} — check your connection and try again.`;
@@ -293,7 +293,7 @@
       const detail = failed.map((f) => `${f.t.name}: ${f.detail}`).join("; ");
       console.warn("Removing unused invites:", detail);
       sweepError = {
-        text: `Removed ${removed} of ${batch.length}. ${failed.map((f) => f.t.name).join(", ")} couldn't be removed — they may have signed in or gained clients since. Reload to see the latest.`,
+        text: `Removed ${removed} of ${batch.length}. ${failed.map((f) => f.t.name).join(", ")} couldn't be removed — they may have signed in or gained members since. Reload to see the latest.`,
         detail,
       };
     }
@@ -455,9 +455,9 @@
                   {#if inactive(t)}<span class="idle" title="No sign-in for over {INACTIVE_DAYS} days">Inactive</span>{/if} ·
                   {#if t.clientCount > 0}
                     <a href={`/admin/clients?trainer=${t.id}`}
-                      ><span class="mono">{t.clientCount}</span> {t.clientCount === 1 ? "client" : "clients"}</a
+                      ><span class="mono">{t.clientCount}</span> {t.clientCount === 1 ? "member" : "members"}</a
                     >
-                  {:else}<span><span class="mono">0</span> clients</span>{/if}
+                  {:else}<span><span class="mono">0</span> members</span>{/if}
                   · <a class="log" href="/admin/trainers/{t.id}" aria-label="Access log for {t.name}">Access log</a>
                 </div>
                 {#if rowError?.id === t.id}<p class="err" role="alert" title={rowError.detail}>{rowError.text}</p>{/if}
@@ -532,7 +532,7 @@
                 onconfirm={removeUnused}
               />
               <span class="subtle">
-                Never signed in, no clients: {unused.map((t) => t.name).join(", ")}
+                Never signed in, no members: {unused.map((t) => t.name).join(", ")}
               </span>
             {/if}
             {#if sweepError}<p class="err" role="alert" title={sweepError.detail}>{sweepError.text}</p>{/if}

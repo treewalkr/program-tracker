@@ -74,7 +74,7 @@
     if (!roster) return "…";
     // `all` leaves archived members out; they get their own tab and a note here.
     const archived = roster.archived ? ` · ${roster.archived} archived` : "";
-    if (roster.all === 0) return roster.archived ? `Nobody on the roster${archived}` : "No clients yet";
+    if (roster.all === 0) return roster.archived ? `Nobody on the roster${archived}` : "No members yet";
     if (roster.active === roster.all) return `${roster.all} on the roster${archived}`;
     return `${roster.active} active · ${roster.all} on the roster${archived}`;
   });
@@ -103,26 +103,26 @@
   };
 </script>
 
-<svelte:head><title>Clients · Program Tracker</title></svelte:head>
-<PageHead title="Clients" {sub} subLoading={!roster && !loadError}>
+<svelte:head><title>Members · Program Tracker</title></svelte:head>
+<PageHead title="Members" {sub} subLoading={!roster && !loadError}>
   {#snippet actions()}
     <Button href="/clients/new">
       {#snippet icon()}<Icon name="plus" />{/snippet}
-      Add client
+      Add member
     </Button>
   {/snippet}
 </PageHead>
 
 {#if data === null && loadError}
   <Note tone="bad">
-    Couldn't load clients — {loadError}.
+    Couldn't load members — {loadError}.
     <Button small onclick={() => load(query)}>Try again</Button>
   </Note>
 {:else if data === null}
   <!-- Real toolbar, filters and column heads; only the counts and rows shimmer. -->
-  <ListToolbar bind:value={list.search} label="Search clients" placeholder="Search by name or email" />
-  <section class="panel roster-box" aria-label="Clients" aria-busy="true">
-    <span class="sr-only" role="status">Loading clients…</span>
+  <ListToolbar bind:value={list.search} label="Search members" placeholder="Search by name or email" />
+  <section class="panel roster-box" aria-label="Members" aria-busy="true">
+    <span class="sr-only" role="status">Loading members…</span>
     <div class="panel-head box-head" inert>
       <div class="states x-scroll">
         {#each ROSTER_STATUSES as s (s)}
@@ -137,7 +137,7 @@
       <table class="sheet roster">
         <thead>
           <tr>
-            <th>Client</th>
+            <th>Member</th>
             <th>Program</th>
             <th>Last trained</th>
             <th>Schedule</th>
@@ -169,17 +169,17 @@
 {:else if emptyRoster}
   <section class="panel">
     <EmptyState>
-      No clients yet — add your first one to start their profile.
+      No members yet — add your first one to start their profile.
       {#snippet actions()}
         <Button variant="primary" href="/clients/new">
           {#snippet icon()}<Icon name="plus" />{/snippet}
-          Add your first client
+          Add your first member
         </Button>
       {/snippet}
     </EmptyState>
   </section>
 {:else}
-  <ListToolbar bind:value={list.search} label="Search clients" placeholder="Search by name or email" count={resultCount} />
+  <ListToolbar bind:value={list.search} label="Search members" placeholder="Search by name or email" count={resultCount} />
 
   {#if loadError}
     <Note tone="bad">
@@ -188,7 +188,7 @@
     </Note>
   {/if}
 
-  <section class="panel roster-box" aria-label="Clients" aria-busy={loading}>
+  <section class="panel roster-box" aria-label="Members" aria-busy={loading}>
     <div class="panel-head box-head">
       <div class="states x-scroll" role="group" aria-label="Status">
         {#each ROSTER_STATUSES as s (s)}
@@ -209,9 +209,9 @@
     {#if data.items.length === 0}
       <EmptyState>
         {#if list.q.trim()}
-          No {list.params.status === "all" ? "" : `${list.params.status} `}client matches “{list.q.trim()}”.
+          No {list.params.status === "all" ? "" : `${list.params.status} `}member matches “{list.q.trim()}”.
         {:else}
-          {list.params.status === "all" ? "Nobody on the roster. Archived members are under the Archived tab." : `No ${list.params.status} clients.`}
+          {list.params.status === "all" ? "Nobody on the roster. Archived members are under the Archived tab." : `No ${list.params.status} members.`}
         {/if}
         {#snippet actions()}<Button onclick={() => list.clear(["sort"])}>Clear filters</Button>{/snippet}
       </EmptyState>
@@ -220,7 +220,7 @@
         <table class="sheet roster">
           <thead>
             <tr>
-              <th>Client</th>
+              <th>Member</th>
               <th>Program</th>
               <th>Last trained</th>
               <th>Schedule</th>
@@ -309,7 +309,7 @@
         page={data.page}
         limit={data.limit}
         total={data.total}
-        noun="Clients"
+        noun="Members"
         onpage={(p) => list.setPage(p)}
         onlimit={(l) => list.setLimit(l)}
       />

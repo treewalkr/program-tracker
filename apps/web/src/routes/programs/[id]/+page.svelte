@@ -647,7 +647,7 @@
       <ConfirmButton label="Delete" confirmLabel="Really delete? This can't be undone" variant="ghost" armedVariant="danger" small onconfirm={deleteProgram} />
     {/if}
   {/snippet}
-  <Crumbs items={[{ href: `/clients/${program.clientId}`, label: clientName ?? "Client" }, { label: "Program" }]} />
+  <Crumbs items={[{ href: `/clients/${program.clientId}`, label: clientName ?? "Member" }, { label: "Program" }]} />
   <div class="page-head">
     <div>
       <h1>{program.name} <StatusPill status={program.status} /></h1>
@@ -711,11 +711,11 @@
 
   {#if program.status === "draft"}
     <p class="hint">
-      Draft — never shown in the client portal. Drag sessions to place them on the week, click any exercise to tweak it, then activate
+      Draft — never shown in the member portal. Drag sessions to place them on the week, click any exercise to tweak it, then activate
       (the previous active program archives automatically).
     </p>
   {:else if program.status === "archived"}
-    <p class="hint">Archived block — kept for history. Start a new block from the client page.</p>
+    <p class="hint">Archived block — kept for history. Start a new block from the member page.</p>
   {/if}
 
   {#if program.weeks.length > 1}
@@ -805,7 +805,7 @@
               {
                 value: "later",
                 label: `W${currentWeek.week} and later`,
-                title: `Sessions and exercises you add, remove, rename or swap, and moves on the calendar, also go to the later ${currentWeek.rotation ? `${currentWeek.rotation} ` : ""}weeks the client hasn't finished. Sets and loads stay per week.`,
+                title: `Sessions and exercises you add, remove, rename or swap, and moves on the calendar, also go to the later ${currentWeek.rotation ? `${currentWeek.rotation} ` : ""}weeks the member hasn't finished. Sets and loads stay per week.`,
               },
               { value: "one", label: `W${currentWeek.week} only` },
             ]}
@@ -813,7 +813,7 @@
         {/if}
         <span class="grow"></span>
         {#if trainingDays.length > 0}
-          <button class="btn ghost small" onclick={autoPlace} title="Spread sessions over the client's exercise and run days (heavy lower days away from key runs, long run on its day), for every week">Auto-place</button>
+          <button class="btn ghost small" onclick={autoPlace} title="Spread sessions over the member's exercise and run days (heavy lower days away from key runs, long run on its day), for every week">Auto-place</button>
         {/if}
         {#if currentWeek.sessions.length < 14}
           <button class="btn ghost small" onclick={() => addNewSession("exercises")}>+ Exercise session</button>
@@ -863,7 +863,7 @@
                 {@const tag = sessionLogTag(logsOf(s.id))}
                 <div class="logged">
                   <span class="logged-tag" class:not-done={!tag.done}>{#if tag.done}<Icon name="check" size={12} />{/if} {tag.text}
-                    {#if logsOf(s.id).some((l) => l.loggedBy === "client")}<span class="pill neutral by-client" title="Logged by the client in the portal">by client</span>{/if}</span>
+                    {#if logsOf(s.id).some((l) => l.loggedBy === "client")}<span class="pill neutral by-client" title="Logged by the member in the portal">by member</span>{/if}</span>
                   {#each logsOf(s.id) as l (l.id)}
                     {#if s.kind === "cardio" && l.cardio}<span class="log-chip" class:skipped={!!l.cardio.skipped}>{cardioLine(l.cardio)}{#if l.cardio.skipped && tag.done} · not done{/if}</span>{/if}
                     {#if l.notes}<p class="subtle log-notes">{l.notes}</p>{/if}
@@ -1041,7 +1041,7 @@
             {:else if saveError}
               <span class="gate-error">{saveError}</span>
             {:else}
-              Unsaved changes · saving makes v{program.version + 1}{program.status === "active" ? " and updates the client portal" : ""}.
+              Unsaved changes · saving makes v{program.version + 1}{program.status === "active" ? " and updates the member portal" : ""}.
             {/if}
           </span>
           {#if stale}

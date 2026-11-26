@@ -14,17 +14,17 @@
   const missing = $derived((error as { status?: unknown } | null)?.status === 404);
 </script>
 
-<Crumbs items={[{ href: "/clients", label: "Clients" }, { label: missing ? "Not found" : "Couldn't load" }]} />
+<Crumbs items={[{ href: "/clients", label: "Members" }, { label: missing ? "Not found" : "Couldn't load" }]} />
 <div class="panel" role="alert">
   <EmptyState>
     {#if missing}
-      <strong>Client not found.</strong> It may have been deleted, or it belongs to another trainer.
+      <strong>Member not found.</strong> It may have been deleted, or it belongs to another trainer.
     {:else}
-      <strong>Couldn't load this client.</strong>
+      <strong>Couldn't load this member.</strong>
       {errorText(error)}
     {/if}
     {#snippet actions()}
-      <Button href="/clients" variant={missing ? "primary" : "default"}>Back to Clients</Button>
+      <Button href="/clients" variant={missing ? "primary" : "default"}>Back to Members</Button>
       {#if !missing}<Button variant="primary" onclick={() => location.reload()}>Try again</Button>{/if}
     {/snippet}
   </EmptyState>

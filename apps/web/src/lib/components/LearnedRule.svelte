@@ -28,7 +28,7 @@
 	let error = $state<string | null>(null);
 
 	const forClient = $derived(clientId ?? rule.clientId);
-	const who = $derived(clientName ?? rule.clientName ?? 'this client');
+	const who = $derived(clientName ?? rule.clientName ?? 'this member');
 
 	async function run(fn: () => Promise<CoachingRuleDto>) {
 		busy = true;
@@ -80,7 +80,7 @@
 			{#if forClient}
 				<Button small disabled={busy || text.trim().length < 3} onclick={() => keep('client')}>{who}</Button>
 			{/if}
-			<Button small disabled={busy || text.trim().length < 3} onclick={() => keep('always')}>All clients</Button>
+			<Button small disabled={busy || text.trim().length < 3} onclick={() => keep('always')}>All members</Button>
 			<span class="sep" aria-hidden="true">·</span>
 			<button type="button" class="linkish" disabled={busy} onclick={() => (editing = !editing)}>{editing ? 'Done' : 'Edit'}</button>
 			<button type="button" class="linkish" disabled={busy} onclick={() => run(() => api.dismissCoachingRule(rule.id))}>Dismiss</button>
@@ -90,7 +90,7 @@
 	{:else if rule.status === 'active'}
 		<div class="head">
 			<Icon name="check" />
-			<span>Kept for {rule.clientId ? (rule.clientName ?? who) : 'all clients'}: <q class="rule">{rule.text}</q></span>
+			<span>Kept for {rule.clientId ? (rule.clientName ?? who) : 'all members'}: <q class="rule">{rule.text}</q></span>
 			<a class="manage" href="/rules">Coaching rules →</a>
 		</div>
 	{:else}

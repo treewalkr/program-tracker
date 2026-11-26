@@ -138,7 +138,7 @@
   {#if idle.length}
     <p class="foot">
       <span>No sessions this week:</span>
-      <span class="idle" aria-label={plural(idle.length, "client")}>
+      <span class="idle" aria-label={plural(idle.length, "member")}>
         {#each idle as s (s.client.id)}
           <span class="carry"><a href={`/clients/${s.client.id}`}>{s.client.name}</a> <span class="pill neutral">{idleReason(s)}</span></span>
         {/each}

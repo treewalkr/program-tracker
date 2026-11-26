@@ -236,7 +236,7 @@ describe("weekTabDates", () => {
     expect(weekLine(d)).toBe("Week 1 started Tue 10 Nov · now W2");
     expect(endedNote(d, 1, "Ann Lee")).toBe("W1 ended 16 Nov — Ann is in W2.");
     expect(endedNote(d, 2, "Ann Lee")).toBeNull();
-    expect(endedNote(d, 1, null)).toBe("W1 ended 16 Nov — The client is in W2.");
+    expect(endedNote(d, 1, null)).toBe("W1 ended 16 Nov — The member is in W2.");
   });
 
   test("a block that hasn't started yet", () => {

@@ -453,7 +453,7 @@
   {#if item.reachable}
     <a href={item.context.route.path}>{item.context.route.path}</a>
   {:else}
-    <span title="Belongs to a client or program you don't have">{item.context.route.path}</span>
+    <span title="Belongs to a member or program you don't have">{item.context.route.path}</span>
   {/if}
 {/snippet}
 
@@ -529,7 +529,7 @@
         rows={3}
         maxlength={5000}
         bind:value={draft}
-        placeholder="e.g. Let me duplicate last week's program for a client"
+        placeholder="e.g. Let me duplicate last week's program for a member"
         onkeydown={(e) => {
           if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) fileTicket();
           if (e.key === "Escape") closeComposer();
@@ -719,7 +719,7 @@
                     <button
                       type="button"
                       class="show-me linkish"
-                      title="This page belongs to a client you don't have — showing the screenshot instead"
+                      title="This page belongs to a member you don't have — showing the screenshot instead"
                       onclick={() => showShots(item)}>Show me</button
                     >
                   {/if}

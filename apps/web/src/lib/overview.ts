@@ -477,12 +477,12 @@ export function carriedOver(strips: ClientStrip[], today: string): CarriedClient
   });
 }
 
-/** "34 not logged · 4 missed · 14 clients" — zero parts left out. */
+/** "34 not logged · 4 missed · 14 members" — zero parts left out. */
 export function carriedSummary(carried: CarriedClient[]): string {
   const days = carried.flatMap((c) => c.days);
   const unlogged = days.filter((d) => d.status === "unlogged").length;
   const missed = days.filter((d) => d.status === "missed").length;
-  return [unlogged ? `${unlogged} not logged` : "", missed ? `${missed} missed` : "", plural(carried.length, "client")]
+  return [unlogged ? `${unlogged} not logged` : "", missed ? `${missed} missed` : "", plural(carried.length, "member")]
     .filter(Boolean)
     .join(" · ");
 }

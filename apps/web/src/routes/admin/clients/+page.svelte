@@ -119,10 +119,10 @@
   }
 
   const summary = $derived.by(() => {
-    if (rows == null) return "Every trainer's clients, read-only";
+    if (rows == null) return "Every trainer's members, read-only";
     const n = rows.length;
     const t = trainers.length;
-    return `Every trainer's clients, read-only · ${n} ${n === 1 ? "client" : "clients"} across ${t} ${t === 1 ? "trainer" : "trainers"}`;
+    return `Every trainer's members, read-only · ${n} ${n === 1 ? "member" : "members"} across ${t} ${t === 1 ? "trainer" : "trainers"}`;
   });
 
   const CELL_LABEL: Record<BookCell, string> = {
@@ -148,26 +148,26 @@
   const drawn = $derived(new Set(paged.items.flatMap((b) => b.strip.map((s) => s.cell))));
 </script>
 
-<svelte:head><title>All clients · Program Tracker</title></svelte:head>
+<svelte:head><title>All members · Program Tracker</title></svelte:head>
 
 {#if demo && apiMode === "live"}
   <Note tone="warn" class="sample-note">
-    Sample data — none of these clients are real.
+    Sample data — none of these members are real.
     <Button small variant="ghost" href={page.url.pathname}>Back to real data</Button>
   </Note>
 {/if}
 
-<PageHead title="All clients" sub={summary} />
+<PageHead title="All members" sub={summary} />
 
 {#if loadError}
   <Note tone="bad">
-    Couldn't load clients — {loadError}.
+    Couldn't load members — {loadError}.
     <Button small onclick={() => load(useSample)}>Try again</Button>
   </Note>
 {:else if rows === null}
-  <SkeletonPanel rows={6} label="Loading clients…" />
+  <SkeletonPanel rows={6} label="Loading members…" />
 {:else if rows.length === 0}
-  <section class="panel"><EmptyState>No clients yet — trainers' clients show up here once they add them.</EmptyState></section>
+  <section class="panel"><EmptyState>No members yet — trainers' members show up here once they add them.</EmptyState></section>
 {:else}
   {#snippet toolbarFilters()}
     <div class="filt"><SelectPrefixed prefix="Trainer" maxWidth="none" options={trainerOpts} value={trainerId} onchange={(v) => view.set({ trainer: v })} /></div>
@@ -175,7 +175,7 @@
   {/snippet}
   <ListToolbar
     bind:value={view.search}
-    label="Search client or trainer"
+    label="Search member or trainer"
     count={view.filtering ? `${shown.length} of ${rows.length}` : undefined}
     filters={toolbarFilters}
   />
@@ -199,7 +199,7 @@
 
       <table class="sheet tree">
         <thead>
-          <tr><th>Client</th><th>Status</th><th>Programme</th><th>Client since</th><th>Last session</th></tr>
+          <tr><th>Member</th><th>Status</th><th>Program</th><th>Member since</th><th>Last session</th></tr>
         </thead>
         {#each paged.items as b (b.trainer.id)}
           {@const open = isOpen(b.trainer.id)}
@@ -213,7 +213,7 @@
                   <Avatar name={b.trainer.name} />
                   <span class="t-name" class:off>{b.trainer.name}</span>
                   {#if off}<Pill tone="bad">Disabled</Pill>{/if}
-                  <span class="t-count"><span class="mono">{b.clients.length}</span> {b.clients.length === 1 ? "client" : "clients"}</span>
+                  <span class="t-count"><span class="mono">{b.clients.length}</span> {b.clients.length === 1 ? "member" : "members"}</span>
                 </button>
               </th>
               <td class="g-status">{statusLine(b)}</td>
@@ -250,7 +250,7 @@
                       </span>
                     {:else}<span class="subtle">—</span>{/if}
                   </td>
-                  <td class="tnum"><span class="m-label">Client since</span>{shortDay(c.clientSince, today)}</td>
+                  <td class="tnum"><span class="m-label">Member since</span>{shortDay(c.clientSince, today)}</td>
                   <td class="tnum last {last.tone}">
                     <span class="m-label">Last session</span>
                     <span title={c.lastSessionAt ?? "No session logged"}>{last.text}</span>
@@ -260,7 +260,7 @@
               {#if clients.length < b.clients.length}
                 <tr class="more">
                   <td colspan="5">
-                    <span class="mono">{b.clients.length - clients.length}</span> more of {b.trainer.name}'s clients don't match.
+                    <span class="mono">{b.clients.length - clients.length}</span> more of {b.trainer.name}'s members don't match.
                   </td>
                 </tr>
               {/if}

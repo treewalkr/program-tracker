@@ -75,7 +75,7 @@
       await loadPrefs();
     } catch (e) {
       if (NO_SIGNALS.test((e as Error).message)) {
-        const name = clientId === null ? null : (clients.find((c) => c.id === clientId)?.name ?? "this client");
+        const name = clientId === null ? null : (clients.find((c) => c.id === clientId)?.name ?? "this member");
         prefNothing = name
           ? `Nothing to learn from for ${name} yet — notes, reject reasons and edits on their drafts feed this.`
           : "Nothing to learn from yet — notes, reject reasons and edits on your drafts feed this.";
@@ -394,7 +394,7 @@
 {:else}
   <PageHead
     title="Instruction templates"
-    sub="Standing rules you switch on per draft, under Rules on a client's Generate page. Keep them true for any client; one client's injuries or equipment belong in that client's Limitations."
+    sub="Standing rules you switch on per draft, under Rules on a member's Generate page. Keep them true for any member; one member's injuries or equipment belong in that member's Limitations."
   />
 {/if}
 
@@ -588,11 +588,11 @@
       </section>
 
       <section class="pref-group" aria-labelledby="pref-clients">
-        <h3 id="pref-clients">Per-client style</h3>
+        <h3 id="pref-clients">Per-member style</h3>
         {#each clientPrefs as cp (cp.id)}
           <div class="pref-row">
             <div class="item-head">
-              <strong>{cp.clientName ?? "Client"}</strong>
+              <strong>{cp.clientName ?? "Member"}</strong>
               <span class="subtle"
                 >Updated {fmtDate(cp.updatedAt)} · <span class="mono">{cp.providerId} · {cp.model}</span></span
               >
@@ -610,15 +610,15 @@
         <div class="picker">
           <div class="pick">
             <SelectCombobox
-              label="Client to distill for"
-              placeholder="Choose a client…"
+              label="Member to distill for"
+              placeholder="Choose a member…"
               options={clientOptions}
               bind:value={pickedClientId}
-              emptyText="No clients match"
+              emptyText="No members match"
             />
           </div>
           <Button small onclick={() => pickedClient && distill(pickedClient.id)} disabled={!pickedClient || distillingClient}>
-            {distillingClient ? "Distilling…" : "Distill for client"}
+            {distillingClient ? "Distilling…" : "Distill for member"}
           </Button>
         </div>
       </section>

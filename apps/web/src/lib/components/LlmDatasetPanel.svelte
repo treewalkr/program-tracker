@@ -21,7 +21,7 @@
 		week_revision: 'Week revision',
 		proposal_turn: 'Chat proposal',
 		chat_qa: 'Chat answer',
-		client_message: 'Client message',
+		client_message: 'Member message',
 		distill: 'Preference distill',
 		feedback_check: 'Feedback agent check',
 	};
@@ -45,7 +45,7 @@
 
 <Panel title="AI dataset" count={`${n.format(labeled)} labeled`}>
 	{#if stats.byPurpose.length === 0}
-		<p class="empty">No live AI calls logged yet. Drafts, chat answers and client messages land here as trainers use them.</p>
+		<p class="empty">No live AI calls logged yet. Drafts, chat answers and member messages land here as trainers use them.</p>
 	{:else}
 		<div class="panel-body tight wrap">
 			<table class="sheet">

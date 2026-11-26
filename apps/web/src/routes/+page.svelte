@@ -77,7 +77,7 @@
   const headLine = $derived(
     [
       weekRangeLabel(weekDates),
-      `${plural(trainingClients, "client")} training`,
+      `${plural(trainingClients, "member")} training`,
       `${tally.logged} of ${tally.planned} logged`,
     ]
       .filter(Boolean)
@@ -138,7 +138,7 @@
   {#snippet actions()}
     <Button href="/clients/new">
       {#snippet icon()}<Icon name="plus" />{/snippet}
-      Add client
+      Add member
     </Button>
   {/snippet}
 </PageHead>
@@ -155,18 +155,18 @@
   <div class="grid-2">
     <div class="col">
       <SkeletonPanel title="Needs review" rows={3} />
-      <SkeletonPanel title="Client logs" rows={2} />
+      <SkeletonPanel title="Member logs" rows={2} />
     </div>
-    <div class="col"><SkeletonPanel title="Clients" count rows={4} /></div>
+    <div class="col"><SkeletonPanel title="Members" count rows={4} /></div>
   </div>
 {:else if clients.length === 0}
   <section class="panel">
     <EmptyState>
-      No clients yet. Add one and their training week shows up here — sessions, logs and anything that needs review.
+      No members yet. Add one and their training week shows up here — sessions, logs and anything that needs review.
       {#snippet actions()}
         <Button variant="primary" href="/clients/new">
           {#snippet icon()}<Icon name="plus" />{/snippet}
-          Add your first client
+          Add your first member
         </Button>
       {/snippet}
     </EmptyState>
@@ -192,7 +192,7 @@
               onchange={(v) => (reviewFilter = v)}
               items={[
                 { value: "all", label: `All ${reviewCounts.all}` },
-                { value: "check", label: `Check in ${reviewCounts.check}`, title: "Clients to check in with: pain, readiness, adherence, fatigue" },
+                { value: "check", label: `Check in ${reviewCounts.check}`, title: "Members to check in with: pain, readiness, adherence, fatigue" },
                 { value: "plan", label: `Plan ahead ${reviewCounts.plan}`, title: "Weeks and blocks to draft ahead" },
               ]}
             />
@@ -214,7 +214,7 @@
                   {#snippet body()}
                     <ul class="week-links">
                       {#each row.signals as w (w.id)}
-                        <li><a href={generateWeekHref(w)}>{clientName(w.clientId) ?? "Client"} · wk {w.targetWeek}</a></li>
+                        <li><a href={generateWeekHref(w)}>{clientName(w.clientId) ?? "Member"} · wk {w.targetWeek}</a></li>
                       {/each}
                     </ul>
                   {/snippet}
@@ -249,7 +249,7 @@
                         <Button small href={signal.altHref}>{signal.altLabel}</Button>
                       {/if}
                       {#if signal.altHref !== clientHref || signal.targetWeek || signal.prefillNote}
-                        <Button variant="ghost" small href={clientHref}>Open client</Button>
+                        <Button variant="ghost" small href={clientHref}>Open member</Button>
                       {/if}
                       {@render hideButton()}
                     {/snippet}
@@ -261,9 +261,9 @@
         {/if}
       </Panel>
 
-      <Panel title="Client logs" count={clientLogs.length ? plural(clientLogs.length, "client") : undefined}>
+      <Panel title="Member logs" count={clientLogs.length ? plural(clientLogs.length, "member") : undefined}>
         {#if clientLogs.length === 0}
-          <p class="clear">No client logs this week.</p>
+          <p class="clear">No member logs this week.</p>
         {:else}
           <div class="signal-list">
             {#each clientLogs as signal (signal.id)}
@@ -291,15 +291,15 @@
     </div>
 
     <div class="col">
-      <Panel title="Clients" count={clients.length}>
+      <Panel title="Members" count={clients.length}>
         {#snippet act()}
-          <a class="act" href="/clients">All clients</a>
+          <a class="act" href="/clients">All members</a>
         {/snippet}
         <div class="panel-body tight">
           <table class="sheet">
             <thead>
               <tr>
-                <th>Client</th>
+                <th>Member</th>
                 <th>Status</th>
                 <th class="r sess-col">Sessions</th>
                 <th class="portal-col">Portal</th>
@@ -320,7 +320,7 @@
                     {:else if portals[c.id] === null}
                       <a class="portal-on" href={`/clients/${c.id}#settings`} aria-label={`Turn on the portal for ${c.name}`}>Turn on…</a>
                     {:else if rowsReady}
-                      <span class="subtle" title="Couldn't load this client's portal">—</span>
+                      <span class="subtle" title="Couldn't load this member's portal">—</span>
                     {/if}
                   </td>
                 </tr>

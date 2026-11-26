@@ -51,7 +51,7 @@
 
 <svelte:head><title>Kinetic chains · Program Tracker</title></svelte:head>
 
-<PageHead title="Kinetic chains" sub="Which muscle groups make up each chain — shared across every client" />
+<PageHead title="Kinetic chains" sub="Which muscle groups make up each chain — shared across every member" />
 
 {#if loadError}
   <Note tone="bad">

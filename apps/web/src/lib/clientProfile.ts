@@ -198,7 +198,7 @@ export function weekSummary(f: WeekFields, cardio: boolean = hasCardio(f)): stri
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function nameError(name: string): string | null {
-  return name.trim() === "" ? "Enter the client's name" : null;
+  return name.trim() === "" ? "Enter the member's name" : null;
 }
 
 export function emailError(email: string): string | null {
@@ -239,7 +239,7 @@ export function basicsInvalid(f: ProfileForm): boolean {
 export function invalidBasics(f: ProfileForm, today: string = localIso(new Date())): string[] {
   const checks: [string, string | null][] = [
     ["date of birth", birthDateError(f.birthDate, today)],
-    ["client since", startedOnError(f.startedOn, today)],
+    ["member since", startedOnError(f.startedOn, today)],
     ["bodyweight", bodyweightError(f.bodyweightKg)],
     ["height", heightError(f.heightCm)],
   ];

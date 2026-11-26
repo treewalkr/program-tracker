@@ -58,7 +58,7 @@ export interface WatchDeps {
   now?: () => number;
 }
 
-const firstName = (name: string) => name.trim().split(/\s+/)[0] || "Your client";
+const firstName = (name: string) => name.trim().split(/\s+/)[0] || "Your member";
 const possessive = (name: string) => `${name}${name.endsWith("s") ? "’" : "’s"}`;
 
 /** "Ada’s week 3 is ready", "Ada’s draft failed", "Ada’s new version is ready". */

@@ -107,7 +107,7 @@
         <h2 id="{uid}-title">{mode === "activate" ? "When does Week 1 start?" : "Change when Week 1 starts"}</h2>
         <p class="lede">
           {mode === "activate"
-            ? "Every week of the block counts from this day, for you and in the client portal."
+            ? "Every week of the block counts from this day, for you and in the member portal."
             : "Every week moves with it. Logged sessions keep their dates."}
         </p>
         <span class="label" aria-hidden="true">Week 1 starts on</span>

@@ -66,7 +66,7 @@ export const VIEW_TEXT: Record<Locale, ViewText> = {
     backTo: (handle) => (handle ? `Back to ${handle}` : "Back to Trainers"),
     dialogTitle: (first) => `Allow edits as ${first}?`,
     dialogBody: (first) =>
-      `What you change saves to ${first}'s account, and each change is logged. Emails and client messages still never send. Edits switch off after 10 minutes.`,
+      `What you change saves to ${first}'s account, and each change is logged. Emails and member messages still never send. Edits switch off after 10 minutes.`,
     typeToConfirm: (first) => `Type ${first} to confirm`,
     cancel: "Cancel",
     confirm: "Allow edits for 10 min",

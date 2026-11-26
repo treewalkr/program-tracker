@@ -275,7 +275,7 @@ export function endedNote(dates: readonly WeekTabDate[] | null, week: number, cl
   const d = dates?.find((x) => x.week === week);
   if (!d || d.state !== "past") return null;
   const now = dates!.find((x) => x.state === "now");
-  const who = clientName?.trim().split(/\s+/)[0] || "The client";
+  const who = clientName?.trim().split(/\s+/)[0] || "The member";
   return `W${week} ended ${dayMonth(d.end)} — ${now ? `${who} is in W${now.week}.` : "the block has ended."}`;
 }
 

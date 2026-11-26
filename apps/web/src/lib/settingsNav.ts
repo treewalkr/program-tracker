@@ -16,7 +16,7 @@ const YOU: SettingsGroup = {
       icon: "bell",
       sub: "Which feedback emails you get, and tickets you've muted",
     },
-    { href: "/settings/coaching", label: "Coaching", icon: "trending", sub: "What a deload week does for every client" },
+    { href: "/settings/coaching", label: "Coaching", icon: "trending", sub: "What a deload week does for every member" },
     { href: "/settings/units", label: "Units", icon: "swap", sub: "kg or lb, km or mi — what you see and type" },
   ],
 };
