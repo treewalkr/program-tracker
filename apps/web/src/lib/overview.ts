@@ -247,7 +247,11 @@ export function buildClientStrip(
         }
         for (const l of dayLogs) {
           const sl = l.programId === program?.id && l.programSessionId ? slotById.get(l.programSessionId) : undefined;
-          const covers = l.programId === program?.id && (sl ? plannedSlots.has(sl) : sessions.length > 0);
+          // An unlinked log is absorbed only by a planned session of its kind (any, when its kind is unknown).
+          const lKind = l.cardio || l.kind === "cardio" ? "cardio" : l.kind === "exercises" ? "exercises" : null;
+          const covers =
+            l.programId === program?.id &&
+            (sl ? plannedSlots.has(sl) : sessions.some((x) => x.planned && (lKind === null || x.kind === lKind)));
           const skipped = isSkippedCardio(l.cardio);
           // A skip of a session planned another day this week shows on that day, not as an extra here.
           if (skipped && sl && slotSkipped.has(sl)) continue;

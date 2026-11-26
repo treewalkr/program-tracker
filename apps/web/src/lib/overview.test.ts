@@ -79,6 +79,14 @@ test("an unlinked log only counts for a planned session of its own kind", () => 
   expect(current(both)[1].sessions.map((x) => x.status)).toEqual(["logged", "logged"]);
 });
 
+test("an unlinked log of the other kind still shows on a day it doesn't cover", () => {
+  const p = program([session("a", 2, 1)]);
+  const run = { ...log("2026-11-03", null), kind: "cardio", sets: [], cardio: { modality: "Run", durationMin: 30 } } as unknown as SessionLogDto;
+  const day = current(buildClientStrip(client, p, [run], weeks, "2026-11-05"))[1];
+  expect(day.sessions.map((x) => [x.kind, x.status, x.planned])).toEqual([["exercises", "unlogged", true], ["cardio", "logged", false]]);
+  expect(day.partial).toBe(true);
+});
+
 test("a past day not logged is missed after the grace period; a log without a session id matches by date", () => {
   const s = buildClientStrip(client, program([session("a", 1, 1), session("b", 2, 2)]), [log("2026-11-03", null)], weeks, "2026-11-05");
   expect(current(s)[0].status).toBe("missed");
