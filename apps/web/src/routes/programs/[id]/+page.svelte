@@ -512,7 +512,7 @@
           saveError = null;
           stale = false;
         } else if (latest) {
-          saveError = "This program was saved elsewhere since you opened it. Reload to see the latest.";
+          saveError = "This program changed since you opened it. Reload to see the latest.";
         }
       }
     } finally {
