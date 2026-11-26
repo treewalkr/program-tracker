@@ -1,6 +1,6 @@
 <script lang="ts">
   import { tick } from "svelte";
-  import type { ExerciseRole, RoleLabel } from "@pt/shared";
+  import { isAutoChip, type ExerciseRole, type RoleLabel } from "@pt/shared";
   import { canCreateLabel, groupRoleLabels, pickableLabels, roleDisplay, searchRoleLabels } from "$lib/roleLabels";
   import { roleLabels } from "$lib/roleLabelStore.svelte";
   import Icon from "$lib/ui/Icon.svelte";
@@ -73,7 +73,7 @@
   }
 
   async function startEdit(l: RoleLabel) {
-    form = { mode: "edit", target: l, name: l.name, chip: l.chip === l.name ? "" : l.chip, description: l.description, after: "" };
+    form = { mode: "edit", target: l, name: l.name, chip: isAutoChip(l) ? "" : l.chip, description: l.description, after: "" };
     formError = "";
     await tick();
     firstField?.focus();
@@ -312,7 +312,7 @@
               >
                 <span class="rp-check">{#if l.key === value}<Icon name="check" />{/if}</span>
                 <span class="rp-text">
-                  <span class="rp-opt-name">{l.name}{#if l.chip !== l.name}<span class="rp-chip">{l.chip}</span>{/if}</span>
+                  <span class="rp-opt-name">{l.name}{#if !isAutoChip(l)}<span class="rp-chip">{l.chip}</span>{/if}</span>
                   <span class="rp-opt-meta">{l.description}</span>
                 </span>
                 {#if editable}

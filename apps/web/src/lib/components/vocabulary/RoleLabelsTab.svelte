@@ -1,7 +1,7 @@
 <script lang="ts">
   import { MediaQuery } from "svelte/reactivity";
   import { onMount, tick } from "svelte";
-  import { ROLE_LABEL_CHIP_MAX, ROLE_LABEL_DESCRIPTION_MAX, ROLE_LABEL_NAME_MAX, builtinNameTwin, type RoleLabel } from "@pt/shared";
+  import { ROLE_LABEL_CHIP_MAX, ROLE_LABEL_DESCRIPTION_MAX, ROLE_LABEL_NAME_MAX, builtinNameTwin, isAutoChip, type RoleLabel } from "@pt/shared";
   import { roleLabels } from "$lib/roleLabelStore.svelte";
   import { labelBefore, labelsInOrder, rankToMove } from "$lib/vocabulary";
   import Button from "$lib/ui/Button.svelte";
@@ -91,7 +91,7 @@
   async function startEdit(l: RoleLabel) {
     if (editingKey !== l.key && !(await closeEdit())) return;
     editingKey = l.key;
-    edit = { name: l.name, chip: l.chip === l.name ? "" : l.chip, description: l.description, after: labelBefore(roleLabels.all, l.key) };
+    edit = { name: l.name, chip: isAutoChip(l) ? "" : l.chip, description: l.description, after: labelBefore(roleLabels.all, l.key) };
     editBase = { ...edit };
     await tick();
     firstField?.focus();
@@ -114,7 +114,7 @@
   const archive = (l: RoleLabel) => run(async () => void (await roleLabels.archive(l.id!)));
   /** Re-creating an archived label's name brings it back (last in the order). */
   const restore = (l: RoleLabel) =>
-    run(async () => void (await roleLabels.create({ name: l.name, chip: l.chip === l.name ? undefined : l.chip, description: l.description })));
+    run(async () => void (await roleLabels.create({ name: l.name, chip: isAutoChip(l) ? undefined : l.chip, description: l.description })));
 
   onMount(() => void roleLabels.load());
 </script>

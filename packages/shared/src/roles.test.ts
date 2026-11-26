@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import * as roles from "./roles";
 import { EXERCISE_ROLE_INFO, sortExercisesByRole } from "./domain";
 import { DraftExerciseRef } from "./ai";
 import type { ExerciseRole } from "./domain";
@@ -7,6 +8,7 @@ import {
   overrideRowName,
   BUILTIN_ROLE_LABELS,
   ROLE_LABEL_CHIP_MAX,
+  autoChip,
   fixDraftRoles,
   isKnownRole,
   mergeRoleLabels,
@@ -77,6 +79,22 @@ describe("mergeRoleLabels", () => {
     const [one] = mergeRoleLabels([row({ id: id2, name: "Plyometrics-and-ballistics", chip: null })]).filter((l) => l.key === `label:${id2}`);
     expect(one.chip).toBe("Plyometrics…");
     expect(one.chip.length).toBeLessThanOrEqual(ROLE_LABEL_CHIP_MAX);
+  });
+
+  test("an untyped chip reads as untyped, so edit forms leave it blank", () => {
+    const long = "Plyometrics and ballistics";
+    const [own] = mergeRoleLabels([row({ id: id1, name: long, chip: null })]).filter((l) => l.key === `label:${id1}`);
+    expect(own.chip).toBe("Plyometrics");
+    expect(roles.isAutoChip(own)).toBe(true);
+    expect(roles.isAutoChip({ name: "Speed", chip: "Speed" })).toBe(true);
+    const [typed] = mergeRoleLabels([row({ id: id2, name: long, chip: "Plyo" })]).filter((l) => l.key === `label:${id2}`);
+    expect(roles.isAutoChip(typed)).toBe(false);
+  });
+
+  test("a long chip is cut by characters, never mid-emoji", () => {
+    const chip = autoChip("💪".repeat(13));
+    expect(Array.from(chip)).toHaveLength(ROLE_LABEL_CHIP_MAX);
+    expect(chip.endsWith("💪…")).toBe(true);
   });
 
   test("an override row changes a built-in's chip, meaning and rank — never its key or name", () => {

@@ -28,8 +28,14 @@ export function autoChip(name: string): string {
   const full = name.trim();
   if (full.length <= ROLE_LABEL_CHIP_MAX) return full;
   const first = full.split(/\s+/)[0] ?? full;
-  return first.length <= ROLE_LABEL_CHIP_MAX ? first : `${first.slice(0, ROLE_LABEL_CHIP_MAX - 1)}…`;
+  // cut by characters, not UTF-16 units: an emoji or a Thai mark never splits
+  const chars = Array.from(first);
+  return chars.length <= ROLE_LABEL_CHIP_MAX ? first : `${chars.slice(0, ROLE_LABEL_CHIP_MAX - 1).join("")}…`;
 }
+
+/** The chip is the one worked out from the name, not one the trainer typed: edit
+ *  forms show it blank and saving keeps it untyped, so a rename still moves it. */
+export const isAutoChip = (l: { name: string; chip: string }): boolean => l.chip === l.name || l.chip === autoChip(l.name);
 
 /** One entry of a trainer's label list: a built-in (overrides applied) or their own. */
 export interface RoleLabel {
