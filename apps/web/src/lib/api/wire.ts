@@ -11,11 +11,16 @@ export function trainerWire(value: unknown): unknown {
   return normalizeKinds(datesToIso(value));
 }
 
-function datesToIso(value: unknown): unknown {
-  if (value instanceof Date) return value.toISOString();
-  if (Array.isArray(value)) return value.map(datesToIso);
+/** Fields the API sends as a calendar day ("2026-11-23", a Postgres `date`). Eden revives
+ *  them into a Date at UTC midnight like any timestamp; they go back as the day, so a
+ *  date input and day comparisons see what mock mode gives them. */
+const CALENDAR_DAYS = new Set(["startsOn", "birthDate", "startedOn", "effectiveFrom", "maxHrTestedOn", "testedOn"]);
+
+function datesToIso(value: unknown, key?: string): unknown {
+  if (value instanceof Date) return key && CALENDAR_DAYS.has(key) ? value.toISOString().slice(0, 10) : value.toISOString();
+  if (Array.isArray(value)) return value.map((v) => datesToIso(v));
   if (value && typeof value === "object") {
-    return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([k, v]) => [k, datesToIso(v)]));
+    return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([k, v]) => [k, datesToIso(v, k)]));
   }
   return value;
 }

@@ -21,6 +21,23 @@ describe("trainerWire", () => {
     });
   });
 
+  test("calendar days stay YYYY-MM-DD; timestamps stay full ISO", () => {
+    // Eden revives "2026-11-23" into a Date at UTC midnight; a date input needs the day back.
+    const day = new Date("2026-11-23T00:00:00.000Z");
+    const res = trainerWire({
+      currentProgram: { startsOn: day, createdAt: at },
+      programs: [{ startsOn: day }, { startsOn: null }],
+      client: { birthDate: day, startedOn: day },
+      hr: { effectiveFrom: day, maxHrTestedOn: day },
+      assessment: { testedOn: day },
+    }) as any;
+    expect(res.currentProgram).toEqual({ startsOn: "2026-11-23", createdAt: "2026-11-18T09:30:00.000Z" });
+    expect(res.programs).toEqual([{ startsOn: "2026-11-23" }, { startsOn: null }]);
+    expect(res.client).toEqual({ birthDate: "2026-11-23", startedOn: "2026-11-23" });
+    expect(res.hr).toEqual({ effectiveFrom: "2026-11-23", maxHrTestedOn: "2026-11-23" });
+    expect(res.assessment.testedOn).toBe("2026-11-23");
+  });
+
   test("client page: current program and programs list", () => {
     const res = trainerWire({
       client: { id: "c" },
