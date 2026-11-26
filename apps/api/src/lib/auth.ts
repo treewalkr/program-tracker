@@ -32,6 +32,14 @@ export interface AuthConfig {
 /** Auth is on unless AUTH_DISABLED=true (tests, local hacking). */
 export const authDisabled = () => process.env.AUTH_DISABLED === "true";
 
+/**
+ * An in-app path to go back to after sign-in, else "/". Only a plain "/path": never
+ * "//host" or "/\host" (browsers read a backslash as "/", so both leave the site), and no
+ * control characters (a browser drops a tab, so "/\t/host" would become "//host").
+ */
+export const safeReturnTo = (v: string | null | undefined): string =>
+  v && v.startsWith("/") && !/[\\\u0000-\u001f\u007f]/.test(v) && !v.startsWith("//") ? v : "/";
+
 /** null when Google sign-in is not configured. */
 export function authConfig(): AuthConfig | null {
   const clientId = process.env.GOOGLE_CLIENT_ID;

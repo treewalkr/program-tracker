@@ -11,7 +11,7 @@ import {
   type ImpersonationEndReason,
 } from "@pt/db";
 import { FEEDBACK_VIEWED_NOTE, feedbackHandle } from "@pt/shared";
-import { isAdminEmail, type ResolvedSession } from "./auth";
+import { isAdminEmail, safeReturnTo, type ResolvedSession } from "./auth";
 import { firstName } from "./trainer-context";
 
 /**
@@ -91,7 +91,7 @@ export async function startView(
 }
 
 /** A ticket's stored route as an in-app path; anything odd goes home. */
-const appRoute = (route: string) => (route.startsWith("/") && !route.startsWith("//") ? route : "/");
+const appRoute = (route: string) => safeReturnTo(route);
 
 /** Stop the session's view; where to go next (the ticket, else the admin console). */
 export async function stopView(session: ResolvedSession): Promise<{ returnTo: string }> {

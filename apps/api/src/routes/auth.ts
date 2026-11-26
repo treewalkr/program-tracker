@@ -11,6 +11,7 @@ import {
   googleAuthUrl,
   randomToken,
   resolveSession,
+  safeReturnTo,
   secureCookies,
   sha256,
 } from "../lib/auth";
@@ -22,7 +23,6 @@ import { CLIENT_COOKIE, claimClient, clientCookieSecure, createClientSession } f
 const OAUTH_TTL_S = 10 * 60;
 
 /** Only same-app paths — never `//evil.com` or absolute URLs. */
-const safeReturnTo = (v: string | undefined) => (v && v.startsWith("/") && !v.startsWith("//") ? v : "/");
 
 /** A client only comes back to a portal page: `/me…`, optionally under a `/en` or `/th` language prefix. */
 const clientReturnTo = (v: string | undefined) => {
