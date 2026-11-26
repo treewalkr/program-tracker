@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+### Improved
+- **"Member" everywhere.** The app, the guides, the AI's notes and its warnings now say member instead of client. Searching the guides for "client" still finds the member answers.
+  - th: ใช้คำว่า "เมมเบอร์" ทุกที่แล้ว ทั้งในแอป คู่มือ โน้ตและคำเตือนของ AI ถ้าค้นคู่มือด้วยคำว่า "client" ก็ยังเจอคำตอบเรื่องเมมเบอร์เหมือนเดิม
+- Date fields say far dates in months or years ("10 months ago", "36 years ago") instead of a long count of days.
+  - th: ช่องวันที่บอกวันที่ไกล ๆ เป็นเดือนหรือปีแล้ว เช่น "10 months ago" หรือ "36 years ago" ไม่ต้องนับเป็นวันยาว ๆ
+- Easier tapping on a phone: small buttons and links get a full 44px tap area, the update notice sits below the top bar and any draft notices, the Feedback button stays clear of the exercise drawer, and the feedback page's buttons wrap instead of being cut off.
+  - th: กดบนมือถือง่ายขึ้น ปุ่มและลิงก์เล็ก ๆ มีพื้นที่กด 44px เต็ม ๆ ข้อความแจ้งอัปเดตอยู่ใต้แถบด้านบนและใต้ข้อความแจ้งดราฟต์ ปุ่ม Feedback ไม่บังลิ้นชักท่าออกกำลังกาย ส่วนปุ่มในหน้าฟีดแบ็กก็ขึ้นบรรทัดใหม่แทนที่จะโดนตัด
+- The Cardio switch on a new member says what keeps it on.
+  - th: สวิตช์ Cardio ตอนเพิ่มเมมเบอร์ใหม่บอกแล้วว่าทำไมถึงเปิดค้างอยู่
+
+### Fixed
+- Dates now show correctly in date fields (for example Change start and a member's birth date) instead of coming up blank.
+  - th: ช่องวันที่แสดงวันที่ถูกต้องแล้ว เช่น Change start และวันเกิดของเมมเบอร์ ไม่ขึ้นว่างเปล่าอีก
+- Working in pounds: the log sheet's weight hint names the unit, the e1RM's source set and the "Log as prescribed?" dialog show loads in pounds as typed.
+  - th: สำหรับคนที่ใช้ปอนด์ คำใบ้น้ำหนักในหน้าบันทึกบอกหน่วยแล้ว ส่วนเซ็ตที่ใช้คำนวณ e1RM และหน้าต่าง "Log as prescribed?" ก็แสดงน้ำหนักเป็นปอนด์ตรงตามที่พิมพ์
+- An archived program no longer marks a week as "now": the week that was under way says so, and later weeks stay upcoming.
+  - th: โปรแกรมที่ archive แล้วไม่ขึ้นว่าสัปดาห์ไหนเป็น "now" อีก สัปดาห์ที่กำลังทำอยู่ตอน archive จะบอกไว้ ส่วนสัปดาห์หลังจากนั้นยังเป็น upcoming
+- When you approve a draft with cardio, easy runs no longer get stuck before the key runs are placed, and a moved key run keeps off an easy run's day.
+  - th: ตอนอนุมัติดราฟต์ที่มีคาร์ดิโอ รันเบา ๆ จะไม่ล็อกวันไว้ก่อนรันหลัก และรันหลักที่ย้ายวันก็ไม่ไปทับวันของรันเบา
+- After Log it, the trainer log sheet's header shows the log you just saved.
+  - th: พอกด Log it แล้ว หัวของหน้าบันทึกฝั่งเทรนเนอร์จะแสดงบันทึกที่เพิ่งเซฟ
+- The Members count in the sidebar updates when a member is added or archived.
+  - th: จำนวน Members ที่แถบด้านข้างอัปเดตทันทีเมื่อเพิ่มหรือ archive เมมเบอร์
+- A long role label's short chip stays short and on one line, and stays automatic when you rename the label.
+  - th: ชิปสั้นของป้ายท่าที่ชื่อยาวจะสั้นและอยู่บรรทัดเดียว และยังตั้งให้อัตโนมัติเหมือนเดิมเมื่อเปลี่ยนชื่อป้าย
+
 ## v0.1.53 — 2026-11-26
 
 ### New
