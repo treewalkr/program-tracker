@@ -40,6 +40,27 @@ export const authDisabled = () => process.env.AUTH_DISABLED === "true";
 export const safeReturnTo = (v: string | null | undefined): string =>
   v && v.startsWith("/") && !/[\\\u0000-\u001f\u007f]/.test(v) && !v.startsWith("//") ? v : "/";
 
+/**
+ * Why AUTH_DISABLED=true must not be honoured here, or null when it's off or this is
+ * plainly a local setup. With auth off every request acts as the first trainer, an
+ * admin, so a stray env var on a deployed API would open every member's data: the
+ * API refuses to start instead (index.ts). Local means a database on localhost or a
+ * dotless Docker service name ("postgres"); a hosted database has a dotted host.
+ */
+export function authBypassProblem(env: Record<string, string | undefined>): string | null {
+  if (env.AUTH_DISABLED !== "true") return null;
+  if (env.NODE_ENV === "production") return "NODE_ENV is production";
+  if (env.GOOGLE_CLIENT_ID?.trim()) return "Google sign-in is configured";
+  let host = "";
+  try {
+    host = new URL(env.DATABASE_URL ?? "").hostname;
+  } catch {
+    return "DATABASE_URL is missing or unreadable";
+  }
+  const local = host === "localhost" || host === "::1" || host === "[::1]" || /^127\./.test(host) || (host !== "" && !host.includes("."));
+  return local ? null : `DATABASE_URL points at ${host}, not a local database`;
+}
+
 /** null when Google sign-in is not configured. */
 export function authConfig(): AuthConfig | null {
   const clientId = process.env.GOOGLE_CLIENT_ID;
