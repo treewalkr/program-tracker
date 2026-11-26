@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+### Fixed
+- Overview no longer marks a planned session done because of a different kind of log that day. A run the member logged without picking a session now counts only for a cardio session, and shows on its own when that day has only strength planned.
+  - th: Overview ไม่ขึ้นว่าเซสชันที่วางแผนไว้เสร็จแล้ว เพียงเพราะวันนั้นมีบันทึกคนละประเภท ถ้าเมมเบอร์บันทึกการวิ่งโดยไม่ได้เลือกเซสชัน ก็จะนับให้แค่เซสชันคาร์ดิโอ และถ้าวันนั้นวางแผนไว้แค่เวท การวิ่งนั้นจะขึ้นแยกต่างหาก
+- Two of your own labels that start with the same word now get different chips ("Speed L", "Speed S") instead of the same one. A chip you typed yourself never changes.
+  - th: ป้ายของเราเองสองอันที่ขึ้นต้นด้วยคำเดียวกันจะได้ชิปไม่ซ้ำกันแล้ว เช่น "Speed L" กับ "Speed S" ส่วนชิปที่พิมพ์เองจะไม่เปลี่ยน
+- "Already in the library" no longer shows for an exercise that shares just one word with another, such as "BB standing biceps" and "Biceps rope curl".
+  - th: ข้อความ "Already in the library" ไม่ขึ้นแล้ว ถ้าท่าออกกำลังกายมีคำตรงกับอีกท่าแค่คำเดียว เช่น "BB standing biceps" กับ "Biceps rope curl"
+- The guide's "On this page" list highlights the section a search took you to, not the one above it.
+  - th: รายการ "On this page" ในคู่มือไฮไลต์หัวข้อที่ค้นหาแล้วกระโดดไป ไม่ใช่หัวข้อที่อยู่ก่อนหน้า
+- Pages no longer jump while loading on a phone or tablet: the placeholder tabs are the same height as the real ones.
+  - th: หน้าเว็บบนมือถือหรือแท็บเล็ตไม่กระตุกตอนโหลดแล้ว เพราะแท็บที่ขึ้นระหว่างรอสูงเท่าแท็บจริง
+- Messages say "Member not found." and "This program changed since you opened it", and the Thai guides say เมมเบอร์ throughout.
+  - th: ข้อความในแอปเปลี่ยนเป็น "Member not found." และ "This program changed since you opened it" ส่วนคู่มือภาษาไทยก็ใช้คำว่าเมมเบอร์ทั้งหมดแล้ว
+
 ## v0.1.54 — 2026-11-27
 
 ### Improved
