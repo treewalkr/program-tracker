@@ -190,11 +190,14 @@ export function buildClientStrip(
         if (!slotSkipped.has(sl)) slotSkipped.set(sl, l.cardio!.skipped!.reason);
       } else if (!slotLoggedOn.has(sl)) slotLoggedOn.set(sl, l.date.slice(0, 10));
     }
-    const unresolvedDates = new Set(
-      inWeek
-        .filter((l) => (!l.programSessionId || !slotById.has(l.programSessionId)) && !isSkippedCardio(l.cardio))
-        .map((l) => l.date.slice(0, 10))
-    );
+    /** date → kinds of the logs that name no planned session; "unknown" satisfies any kind */
+    const unresolvedKinds = new Map<string, Set<string>>();
+    for (const l of inWeek) {
+      if ((l.programSessionId && slotById.has(l.programSessionId)) || isSkippedCardio(l.cardio)) continue;
+      const d = l.date.slice(0, 10);
+      const k = l.cardio || l.kind === "cardio" ? "cardio" : l.kind === "exercises" ? "exercises" : "unknown";
+      unresolvedKinds.set(d, (unresolvedKinds.get(d) ?? new Set()).add(k));
+    }
 
     let byDay = new Map<number, NonNullable<ProgramDto["weeks"]>[number]["sessions"]>();
     if (hasPlan && program) {
@@ -215,7 +218,9 @@ export function buildClientStrip(
         const plannedSlots = new Set<string>();
         for (const s of byDay.get(weekday) ?? []) {
           const on = slotLoggedOn.get(slot(s));
-          const logged = on !== undefined || unresolvedDates.has(date);
+          const kinds = unresolvedKinds.get(date);
+          const sKind = s.kind === "cardio" ? "cardio" : "exercises";
+          const logged = on !== undefined || !!kinds?.has(sKind) || !!kinds?.has("unknown");
           const skipReason = logged ? undefined : slotSkipped.get(slot(s));
           if (!logged && !skipReason && !due) continue;
           plannedSlots.add(slot(s));

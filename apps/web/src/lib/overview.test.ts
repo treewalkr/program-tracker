@@ -67,6 +67,18 @@ test("a session logged on another day of the week still counts as done", () => {
   expect(current(s)[0].sessions[0]).toMatchObject({ name: "Session 1", status: "logged", loggedOn: "2026-11-03" });
 });
 
+test("an unlinked log only counts for a planned session of its own kind", () => {
+  const p = program([session("a", 2, 1), session("c", 2, 2, "cardio")]);
+  const run = { ...log("2026-11-03", null), kind: "cardio", sets: [], cardio: { modality: "Run", durationMin: 30 } } as unknown as SessionLogDto;
+  const cardioOnly = buildClientStrip(client, p, [run], weeks, "2026-11-05");
+  expect(current(cardioOnly)[1].sessions.map((x) => [x.kind, x.status])).toEqual([["exercises", "unlogged"], ["cardio", "logged"]]);
+  const liftOnly = buildClientStrip(client, p, [log("2026-11-03", null)], weeks, "2026-11-05");
+  expect(current(liftOnly)[1].sessions.map((x) => [x.kind, x.status])).toEqual([["exercises", "logged"], ["cardio", "unlogged"]]);
+  const unknown = { ...log("2026-11-03", null), kind: undefined } as unknown as SessionLogDto;
+  const both = buildClientStrip(client, p, [unknown], weeks, "2026-11-05");
+  expect(current(both)[1].sessions.map((x) => x.status)).toEqual(["logged", "logged"]);
+});
+
 test("a past day not logged is missed after the grace period; a log without a session id matches by date", () => {
   const s = buildClientStrip(client, program([session("a", 1, 1), session("b", 2, 2)]), [log("2026-11-03", null)], weeks, "2026-11-05");
   expect(current(s)[0].status).toBe("missed");
