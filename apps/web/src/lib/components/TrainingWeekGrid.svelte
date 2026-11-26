@@ -86,6 +86,9 @@
 
     {#if cardio}
       <div class="twk-cardio-body">
+        {#if !hasCardio(form)}
+          <p class="subtle twk-hint twk-need" role="status">Pick a cardio day, a long session day or a weekly target to keep cardio on. With none of them, it is off when you save.</p>
+        {/if}
         <DayChips bind:days={form.cardioDays} label="Cardio days" idPrefix="{idPrefix}-cardio" empty="No fixed days — on exercise days" />
         <div class="twk-cardio-row">
           <div>
@@ -155,6 +158,7 @@
   .twk-target { display: flex; gap: 8px 12px; align-items: flex-end; flex-wrap: wrap; }
   .twk-target-val { width: 160px; }
   .twk-hint { margin: 4px 0 0; font-size: 12px; }
+  .twk-need { margin: 0; color: var(--warn-ink, var(--muted)); }
 
   .summary { margin: 0; font-size: 13px; color: var(--muted); }
 
