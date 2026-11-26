@@ -306,10 +306,10 @@
 
 <div class="week-wrap">
   <div class="wk-in">
-    <div class="wk" role="table" aria-label="Training week by client, this week and the five before">
+    <div class="wk" role="table" aria-label="Training week by member, this week and the five before">
       <div class="wk-head" role="rowgroup">
         <div class="wk-tr" role="row">
-          <div class="wk-client corner" role="columnheader">Client</div>
+          <div class="wk-client corner" role="columnheader">Member</div>
           <div class="hist" role="columnheader">
             <span class="sr">Earlier weeks</span>
             <span class="hw-labels" aria-hidden="true">
@@ -332,7 +332,7 @@
             <div class="idle-line" role="cell" aria-colspan={9}>
               {#if !showOnTrack}
                 <span class="idle-count">On track:</span>
-                <ul class="idle-names" aria-label={plural(onTrack.length, "client") + " on track"}>
+                <ul class="idle-names" aria-label={plural(onTrack.length, "member") + " on track"}>
                   {#each onTrack.slice(0, FOLD_NAMES) as s, i (s.client.id)}
                     <li class:wide={i >= FOLD_NAMES_NARROW}><a href={`/clients/${s.client.id}`}>{s.client.name}</a></li>
                   {/each}
@@ -358,7 +358,7 @@
           <div class="wk-tr idle" role="row">
             <div class="idle-line" role="cell" aria-colspan={9}>
               <span class="idle-count">No sessions this week:</span>
-              <ul class="idle-names" aria-label={plural(idle.length, "client")}>
+              <ul class="idle-names" aria-label={plural(idle.length, "member")}>
                 {#each idle as s (s.client.id)}
                   <li><a href={`/clients/${s.client.id}`}>{s.client.name}</a> <span class="pill neutral">{idleReason(s)}</span></li>
                 {/each}

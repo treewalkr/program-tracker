@@ -14,7 +14,7 @@
       days: ["Tue", "Wed", "Thu", "Fri", "Sat", "Sun", "Mon"],
       next: "Tue",
       planned: "planned",
-      late: "If the client logs late",
+      late: "If the member logs late",
       none: "If it isn't logged",
       cant: "can't log",
       grace: "2-day grace",

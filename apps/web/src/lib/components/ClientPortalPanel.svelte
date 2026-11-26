@@ -57,7 +57,7 @@
   const email = $derived(portal?.email ?? client.email ?? null);
 </script>
 
-<ProfileSection title="Client portal" purpose="their own link to see this week and log sessions">
+<ProfileSection title="Member portal" purpose="their own link to see this week and log sessions">
   {#if portal === null && !error}
     <p class="muted">Loading…</p>
   {:else if portal && !portal.enabled && client.status === "archived"}
@@ -68,7 +68,7 @@
     <div class="row">
       <p class="lead">
         {firstName} can't see their program yet. Turn the portal on to get a personal link they open on their phone —
-        their logs land here, marked <span class="pill neutral by">by client</span>.
+        their logs land here, marked <span class="pill neutral by">by member</span>.
       </p>
       <Button small variant="primary" type="button" disabled={busy} onclick={() => run(() => api.enableClientPortal(client.id))}>
         {busy ? "Turning on…" : "Turn on"}
@@ -136,7 +136,7 @@
     </div>
   {/if}
   {#if error}<Note tone="bad" role="alert">{error}</Note>{/if}
-  <a class="how" href="/guide/client-portal">How the client portal works</a>
+  <a class="how" href="/guide/client-portal">How the member portal works</a>
 </ProfileSection>
 
 <style>

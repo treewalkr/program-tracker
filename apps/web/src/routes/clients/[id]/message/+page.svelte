@@ -210,17 +210,17 @@
     <div class="weekbar-actions"><Skeleton h="26px" w="151px" /></div>
   </div>
 {:else if !client}
-  <EmptyState>Client not found.</EmptyState>
+  <EmptyState>Member not found.</EmptyState>
 {:else if !current}
   <PageHead
     title={`Message ${firstName}`}
     crumbs={[{ href: `/clients/${id}`, label: client.name }, { label: "Message" }]}
-    sub="Turn a logged training week into a short message the client can read on LINE."
+    sub="Turn a logged training week into a short message the member can read on LINE."
   />
   <EmptyState>
     <p>No active program — messages summarize a program week.</p>
     {#snippet actions()}
-      <Button href={`/clients/${id}`}>Back to client</Button>
+      <Button href={`/clients/${id}`}>Back to member</Button>
     {/snippet}
   </EmptyState>
 {:else if loggedWeeks.length === 0}
@@ -232,7 +232,7 @@
   <EmptyState>
     <p>No logged sessions yet — log a week first.</p>
     {#snippet actions()}
-      <Button href={`/clients/${id}`}>Back to client</Button>
+      <Button href={`/clients/${id}`}>Back to member</Button>
     {/snippet}
   </EmptyState>
 {:else}

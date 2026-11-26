@@ -28,7 +28,7 @@
 
   let newText = $state("");
   let newClientId = $state("");
-  const scopeOptions = $derived([{ value: "", label: "All clients" }, ...clients.map((c) => ({ value: c.id, label: c.name }))]);
+  const scopeOptions = $derived([{ value: "", label: "All members" }, ...clients.map((c) => ({ value: c.id, label: c.name }))]);
   const CATEGORY_OPTIONS = COACHING_RULE_CATEGORIES.map((c) => ({ value: c, label: COACHING_RULE_CATEGORY_LABELS[c] }));
   let newCategory = $state<CoachingRuleCategory>("style");
   let creating = $state(false);
@@ -41,7 +41,7 @@
   const proposed = $derived(rules.filter((r) => r.status === "proposed"));
   const active = $derived(rules.filter((r) => r.status === "active"));
   const retired = $derived(rules.filter((r) => r.status === "retired"));
-  const clientName = (id: string | null) => (id ? (clients.find((c) => c.id === id)?.name ?? "Client") : null);
+  const clientName = (id: string | null) => (id ? (clients.find((c) => c.id === id)?.name ?? "Member") : null);
 
   /** Active rules grouped: all clients first, then one group per client (by name). */
   const groups = $derived.by(() => {
@@ -49,9 +49,9 @@
     const byClient = new Map<string, CoachingRuleDto[]>();
     for (const r of active) if (r.clientId) byClient.set(r.clientId, [...(byClient.get(r.clientId) ?? []), r]);
     return [
-      ...(general.length ? [{ key: "all", label: "All clients", rules: general }] : []),
+      ...(general.length ? [{ key: "all", label: "All members", rules: general }] : []),
       ...[...byClient.entries()]
-        .map(([id, list]) => ({ key: id, label: list[0].clientName ?? clientName(id) ?? "Client", rules: list }))
+        .map(([id, list]) => ({ key: id, label: list[0].clientName ?? clientName(id) ?? "Member", rules: list }))
         .sort((a, b) => a.label.localeCompare(b.label)),
     ];
   });
@@ -82,7 +82,7 @@
       const made = await api.createCoachingRule({ text: newText.trim(), category: newCategory, clientId: newClientId || null });
       newText = "";
       await load();
-      added = `Added to ${made.clientId ? (made.clientName ?? clientName(made.clientId) ?? "the client's rules") : "All clients"}.`;
+      added = `Added to ${made.clientId ? (made.clientName ?? clientName(made.clientId) ?? "the member's rules") : "All members"}.`;
       void revealRow(made.id);
     } catch (e) {
       createError = (e as Error).message;
@@ -147,13 +147,13 @@
         label="Rule"
         rows={3}
         maxlength={400}
-        placeholder="Never program barbell back squats for this client. Use belt squats."
+        placeholder="Never program barbell back squats for this member. Use belt squats."
         bind:value={newText}
       />
       <div class="two">
         <div class="f">
           <span class="lbl" aria-hidden="true">Applies to</span>
-          <SelectCombobox label="Applies to" placeholder="Choose a client…" options={scopeOptions} bind:value={newClientId} emptyText="No clients match" />
+          <SelectCombobox label="Applies to" placeholder="Choose a member…" options={scopeOptions} bind:value={newClientId} emptyText="No members match" />
         </div>
         <SelectField label="Kind" maxWidth="none" options={CATEGORY_OPTIONS} bind:value={newCategory} />
       </div>
@@ -184,7 +184,7 @@
         <SkeletonRows rows={3} />
       {:else if active.length === 0}
         <EmptyState>
-          No rules yet. Add a note on a draft or a reply and choose “This client” or “All clients”. The AI suggests a rule,
+          No rules yet. Add a note on a draft or a reply and choose “This member” or “All members”. The AI suggests a rule,
           and you keep it.
         </EmptyState>
       {:else}
@@ -228,7 +228,7 @@
                           options={scopeOptions}
                           value={r.clientId ?? ""}
                           disabled={busyId === r.id}
-                          emptyText="No clients match"
+                          emptyText="No members match"
                           onchange={(v) => void act(r.id, () => api.updateCoachingRule(r.id, { clientId: v || null }))}
                         />
                       </div>
@@ -252,7 +252,7 @@
             <div class="item">
               <p class="text dim">{r.text}</p>
               <div class="row-actions">
-                <span class="subtle">{r.clientName ?? "All clients"}</span>
+                <span class="subtle">{r.clientName ?? "All members"}</span>
                 <Button small disabled={busyId === r.id} onclick={() => act(r.id, () => api.updateCoachingRule(r.id, { status: "active" }))}>Use again</Button>
                 <ConfirmButton label="Delete" confirmLabel="Really delete?" onconfirm={() => act(r.id, () => api.deleteCoachingRule(r.id))} small variant="ghost" class="danger" />
               </div>

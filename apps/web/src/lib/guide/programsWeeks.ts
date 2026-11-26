@@ -44,17 +44,17 @@ const [start, weeks, edit, missed, ab, nextBlock, ai, moveIn, answers] = PROGRAM
 
 const en: ProgramsGuide = {
   title: "Programs & weeks",
-  sub: "When a program starts, how its weeks run, and what to do when your client's real week doesn't match the plan.",
+  sub: "When a program starts, how its weeks run, and what to do when your member's real week doesn't match the plan.",
   crumbs: ["Guide", "Programs & weeks"],
   onThisPage: "On this page",
   intro:
-    "A program is one training block for one client. Its weeks run on the calendar from the day **Week 1 starts**, and your client sees only the week they're in (plus a look at next week). Most surprises — a session the client can't see, a week that ended early — come from that calendar, so this guide starts there.",
+    "A program is one training block for one member. Its weeks run on the calendar from the day **Week 1 starts**, and your member sees only the week they're in (plus a look at next week). Most surprises — a session the member can't see, a week that ended early — come from that calendar, so this guide starts there.",
   sections: [
     {
       id: start,
       h: "Start a program",
       blocks: [
-        { p: "A new program is a ⟦neutral|draft⟧. Your client sees nothing of it until you activate it." },
+        { p: "A new program is a ⟦neutral|draft⟧. Your member sees nothing of it until you activate it." },
         {
           steps: [
             { h: "Press *Activate program*", p: "On the program page, or *Activate* on the Generate page after you create a program from an AI draft." },
@@ -62,13 +62,13 @@ const en: ProgramsGuide = {
               h: "Choose when Week 1 starts",
               p: "*Today*, *Next Monday*, or any date in the field. The line underneath says what it means: `Starts in 4 days · Mon 23 Nov`, or `Today is W3 · 17–23 Nov` for a date in the past.",
             },
-            { h: "Confirm", p: "Press *Activate program*. The client's previous active program is archived automatically, with all its logs." },
+            { h: "Confirm", p: "Press *Activate program*. The member's previous active program is archived automatically, with all its logs." },
           ],
         },
         {
           list: [
-            `**A future date** — the client sees "${portalEn["week.startsOn"].replace("{date}", "Mon 23 Nov")}" and can look through Week 1. They can log from that day.`,
-            "**A past date** — for a client who is already a few weeks in (see *Move an existing client in*). The earliest date allowed still keeps today inside the block.",
+            `**A future date** — the member sees "${portalEn["week.startsOn"].replace("{date}", "Mon 23 Nov")}" and can look through Week 1. They can log from that day.`,
+            "**A past date** — for a member who is already a few weeks in (see *Move an existing member in*). The earliest date allowed still keeps today inside the block.",
             "**Up to 8 weeks ahead.**",
           ],
         },
@@ -93,16 +93,16 @@ const en: ProgramsGuide = {
           defs: [
             {
               dt: "The week tabs show it",
-              dd: "Each tab carries its dates (`W2 · 17–23 Nov`). The client's current week is marked ⟦neutral|now⟧, weeks that have ended are greyed out, and the program page opens on the client's week.",
+              dd: "Each tab carries its dates (`W2 · 17–23 Nov`). The member's current week is marked ⟦neutral|now⟧, weeks that have ended are greyed out, and the program page opens on the member's week.",
             },
-            { dt: "Weeks follow the calendar", dd: "Week 3 starts 14 days after Week 1, whether or not the client trained. Nothing pauses on its own." },
+            { dt: "Weeks follow the calendar", dd: "Week 3 starts 14 days after Week 1, whether or not the member trained. Nothing pauses on its own." },
             {
               dt: "A session has a day, not a date",
-              dd: "Each session sits on a weekday (or *Any day*) inside its week. When the client logs it, the log keeps the real date, so Thursday's session done on Friday is fine.",
+              dd: "Each session sits on a weekday (or *Any day*) inside its week. When the member logs it, the log keeps the real date, so Thursday's session done on Friday is fine.",
             },
             { dt: "A session belongs to its week", dd: "A Week 1 session can only be done during Week 1's 7 days. It can't move into Week 2." },
             { dt: "Length", dd: "A program holds 1 to 26 weeks. Four is only the default." },
-            { dt: "Cardio target", dd: "The client's weekly cardio total counts Monday to Sunday, so it may not line up with a block week that starts mid-week." },
+            { dt: "Cardio target", dd: "The member's weekly cardio total counts Monday to Sunday, so it may not line up with a block week that starts mid-week." },
           ],
         },
       ],
@@ -112,7 +112,7 @@ const en: ProgramsGuide = {
       h: "Change a program mid-block",
       blocks: [
         {
-          p: "Above the calendar, **Changes apply to** decides how far an edit goes: *W2 and later* (the default) or *W2 only*. With *and later*, these go to every later week the client hasn't finished:",
+          p: "Above the calendar, **Changes apply to** decides how far an edit goes: *W2 and later* (the default) or *W2 only*. With *and later*, these go to every later week the member hasn't finished:",
         },
         {
           list: [
@@ -153,15 +153,15 @@ const en: ProgramsGuide = {
           defs: [
             {
               dt: "Done later the same week",
-              dd: `Fine. A missed session moves to "${portalEn["week.earlier"]}" on the client's page, and they can log it any later day of that week, dated the day they did it. Your week grid shows it as done with \`logged Fri 20 Nov\`.`,
+              dd: `Fine. A missed session moves to "${portalEn["week.earlier"]}" on the member's page, and they can log it any later day of that week, dated the day they did it. Your week grid shows it as done with \`logged Fri 20 Nov\`.`,
             },
             {
               dt: "Not done by the end of the week",
-              dd: "The client can no longer log it, and it counts as missed. A session isn't called missed for the first **2 days**, because clients report late. If fewer than 60% of the sessions due are logged, you get a ⟦warn|Low adherence⟧ signal.",
+              dd: "The member can no longer log it, and it counts as missed. A session isn't called missed for the first **2 days**, because members report late. If fewer than 60% of the sessions due are logged, you get a ⟦warn|Low adherence⟧ signal.",
             },
             {
               dt: "Done the day after the week ends",
-              dd: "That day already belongs to the next week, so the client can't log it. You can log it yourself from the client page, but it counts toward the new week. Keep the last day of a week light, or ask clients to log on the day.",
+              dd: "That day already belongs to the next week, so the member can't log it. You can log it yourself from the member page, but it counts toward the new week. Keep the last day of a week light, or ask members to log on the day.",
             },
             {
               dt: "Away for a week or more",
@@ -172,7 +172,7 @@ const en: ProgramsGuide = {
         },
         {
           fig: "shift",
-          caption: "The client is away 17–23 Nov, during Week 2. Moving Week 1 a week later puts Week 2 on 24–30 Nov, so the week they missed comes round again (sample dates).",
+          caption: "The member is away 17–23 Nov, during Week 2. Moving Week 1 a week later puts Week 2 on 24–30 Nov, so the week they missed comes round again (sample dates).",
         },
       ],
     },
@@ -193,7 +193,7 @@ const en: ProgramsGuide = {
             "**Existing program:** the *Weeks* switch above the tabs tags the weeks A and B without changing what's in them. Edit W2, then *Copy this week to…* › *Every B week*.",
             "**Each week keeps its own sessions.** With *W3 and later*, an edit goes to the later weeks with the same letter only.",
             "**The AI keeps the letters.** Drafting a week builds on the last week with the same letter (W5 from W3).",
-            "**Your client never sees A or B**, just that week's sessions.",
+            "**Your member never sees A or B**, just that week's sessions.",
           ],
         },
       ],
@@ -210,7 +210,7 @@ const en: ProgramsGuide = {
             },
             {
               dt: "New phase → a new program",
-              dd: "*Generate next block* on the client page, or build one by hand. It's saved as a draft; when you activate it, the old program is archived with its logs and Week 1 starts again on the date you pick.",
+              dd: "*Generate next block* on the member page, or build one by hand. It's saved as a draft; when you activate it, the old program is archived with its logs and Week 1 starts again on the date you pick.",
             },
             { dt: "Longer block → add weeks", dd: "A program holds up to 26 weeks. Adding weeks keeps the same program and week numbers." },
           ],
@@ -231,19 +231,19 @@ const en: ProgramsGuide = {
               dt: "Instructions — for this draft only",
               dd: "*What should this week do?* is read once, for the draft you're making: “travelling, hotel gym only”. *Your instructions as the AI gets them* shows exactly what was sent.",
             },
-            { dt: "Always applied", dd: "The client's limitations, the week's plan in *Block phasing* (e.g. deload) and your coaching rules." },
+            { dt: "Always applied", dd: "The member's limitations, the week's plan in *Block phasing* (e.g. deload) and your coaching rules." },
           ],
         },
       ],
     },
     {
       id: moveIn,
-      h: "Move an existing client in",
+      h: "Move an existing member in",
       blocks: [
-        { p: "For a client you already coach in notes, LINE or a spreadsheet:" },
+        { p: "For a member you already coach in notes, LINE or a spreadsheet:" },
         {
           steps: [
-            { h: "Add the client", p: "Goals, limitations and training days first; 1RMs can wait." },
+            { h: "Add the member", p: "Goals, limitations and training days first; 1RMs can wait." },
             { h: "Paste their notes", p: "*New program* › *Paste notes* › *Read it*. Check the exercise names it matched; the app remembers them for next time." },
             {
               h: "Save their history",
@@ -252,7 +252,7 @@ const en: ProgramsGuide = {
             { h: "Draft the current block", p: "*Use this* turns one week (or Week A and B) into a new draft program. Edit the later weeks if they progress." },
             {
               h: "Activate it on the right week",
-              p: "If the client is already in week 3, pick a Week 1 start date two weeks back. Today becomes W3, and weeks 1–2 never count as missed.",
+              p: "If the member is already in week 3, pick a Week 1 start date two weeks back. Today becomes W3, and weeks 1–2 never count as missed.",
             },
           ],
         },
@@ -266,11 +266,11 @@ const en: ProgramsGuide = {
           table: {
             head: ["What happened", "What to do"],
             rows: [
-              ["“My client can't see the session I added.”", "You probably added it to an ended week with *W1 only*. Open the client's current week (the page opens there) and add it with *W2 and later*."],
+              ["“My member can't see the session I added.”", "You probably added it to an ended week with *W1 only*. Open the member's current week (the page opens there) and add it with *W2 and later*."],
               ["“I want to start next week.”", "Press *Activate program* and choose *Next Monday*."],
               ["“The weeks start on a weird day.”", "Week 1 started the day it was activated. *Change* under the program's name and pick a Monday."],
-              ["“My client was sick for a week.”", "Move Week 1 a week later with *Change*, so they repeat the week they missed."],
-              ["“My client did Monday's session on Tuesday.”", "Nothing to do. It counts, dated Tuesday."],
+              ["“My member was sick for a week.”", "Move Week 1 a week later with *Change*, so they repeat the week they missed."],
+              ["“My member did Monday's session on Tuesday.”", "Nothing to do. It counts, dated Tuesday."],
               ["“The week shows Week 9 and nothing in it.”", "The block has run past its last week. Generate or build the next block and activate it."],
             ],
           },

@@ -3,14 +3,14 @@
 
   /**
    * A 4-week block before and after Week 1 moves a week later, on one shared
-   * calendar (sample dates). The client was away 17–23 Nov, during W2; after
+   * calendar (sample dates). The member was away 17–23 Nov, during W2; after
    * the move, W2 lands on 24–30 Nov, so the missed week comes round again.
    * The "Week 1 started …" lines quote the trainer UI, so they stay English.
    */
   const cols = ["10–16 Nov", "17–23 Nov", "24–30 Nov", "1–7 Dec", "8–14 Dec"];
   const away = 2; // grid column of 17–23 Nov
   const t = {
-    en: { away: "client away", before: "Before", after: "After Change", missed: "missed", again: "again" },
+    en: { away: "member away", before: "Before", after: "After Change", missed: "missed", again: "again" },
     th: { away: "เมมเบอร์ไม่อยู่", before: "ก่อน", after: "หลังกด Change", missed: "ขาด", again: "รอบใหม่" },
   } as const;
   const l = $derived(t[i18n.locale]);

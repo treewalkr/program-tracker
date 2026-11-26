@@ -160,8 +160,8 @@ export function reviewChecks(
     const label = `${exerciseSessions} exercise ${exerciseSessions === 1 ? "session" : "sessions"}`;
     out.push(
       exerciseSessions === sessionsPerWeek
-        ? { tone: "ok", text: `${label} — matches the client's ${sessionsPerWeek}/week` }
-        : { tone: "warn", text: `${label} — the client trains ${sessionsPerWeek}/week` }
+        ? { tone: "ok", text: `${label} — matches the member's ${sessionsPerWeek}/week` }
+        : { tone: "warn", text: `${label} — the member trains ${sessionsPerWeek}/week` }
     );
   }
   if (maxRpe > 0) out.push({ tone: "info", text: `Highest prescribed effort: RPE ${maxRpe}` });
@@ -200,7 +200,7 @@ function weekdayChecks(
     } as ProgramSession;
   });
   const conflicts = placementConflicts(sessions, days, (id) => primaryOf(catalogById.get(id)));
-  if (conflicts.length === 0) return [{ tone: "ok", text: "AI weekdays follow the client's schedule rules" }];
+  if (conflicts.length === 0) return [{ tone: "ok", text: "AI weekdays follow the member's schedule rules" }];
   return conflicts.map((c) => ({ tone: "warn" as const, text: `Weekday conflict: ${c.text} — approval re-places it` }));
 }
 

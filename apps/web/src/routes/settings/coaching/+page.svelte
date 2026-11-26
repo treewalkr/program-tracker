@@ -57,7 +57,7 @@
 {/snippet}
 
 <Panel title="Deload">
-  {#snippet act()}<span class="head-note">every client, unless you give one their own</span>{/snippet}
+  {#snippet act()}<span class="head-note">every member, unless you give one their own</span>{/snippet}
   <div class="deload" aria-busy={deloadSaved === undefined}>
     {#if deloadSaved === undefined}
       <!-- The form's own shape: static copy and labels render, the rule's values shimmer. -->

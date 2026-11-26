@@ -4,14 +4,14 @@
   import { i18n } from "$lib/portal/i18n.svelte";
   import Panel from "$lib/ui/Panel.svelte";
 
-  /** The Overview "Clients" table: its Portal column is a shortcut (sample rows). */
+  /** The Overview "Members" table: its Portal column is a shortcut (sample rows). */
   const rows = [
     { name: "Mali", program: "Full body 3x", on: false },
     { name: "Nok", program: "Upper / Lower", on: true },
   ];
   const note = {
     en: [
-      ["Not turned on", "Turn on… opens that client's Settings tab."],
+      ["Not turned on", "Turn on… opens that member's Settings tab."],
       ["Turned on", "Copy link copies their personal link."],
     ],
     th: [
@@ -23,10 +23,10 @@
 </script>
 
 <div class="wrap">
-  <Panel title="Clients" count={2}>
+  <Panel title="Members" count={2}>
     <table>
       <thead>
-        <tr><th>Client</th><th>Status</th><th class="portal">Portal</th></tr>
+        <tr><th>Member</th><th>Status</th><th class="portal">Portal</th></tr>
       </thead>
       <tbody>
         {#each rows as r (r.name)}

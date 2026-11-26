@@ -206,7 +206,7 @@
 
   <div class="foot">
     <Icon name="lock" />
-    <span>Approving creates a draft program. Your client sees nothing until you activate it.</span>
+    <span>Approving creates a draft program. Your member sees nothing until you activate it.</span>
     <a
       class="btn"
       href={reviewHref}

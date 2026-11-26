@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { GUIDE_IDS } from "./clientPortal";
 import { PROGRAMS_GUIDE_IDS } from "./programsWeeks";
-import { commonQuestions, guideSections, guideUnits, plain, searchGuides, snippet } from "./search";
+import { commonQuestions, expandWords, guideSections, guideUnits, plain, searchGuides, snippet } from "./search";
 import { TRAINER_ACCESS_IDS } from "./trainerAccess";
 import { CARDIO_GUIDE_IDS } from "./cardio";
 
@@ -46,7 +46,7 @@ describe("searchGuides", () => {
   test("“sick” ranks the Quick answers row first", () => {
     const [top] = searchGuides("sick", "en");
     expect(top.unit.key).toBe(sick);
-    expect(top.unit.title).toBe("“My client was sick for a week.”");
+    expect(top.unit.title).toBe("“My member was sick for a week.”");
   });
 
   test("“ป่วย” finds the same row", () => {
@@ -79,6 +79,20 @@ describe("searchGuides", () => {
 
   test("a section title outranks a body mention", () => {
     expect(searchGuides("quick answers", "en")[0].unit.kind).toBe("section");
+  });
+
+  test("the old word still finds the member answers", () => {
+    // “client”/“clients” alias to member/members, so old habits find the answers.
+    const addMember = searchGuides("client add", "en").find((h) => h.unit.title === "Add the member");
+    expect(addMember).toBeDefined();
+    expect(searchGuides("client", "en").some((h) => h.unit.guide === "portal")).toBe(true);
+    expect(searchGuides("clients", "en").map((h) => h.unit.key)).toEqual(searchGuides("members", "en").map((h) => h.unit.key));
+  });
+
+  test("expandWords maps the alias only", () => {
+    expect(expandWords(["client"])).toEqual(["client", "member"]);
+    expect(expandWords(["clients", "week"])).toEqual(["clients", "members", "week"]);
+    expect(expandWords(["member"])).toEqual(["member"]);
   });
 });
 

@@ -57,7 +57,7 @@ test("stack note states the real count", () => {
 });
 
 test("identity errors name what to fix", () => {
-  expect(nameError("  ")).toBe("Enter the client's name");
+  expect(nameError("  ")).toBe("Enter the member's name");
   expect(nameError("Ada")).toBeNull();
   expect(emailError("")).toBeNull();
   expect(emailError("   ")).toBeNull();

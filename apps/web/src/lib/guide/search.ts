@@ -223,32 +223,59 @@ function tier(f: Folded, words: string[], whole: string): number | null {
 
 const KIND_RANK: Record<UnitKind, number> = { section: 0, question: 1, step: 2, term: 3, text: 4 };
 
+/**
+ * Old names trainers may still type, mapped to the words the guides use now
+ * (the app renamed clients to members). Searching tries the alias too, so a
+ * search for "client" still finds the add-a-member and portal answers.
+ */
+const ALIASES: Record<string, string[]> = {
+  client: ["member"],
+  clients: ["members"],
+};
+
+/** Query words plus any alias each one stands for, deduped, in order — for highlighting hits. */
+export function expandWords(words: string[]): string[] {
+  return [...new Set(words.flatMap((w) => [w, ...(ALIASES[w] ?? [])]))];
+}
+
 export interface GuideHit {
   unit: GuideUnit;
   score: number;
 }
 
 /**
- * Units matching every word of `query` in English or Thai, shown in `locale`.
- * Ranked: title starts with the query, every word starts a title word, every
- * word in the title, body only; then section > question > step > term > text;
- * then document order.
+ * Units matching every word of `query` in English or Thai, shown in `locale`
+ * (the old word "client" also tries "member"). Ranked: title starts with the
+ * query, every word starts a title word, every word in the title, body only;
+ * then section > question > step > term > text; then document order.
  */
 export function searchGuides(query: string, locale: Locale, { admin = false } = {}): GuideHit[] {
   const words = queryWords(query);
   if (!words.length) return [];
-  const whole = words.join(" ");
   const locales: Locale[] = ["en", "th"];
   const byLocale = new Map(locales.map((l) => [l, new Map(guideUnits(l, { admin }).map((u) => [u.key, u]))]));
-  const hits: GuideHit[] = [];
-  for (const unit of guideUnits(locale, { admin })) {
-    const pair = locales.map((l) => foldUnit(byLocale.get(l)!.get(unit.key)!, l));
-    let score = Math.min(...pair.map((f) => tier(f, words, whole) ?? 9));
-    // A mixed-language query ("ป่วย week"): every word somewhere, in either language.
-    if (score === 9 && words.every((w) => pair.some((f) => f.all.includes(w)))) score = 3;
-    if (score < 9) hits.push({ unit, score });
+  const units = guideUnits(locale, { admin });
+  const best = new Map<string, GuideHit>();
+  // The query as typed, then each word swapped for its alias ("client" →
+  // "member"): the renamed answers still surface for the old word. A unit
+  // keeps its best score across the two tries.
+  const swapped = words.map((w) => ALIASES[w]?.[0] ?? w);
+  // search again with the alias only when the query has one: plain queries run once
+  for (const variant of swapped.some((w, i) => w !== words[i]) ? [words, swapped] : [words]) {
+    const whole = variant.join(" ");
+    for (const unit of units) {
+      const pair = locales.map((l) => foldUnit(byLocale.get(l)!.get(unit.key)!, l));
+      let score = Math.min(...pair.map((f) => tier(f, variant, whole) ?? 9));
+      // A mixed-language query ("ป่วย week"): every word somewhere, in either language.
+      if (score === 9 && variant.every((w) => pair.some((f) => f.all.includes(w)))) score = 3;
+      if (score >= 9) continue;
+      const prev = best.get(unit.key);
+      if (!prev || score < prev.score) best.set(unit.key, { unit, score });
+    }
   }
-  return hits.sort((a, b) => a.score - b.score || KIND_RANK[a.unit.kind] - KIND_RANK[b.unit.kind] || a.unit.order - b.unit.order);
+  return [...best.values()].sort(
+    (a, b) => a.score - b.score || KIND_RANK[a.unit.kind] - KIND_RANK[b.unit.kind] || a.unit.order - b.unit.order,
+  );
 }
 
 /** Hits grouped per guide, groups ordered by their best hit. */

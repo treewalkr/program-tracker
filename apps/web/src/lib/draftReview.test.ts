@@ -172,7 +172,7 @@ describe("review checks, rationale, history", () => {
 
   test("reviewChecks", () => {
     expect(reviewChecks(draft, 3, catalog)).toEqual([
-      { tone: "warn", text: "2 exercise sessions — the client trains 3/week" },
+      { tone: "warn", text: "2 exercise sessions — the member trains 3/week" },
       { tone: "info", text: "Highest prescribed effort: RPE 8" },
       { tone: "info", text: "5 working sets / week" },
       { tone: "warn", text: "Push 2 > pull 1 sets" },
@@ -204,7 +204,7 @@ describe("review checks, rationale, history", () => {
 
   test("reviewChecks counts only exercise sessions against sessionsPerWeek", () => {
     const withCardio: typeof draft = { ...draft, sessions: [...draft.sessions, { name: "Bike", kind: "cardio", exercises: [] }] };
-    expect(reviewChecks(withCardio, 2, catalog)[0]).toEqual({ tone: "ok", text: "2 exercise sessions — matches the client's 2/week" });
+    expect(reviewChecks(withCardio, 2, catalog)[0]).toEqual({ tone: "ok", text: "2 exercise sessions — matches the member's 2/week" });
   });
 
   test("reviewChecks lists AI weekdays that break a placement rule (F03, F26)", () => {
@@ -224,7 +224,7 @@ describe("review checks, rationale, history", () => {
       'Weekday conflict: Heavy lower "Heavy lower" on Mon is the day after "Long run" — approval re-places it',
     ]);
     const fine = { ...priya, sessions: priya.sessions.map((s, i) => ({ ...s, weekday: [2, 5, 7][i] })) };
-    expect(reviewChecks(fine, null, catalog, days).at(-1)).toEqual({ tone: "ok", text: "AI weekdays follow the client's schedule rules" });
+    expect(reviewChecks(fine, null, catalog, days).at(-1)).toEqual({ tone: "ok", text: "AI weekdays follow the member's schedule rules" });
     expect(reviewChecks(draft, null, catalog, days).some((c) => c.text.includes("weekday"))).toBe(false);
   });
 

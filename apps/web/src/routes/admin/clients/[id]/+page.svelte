@@ -78,11 +78,11 @@
   const fmtNum = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 </script>
 
-<svelte:head><title>{client ? `${client.name} · All clients` : "Client · All clients"} · Program Tracker</title></svelte:head>
+<svelte:head><title>{client ? `${client.name} · All members` : "Member · All members"} · Program Tracker</title></svelte:head>
 
 {#if demo && apiMode === "live"}
   <Note tone="warn" class="sample-note">
-    Sample data — this client isn't real.
+    Sample data — this member isn't real.
     <Button small variant="ghost" href={page.url.pathname}>Back to real data</Button>
   </Note>
 {/if}
@@ -90,27 +90,27 @@
 {#snippet unset()}<span class="unset">Not set</span>{/snippet}
 
 {#if loadError}
-  <PageHead title="Client" crumbs={[{ href: backHref, label: "All clients" }, { label: "Client" }]} />
+  <PageHead title="Member" crumbs={[{ href: backHref, label: "All members" }, { label: "Member" }]} />
   <Note tone="bad">
-    Couldn't load this client — {loadError}.
+    Couldn't load this member — {loadError}.
     <Button small onclick={() => load(id, useSample)}>Try again</Button>
   </Note>
 {:else if detail === undefined}
-  <SkeletonHead label="Loading client…" />
+  <SkeletonHead label="Loading member…" />
   <div class="layout">
     <SkeletonPanel title="Basics" class="basics" rows={5} dense />
     <SkeletonPanel head count class="programme" rows={6} dense />
   </div>
 {:else if detail === null || !client}
-  <PageHead title="Client not found" crumbs={[{ href: backHref, label: "All clients" }, { label: "Not found" }]} />
+  <PageHead title="Member not found" crumbs={[{ href: backHref, label: "All members" }, { label: "Not found" }]} />
   <section class="panel">
     <EmptyState>
-      No client with this id — it may have been deleted.
-      {#snippet actions()}<Button href={backHref}>Back to all clients</Button>{/snippet}
+      No member with this id — it may have been deleted.
+      {#snippet actions()}<Button href={backHref}>Back to all members</Button>{/snippet}
     </EmptyState>
   </section>
 {:else}
-  <PageHead title={client.name} crumbs={[{ href: backHref, label: "All clients" }, { label: client.name }]} sub={`Read-only · client of ${client.trainer.name}`}>
+  <PageHead title={client.name} crumbs={[{ href: backHref, label: "All members" }, { label: client.name }]} sub={`Read-only · member of ${client.trainer.name}`}>
     {#snippet titleSuffix()}
       <StatusPill status={client.status} />
       {#if client.trainer.access === "disabled"}<Pill tone="bad">Trainer disabled</Pill>{/if}
@@ -142,7 +142,7 @@
             {[...client.trainingDays].sort((a, b) => a - b).map((d) => DAY_NAMES[d - 1]).join(" ")}
           {:else}{@render unset()}{/if}
         </dd>
-        <dt>Client since</dt>
+        <dt>Member since</dt>
         <dd class="tnum">{shortDay(client.clientSince, today)}</dd>
         <dt>Last session</dt>
         <dd class="tnum last {last?.tone}"><span title={client.lastSessionAt ?? "No session logged"}>{last?.text}</span></dd>

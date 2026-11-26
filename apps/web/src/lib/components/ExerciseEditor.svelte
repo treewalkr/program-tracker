@@ -97,7 +97,7 @@
   const percentNote = $derived.by(() => {
     const pcts = [...new Set(sets.map((s) => s.percent1rm).filter((p): p is number => p != null))];
     if (pcts.length === 0) return null;
-    if (oneRepMaxKg == null) return "No 1RM on file for this lift: add it in the client's Settings to see the load.";
+    if (oneRepMaxKg == null) return "No 1RM on file for this lift: add it in the member's Settings to see the load.";
     return pcts.map((p) => `${p}% = ${fmtWeight(resolveLoadKg({ percent1rm: p }, oneRepMaxKg)!)}`).join(" · ") + ` (1RM ${fmtWeight(oneRepMaxKg)}, rounded to 2.5 kg)`;
   });
   const MODES: { id: SetMode; label: string; title: string }[] = [
@@ -276,12 +276,12 @@
   </p>
 
   <InputNote
-    label="Cue for the client"
+    label="Cue for the member"
     hideLabel
     rows={1}
     maxRows={7}
     maxlength={1000}
-    placeholder="Cue for the client, e.g. 2s pause at the bottom (optional)"
+    placeholder="Cue for the member, e.g. 2s pause at the bottom (optional)"
     value={exercise.notes ?? ""}
     oninput={(v) => (exercise.notes = v || undefined)}
   />

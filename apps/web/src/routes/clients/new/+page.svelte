@@ -45,8 +45,8 @@
     // off once Cancel or a successful add has let go of the form
     dirty: () => autosave && saving == null && typed,
     prompt: () => ({
-      title: "Leave this new client?",
-      body: "They aren't added yet. What you've entered stays as a draft on this device and comes back next time you open New client.",
+      title: "Leave this new member?",
+      body: "They aren't added yet. What you've entered stays as a draft on this device and comes back next time you open New member.",
       leaveLabel: "Leave, keep draft",
       danger: false,
     }),
@@ -155,10 +155,10 @@
 
 <LeaveGuard {guard} />
 
-<svelte:head><title>New client · Program Tracker</title></svelte:head>
+<svelte:head><title>New member · Program Tracker</title></svelte:head>
 
-<Crumbs items={[{ href: "/clients", label: "Clients" }, { label: "New client" }]} />
-<PageHead title="New client" />
+<Crumbs items={[{ href: "/clients", label: "Members" }, { label: "New member" }]} />
+<PageHead title="New member" />
 
 {#if restored}
   <Note tone="ok" role="status" class="draft-note">
@@ -183,16 +183,16 @@
 
     <ClientProfileFields bind:form={profile} idPrefix="f" compact1rm {catalog} />
 
-    <div class="savebar addbar" role="region" aria-label="Add client">
+    <div class="savebar addbar" role="region" aria-label="Add member">
       <span class="savemsg" role="status" aria-live="polite">
-        {#if createError}<span class="err">Couldn't add the client — {createError}. Your entries are kept; try again.</span>
+        {#if createError}<span class="err">Couldn't add the member — {createError}. Your entries are kept; try again.</span>
         {:else if attempted && missing}<span class="err">Add {missing} to continue</span>
         {:else if attempted && badBasics.length}<span class="err">Fix {badBasics.join(", ")} above to continue</span>
-        {:else}<span class="addbar-hint">Add client opens their page · Add &amp; generate drafts their first program</span>{/if}
+        {:else}<span class="addbar-hint">Add member opens their page · Add &amp; generate drafts their first program</span>{/if}
       </span>
       <span class="addbar-actions">
         <Button small variant="ghost" type="button" onclick={cancel}>Cancel</Button>
-        <Button small type="submit" name="then" value="page" disabled={saving != null}>{saving === "page" ? "Adding…" : "Add client"}</Button>
+        <Button small type="submit" name="then" value="page" disabled={saving != null}>{saving === "page" ? "Adding…" : "Add member"}</Button>
         <Button small variant="primary" type="submit" name="then" value="generate" disabled={saving != null}>
           {saving === "generate" ? "Adding…" : "Add & generate program"}
         </Button>

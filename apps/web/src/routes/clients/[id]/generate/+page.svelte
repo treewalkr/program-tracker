@@ -591,7 +591,7 @@
   </section>
 {:else if client === null}
   <!-- The form's own two-column shape: composer left, "What the AI reads" right. -->
-  <SkeletonHead label="Loading client…" />
+  <SkeletonHead label="Loading member…" />
   <div class="gf-grid" aria-hidden="true">
     <div class="col">
       <div class="gf-ctx">
@@ -618,7 +618,7 @@
       <p class="safe">Nothing goes live — the draft waits for your review.</p>
     </div>
     <aside class="gf-aside">
-      <SkeletonPanel title="What the AI reads" label="Loading client…">
+      <SkeletonPanel title="What the AI reads" label="Loading member…">
         <div class="aside-body"><InputLedger rows={LEDGER_KEYS.map((key) => ({ key, value: "", lamp: "gray" }))} compact loading /></div>
       </SkeletonPanel>
       <section class="panel">

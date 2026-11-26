@@ -209,7 +209,7 @@
         When a program works well, open it and choose <strong>Mark as example</strong>. Its goal, level and
         weekly frequency let the AI pick the closest match when it drafts for a similar client.
       </p>
-      <Button href="/clients">Browse client programs</Button>
+      <Button href="/clients">Browse member programs</Button>
     </div>
   </Panel>
 {:else}
@@ -272,11 +272,11 @@
                     <!-- visible twin of the combobox's aria-label -->
                     <span class="reuse-label" aria-hidden="true">Draft for</span>
                     <SelectCombobox
-                      label="Client for the reused program"
-                      placeholder="Choose a client…"
+                      label="Member for the reused program"
+                      placeholder="Choose a member…"
                       options={clientOptions}
                       bind:value={reuseClientId}
-                      emptyText="No clients match"
+                      emptyText="No members match"
                     />
                   </div>
                   <Button variant="primary" small type="submit" disabled={reusing || !reuseClientId}>
@@ -284,11 +284,11 @@
                   </Button>
                   <Button variant="ghost" small type="button" onclick={() => (reuseId = null)}>Cancel</Button>
                 </form>
-                <p class="subtle reuse-hint">Copies this program as a new draft for the client. Nothing is activated.</p>
+                <p class="subtle reuse-hint">Copies this program as a new draft for the member. Nothing is activated.</p>
                 {#if error}<p class="err" role="alert">{error}</p>{/if}
               {:else}
                 <div class="row-actions">
-                  <Button small onclick={() => startReuse(e)} disabled={clients.length === 0}>Use for client…</Button>
+                  <Button small onclick={() => startReuse(e)} disabled={clients.length === 0}>Use for member…</Button>
                   <Button variant="ghost" small onclick={() => startEdit(e)}>Edit</Button>
                   <ConfirmButton label="Remove" confirmLabel="Really remove?" onconfirm={() => remove(e.id)} small variant="ghost" class="danger" />
                 </div>

@@ -51,7 +51,7 @@
 
 <svelte:head><title>Kinetic chains · Program Tracker</title></svelte:head>
 
-<PageHead title="Kinetic chains" sub="Which muscle groups make up each chain — shared across every client" />
+<PageHead title="Kinetic chains" sub="Which muscle groups make up each chain — shared across every member" />
 
 {#if loadError}
   <Note tone="bad">
@@ -61,7 +61,7 @@
 {:else}
   <Panel title="Kinetic chains" count={chains ? (dirty.size ? `${dirty.size} unsaved` : `${chains.length} chains`) : undefined}>
     <p class="lede">
-      Sets on these muscle groups count toward the chain in each client's
+      Sets on these muscle groups count toward the chain in each member's
       <em>Sets touching each chain</em> panel. A group can belong to more than one chain.
       The counts describe where the work lands; they are not a balance score.
     </p>

@@ -1400,7 +1400,7 @@
           {/if}
           {#if loggedNote}
             <Note tone="warn" role="note">
-              Already logged {fmtDay(loggedNote.date)}{isCardioSession ? "" : ` · ${loggedNote.setCount} sets`}{#if loggedNote.byClient}{" "}<span class="pill neutral by-client">by client</span>{/if}.
+              Already logged {fmtDay(loggedNote.date)}{isCardioSession ? "" : ` · ${loggedNote.setCount} sets`}{#if loggedNote.byClient}{" "}<span class="pill neutral by-client">by member</span>{/if}.
               Saving again asks whether to replace it.
             </Note>
           {/if}

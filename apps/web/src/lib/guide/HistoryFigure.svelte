@@ -2,7 +2,7 @@
   import Icon from "$lib/ui/Icon.svelte";
   import Panel from "$lib/ui/Panel.svelte";
 
-  /** The client's History with one session logged by the client and one by the trainer (sample rows). */
+  /** The member's History with one session logged by the member and one by the trainer (sample rows). */
   const rows = [
     { date: "Wed 12 Nov", name: "Upper A", byClient: true, meta: "20 sets · 58 min" },
     { date: "Mon 10 Nov", name: "Lower A", byClient: false, meta: "18 sets" },
@@ -18,7 +18,7 @@
           <span class="chev"><Icon name="chevron" size={14} /></span>
           <span class="date">{r.date}</span>
           <span class="name">{r.name}</span>
-          {#if r.byClient}<span class="pill neutral">by client</span>{/if}
+          {#if r.byClient}<span class="pill neutral">by member</span>{/if}
           <span class="subtle meta">{r.meta}</span>
         </li>
       {/each}

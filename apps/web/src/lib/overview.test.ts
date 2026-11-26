@@ -285,8 +285,8 @@ describe("Monday carry-over (7-day look-back)", () => {
       ["c1", ["2026-11-06", "2026-11-07", "2026-11-08"]],
       ["c2", ["2026-11-07", "2026-11-08"]],
     ]);
-    expect(carriedSummary(carried)).toBe("4 not logged · 1 missed · 2 clients");
-    expect(carriedSummary(carried.slice(1))).toBe("2 not logged · 1 client");
+    expect(carriedSummary(carried)).toBe("4 not logged · 1 missed · 2 members");
+    expect(carriedSummary(carried.slice(1))).toBe("2 not logged · 1 member");
   });
 
   test("carried days say missed / not logged in their label", () => {

@@ -455,7 +455,7 @@
   });
 </script>
 
-<svelte:head><title>{client?.name ?? "Client"} · Program Tracker</title></svelte:head>
+<svelte:head><title>{client?.name ?? "Member"} · Program Tracker</title></svelte:head>
 <svelte:window onkeydown={onSaveShortcut} />
 
 {#snippet cellBtn(week: number, cell: PulseCell, text: string, label: string)}
@@ -467,8 +467,8 @@
 {:else if client === null}
   <!-- The loaded header's shape: crumbs, avatar + name + meta, the action buttons, tabs. -->
   <div aria-busy="true">
-    <span class="sr-only" role="status">Loading client…</span>
-    <p class="sk-crumbs"><a href="/clients">Clients</a><span aria-hidden="true">/</span><Skeleton shape="line" h="11px" w="80px" /></p>
+    <span class="sr-only" role="status">Loading member…</span>
+    <p class="sk-crumbs"><a href="/clients">Members</a><span aria-hidden="true">/</span><Skeleton shape="line" h="11px" w="80px" /></p>
     <div class="client-top">
       <Skeleton shape="round" w="44px" h="44px" />
       <div class="id-block" aria-hidden="true">
@@ -487,7 +487,7 @@
   </div>
   <div inert>
     <Tabs
-      label="Client sections"
+      label="Member sections"
       idPrefix="tab-skel"
       value={tab}
       loadingCounts
@@ -519,7 +519,7 @@
     </div>
   </div>
 {:else}
-  <Crumbs items={[{ href: "/clients", label: "Clients" }, { label: client.name }]} />
+  <Crumbs items={[{ href: "/clients", label: "Members" }, { label: client.name }]} />
 
   <div class="client-top">
     <Avatar name={client.name} />
@@ -614,7 +614,7 @@
   {/if}
 
   <Tabs
-    label="Client sections"
+    label="Member sections"
     value={tab}
     onchange={(t) => setTab(t as typeof tab)}
     items={[
@@ -764,7 +764,7 @@
     <div class="pulse-stack">
       <Panel title="Block pulse" id="panel-pulse" role="tabpanel" aria-labelledby="tab-pulse">
         {#snippet act()}
-          {#if current}<Button small href={`/clients/${id}/message`}>Message client</Button>{/if}
+          {#if current}<Button small href={`/clients/${id}/message`}>Message member</Button>{/if}
           {#if doneWeeks.length > 1}
             <div class="heat" aria-label={`Weekly overall volume ${fmtVolume(doneWeeks[0].overallVolume)} to ${fmtVolume(maxVolume)}`}>
               <span class="heat-l">overall volume</span>
@@ -959,7 +959,7 @@
                     <span class="chev" aria-hidden="true"><Icon name="chevron" size={14} /></span>
                     <span class="sess-date tnum">{s.dateLabel}</span>
                     <span class="sess-name">{s.name}</span>
-                    {#if s.byClient}<span class="pill neutral by-client" title="Logged by the client in the portal">by client</span>{/if}
+                    {#if s.byClient}<span class="pill neutral by-client" title="Logged by the member in the portal">by member</span>{/if}
                     {#if s.kind !== "cardio" && s.reviewedAt}<Pill tone="good">Reviewed</Pill>{/if}
                     {#if s.flags.length > 0}
                       <span class={`pill sess-flag ${s.pain ? "bad" : "neutral"}`} title={s.flags.map((f) => f.text).join(", ")}>

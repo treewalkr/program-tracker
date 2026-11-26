@@ -6,7 +6,7 @@
   import { isAdminSession } from "$lib/settingsNav";
   import CommandPalette, { type PaletteGroup } from "$lib/ui/CommandPalette.svelte";
   import { guideSearch, isMac, openGuideSearch } from "./searchState.svelte";
-  import { commonQuestions, groupHits, guideSections, highlight, queryWords, searchGuides, snippet, type GuideUnit, type Part } from "./search";
+  import { commonQuestions, expandWords, groupHits, guideSections, highlight, queryWords, searchGuides, snippet, type GuideUnit, type Part } from "./search";
 
   /**
    * Search across every guide, on ⌘K / Ctrl+K from any trainer page. Mounted
@@ -44,7 +44,7 @@
   const locale = $derived(i18n.locale);
   const t = $derived(TEXT[locale]);
   const admin = $derived(isAdminSession(page.data.session));
-  const words = $derived(queryWords(guideSearch.query));
+  const words = $derived(expandWords(queryWords(guideSearch.query)));
 
   const groups = $derived.by((): PaletteGroup<GuideUnit>[] => {
     if (!words.length)

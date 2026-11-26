@@ -31,24 +31,24 @@ const q = (k: keyof typeof portalEn) => `"${portalEn[k]}"`;
 const first = (s: string, sep: string) => `"${s.split(sep)[0]}"`;
 
 const en: Guide = {
-  title: "Client portal",
-  sub: "Give a client a link to their week. They log sessions on their phone; the logs land in your data.",
-  crumbs: ["Guide", "Client portal"],
+  title: "Member portal",
+  sub: "Give a member a link to their week. They log sessions on their phone; the logs land in your data.",
+  crumbs: ["Guide", "Member portal"],
   onThisPage: "On this page",
   intro:
-    "Turn the portal on for a client, copy one message, paste it into LINE. You turn it on **per client**; a client you haven't turned it on for has no way in, and it never shows the parts of the app you work in — only their program.",
+    "Turn the portal on for a member, copy one message, paste it into LINE. You turn it on **per member**; a member you haven't turned it on for has no way in, and it never shows the parts of the app you work in — only their program.",
   figures: {
-    box: "The Client portal box after you press Turn on. Copy message is what you paste into LINE; Last seen fills in once they open it. Sample data.",
-    overview: "The Clients table on Overview. Its Portal column is a shortcut: one tap to start, one tap to copy. Sample rows.",
+    box: "The Member portal box after you press Turn on. Copy message is what you paste into LINE; Last seen fills in once they open it. Sample data.",
+    overview: "The Members table on Overview. Its Portal column is a shortcut: one tap to start, one tap to copy. Sample rows.",
     phones:
-      "What the client opens: your name, then the next session with its one green button; then the log screen, prefilled from your prescription, where they change only what differed (outlined) and save. Sample session and numbers.",
-    history: "Their History tab. The session the client logged carries a by client label; the one you logged does not. Sample rows.",
+      "What the member opens: your name, then the next session with its one green button; then the log screen, prefilled from your prescription, where they change only what differed (outlined) and save. Sample session and numbers.",
+    history: "Their History tab. The session the member logged carries a by member label; the one you logged does not. Sample rows.",
   },
   sections: {
     setUp: {
       h: "Set it up",
       steps: [
-        { h: "Open the client's Settings tab", p: "`Clients` › `their name` › `Settings`. The **Client portal** box is the first one on the page. Shortcut: on *Overview*, the **Portal** column shows *Turn on…* next to any client without a portal; it opens this same tab." },
+        { h: "Open the member's Settings tab", p: "`Members` › `their name` › `Settings`. The **Member portal** box is the first one on the page. Shortcut: on *Overview*, the **Portal** column shows *Turn on…* next to any member without a portal; it opens this same tab." },
         {
           h: "Check their email",
           p: "With an email on file they can also sign in with that Google account (the box says `Uses name@example.com`). With none it says *No email on file* and they use the link only. Add one in their profile, or skip Google.",
@@ -59,17 +59,17 @@ const en: Guide = {
         },
         {
           h: "Send it",
-          p: "**Copy message** under *For LINE* copies a ready sentence with the link, in English or ไทย (it starts in Thai when the client's name is written in Thai). Paste it into LINE. **Copy link** copies the link alone, and once a portal is on, *Overview* has the same **Copy link** in its **Portal** column.",
+          p: "**Copy message** under *For LINE* copies a ready sentence with the link, in English or ไทย (it starts in Thai when the member's name is written in Thai). Paste it into LINE. **Copy link** copies the link alone, and once a portal is on, *Overview* has the same **Copy link** in its **Portal** column.",
         },
         {
           h: "They open it once on their phone",
           p: `The page offers *${portalEn["link.open"]}*. After that, that browser keeps them signed in, with no password. *Last seen* fills in.`,
         },
       ],
-      aside: "**Try it yourself.** Open the link in the browser you use for Program Tracker. The portal keeps its own sign-in, so you stay signed in here and see exactly what your client sees.",
+      aside: "**Try it yourself.** Open the link in the browser you use for Program Tracker. The portal keeps its own sign-in, so you stay signed in here and see exactly what your member sees.",
     },
     clientSees: {
-      h: "What your client sees",
+      h: "What your member sees",
       lead: "Only the program you've activated, and only what they need to train.",
       can: "They can see",
       canList: [
@@ -80,11 +80,11 @@ const en: Guide = {
         "Your name, as their coach",
       ],
       never: "They never see",
-      neverList: ["Drafts or archived programs", "AI rationale, program direction, phasing", "Limitations, goals, 1RMs", "Signals, your coaching rules, other clients"],
+      neverList: ["Drafts or archived programs", "AI rationale, program direction, phasing", "Limitations, goals, 1RMs", "Signals, your coaching rules, other members"],
       after: "Next week is a preview: they can open it but log it only once that week starts. EN and ไทย are one tap in their header, and that browser keeps the choice.",
     },
     clientLogs: {
-      h: "How your client logs",
+      h: "How your member logs",
       steps: [
         {
           h: portalEn["week.nextUp"],
@@ -108,8 +108,8 @@ const en: Guide = {
     youSee: {
       h: "What you see afterwards",
       p: [
-        "A client's log appears the moment they save, marked ⟦neutral|by client⟧ in the client's **History**, on the program page's logged line, and in the notice on the log page when a session is already logged.",
-        "It counts like any log you enter: the block pulse (tonnage, sets, average RPE, e1RM) and the signals (stall, RPE creep, adherence, cardio behind) all read it. **You're not notified** when a client logs; look on the Overview or the client's page.",
+        "A member's log appears the moment they save, marked ⟦neutral|by member⟧ in the member's **History**, on the program page's logged line, and in the notice on the log page when a session is already logged.",
+        "It counts like any log you enter: the block pulse (tonnage, sets, average RPE, e1RM) and the signals (stall, RPE creep, adherence, cardio behind) all read it. **You're not notified** when a member logs; look on the Overview or the member's page.",
       ],
     },
     resetOff: {
@@ -121,20 +121,20 @@ const en: Guide = {
         },
         {
           dt: "Turn off",
-          dd: "For a client who stops training with you. The portal closes, sessions end, and the Google link is removed. Past logs stay. Turning it on again gives a fresh link.",
+          dd: "For a member who stops training with you. The portal closes, sessions end, and the Google link is removed. Past logs stay. Turning it on again gives a fresh link.",
         },
       ],
     },
     stuck: {
       h: "When something doesn't work",
-      head: ["The client says", "Why, and what to do"],
+      head: ["The member says", "Why, and what to do"],
       rows: [
         [first(portalEn["login.error.not_allowed"], ". "), "The Google account's email isn't the one on their profile. Fix the email, or send the link instead."],
         [first(portalEn["login.error.not_configured"], ". "), "Google access is still limited for the app. The personal link always works."],
         [q("week.emptyProgram"), "They have no **active** program. Approve and activate the draft; they'll see it right away."],
         [`"${portalEn["link.invalid"]}"`, "You reset it or turned the portal off. Copy the new link from their Settings tab."],
         ["It's slow the first time", `Normal for the first visit of the day; it can take up to a minute. They see ${first(portalEn["week.slow"], " — ")}, not an error.`],
-        ["\"I logged it but can't find it\"", "Check their History for ⟦neutral|by client⟧. If *Last seen* says \"Not opened yet\", they haven't used the link."],
+        ["\"I logged it but can't find it\"", "Check their History for ⟦neutral|by member⟧. If *Last seen* says \"Not opened yet\", they haven't used the link."],
       ],
     },
   },
@@ -148,17 +148,17 @@ const th: Guide = {
   intro:
     "เปิดพอร์ทัลให้เมมเบอร์ คัดลอกข้อความหนึ่งข้อความ แล้ววางใน LINE คุณเปิดให้**ทีละคน** เมมเบอร์ที่ยังไม่ได้เปิดให้จะเข้าไม่ได้ และพอร์ทัลไม่แสดงส่วนที่คุณใช้ทำงานในแอปเลย เห็นแค่โปรแกรมของเมมเบอร์",
   figures: {
-    box: "กล่อง Client portal หลังกด Turn on ข้อความใต้ For LINE คือสิ่งที่คุณวางใน LINE ส่วน Last seen จะขึ้นเมื่อเมมเบอร์เปิดแล้ว (ข้อมูลตัวอย่าง)",
-    overview: "ตาราง Clients ในหน้า Overview คอลัมน์ Portal คือทางลัด: แตะหนึ่งครั้งเพื่อเปิด แตะอีกครั้งเพื่อคัดลอก (แถวตัวอย่าง)",
+    box: "กล่อง Member portal หลังกด Turn on ข้อความใต้ For LINE คือสิ่งที่คุณวางใน LINE ส่วน Last seen จะขึ้นเมื่อเมมเบอร์เปิดแล้ว (ข้อมูลตัวอย่าง)",
+    overview: "ตาราง Members ในหน้า Overview คอลัมน์ Portal คือทางลัด: แตะหนึ่งครั้งเพื่อเปิด แตะอีกครั้งเพื่อคัดลอก (แถวตัวอย่าง)",
     phones:
       "สิ่งที่เมมเบอร์เปิดเจอ: ชื่อโค้ช ตามด้วยเซสชันถัดไปพร้อมปุ่มเขียวปุ่มเดียว จากนั้นหน้าบันทึกที่กรอกไว้ล่วงหน้าตามโปรแกรมของคุณ เมมเบอร์แก้เฉพาะที่ต่างไป (กรอบสีน้ำเงิน) แล้วกดบันทึก (เซสชันและตัวเลขตัวอย่าง)",
-    history: "แท็บ History ของเมมเบอร์ เซสชันที่เมมเบอร์บันทึกเองมีป้าย by client ส่วนที่คุณบันทึกไม่มี (แถวตัวอย่าง)",
+    history: "แท็บ History ของเมมเบอร์ เซสชันที่เมมเบอร์บันทึกเองมีป้าย by member ส่วนที่คุณบันทึกไม่มี (แถวตัวอย่าง)",
   },
   sections: {
     setUp: {
       h: "ตั้งค่า",
       steps: [
-        { h: "เปิดแท็บ Settings ของเมมเบอร์", p: "`Clients` › `ชื่อเมมเบอร์` › `Settings` กล่อง **Client portal** อยู่บนสุดของหน้า ทางลัด: ที่หน้า *Overview* คอลัมน์ **Portal** จะมี *Turn on…* ข้างเมมเบอร์ที่ยังไม่มีพอร์ทัล กดแล้วจะเปิดแท็บเดียวกันนี้" },
+        { h: "เปิดแท็บ Settings ของเมมเบอร์", p: "`Members` › `ชื่อเมมเบอร์` › `Settings` กล่อง **Member portal** อยู่บนสุดของหน้า ทางลัด: ที่หน้า *Overview* คอลัมน์ **Portal** จะมี *Turn on…* ข้างเมมเบอร์ที่ยังไม่มีพอร์ทัล กดแล้วจะเปิดแท็บเดียวกันนี้" },
         {
           h: "ตรวจอีเมล",
           p: "ถ้ามีอีเมลในระบบ เมมเบอร์เข้าด้วยบัญชี Google นั้นได้ด้วย (กล่องจะขึ้น `Uses name@example.com`) ถ้าไม่มีจะขึ้น *No email on file* และใช้ได้แค่ลิงก์ เพิ่มอีเมลได้ในโปรไฟล์ หรือข้าม Google ไปเลย",
@@ -218,7 +218,7 @@ const th: Guide = {
     youSee: {
       h: "สิ่งที่คุณเห็นหลังจากนั้น",
       p: [
-        "บันทึกของเมมเบอร์เข้ามาทันทีที่กดบันทึก พร้อมป้าย ⟦neutral|by client⟧ ใน **History** ของเมมเบอร์ ในบรรทัดที่บันทึกแล้วของหน้าโปรแกรม และในข้อความแจ้งเตือนบนหน้าบันทึกเมื่อเซสชันนั้นมีบันทึกอยู่แล้ว",
+        "บันทึกของเมมเบอร์เข้ามาทันทีที่กดบันทึก พร้อมป้าย ⟦neutral|by member⟧ ใน **History** ของเมมเบอร์ ในบรรทัดที่บันทึกแล้วของหน้าโปรแกรม และในข้อความแจ้งเตือนบนหน้าบันทึกเมื่อเซสชันนั้นมีบันทึกอยู่แล้ว",
         "นับเหมือนบันทึกที่คุณกรอกเอง ทั้ง block pulse (ปริมาณรวม เซต RPE เฉลี่ย e1RM) และสัญญาณเตือน (stall = ติดเพดาน, RPE creep = RPE ไต่ขึ้น, adherence = การทำตามแผน, cardio behind = คาร์ดิโอตามหลัง) ก็คิดจากข้อมูลนี้ด้วย **ระบบไม่แจ้งเตือนคุณ** เมื่อเมมเบอร์บันทึก ต้องเข้าไปดูเองที่ Overview หรือหน้าของเมมเบอร์",
       ],
     },
@@ -244,7 +244,7 @@ const th: Guide = {
         [`"${portalTh["week.emptyProgram"]}"`, "เมมเบอร์ยังไม่มีโปรแกรมที่**ใช้งานอยู่** อนุมัติและเปิดใช้ร่างโปรแกรม เมมเบอร์จะเห็นทันที"],
         [`"${portalTh["link.invalid"]}"`, "คุณรีเซ็ตลิงก์ หรือปิดพอร์ทัลไปแล้ว คัดลอกลิงก์ใหม่จากแท็บ Settings ของเมมเบอร์"],
         ["เปิดครั้งแรกช้า", `ปกติสำหรับการเปิดครั้งแรกของวัน อาจนานถึงหนึ่งนาที เมมเบอร์จะเห็นข้อความ "${portalTh["week.slow"].split(" — ")[0]}" ไม่ใช่ข้อผิดพลาด`],
-        ["\"บันทึกแล้วแต่หาไม่เจอ\"", "ดู History ของเมมเบอร์หาป้าย ⟦neutral|by client⟧ ถ้า *Last seen* ขึ้นว่า \"Not opened yet\" แปลว่าเมมเบอร์ยังไม่ได้ใช้ลิงก์"],
+        ["\"บันทึกแล้วแต่หาไม่เจอ\"", "ดู History ของเมมเบอร์หาป้าย ⟦neutral|by member⟧ ถ้า *Last seen* ขึ้นว่า \"Not opened yet\" แปลว่าเมมเบอร์ยังไม่ได้ใช้ลิงก์"],
       ],
     },
   },
