@@ -216,7 +216,9 @@
   const logged = $derived(program ? loggedBySession(pastLogs, program.id) : new Map<string, never[]>());
   const sessionLogged = $derived(logged.get(sessionId)?.[0] ?? null);
   /** The log this page just saved for the open session, while the sheet is still the fresh one after it. */
-  const justSaved = $derived(sessionLogged && sessionLogged.id === savedLogId && counts.logged + counts.skipped === 0 ? sessionLogged : null);
+  const justSaved = $derived(
+    savedLogId && counts.logged + counts.skipped === 0 ? (logged.get(sessionId)?.find((l) => l.id === savedLogId) ?? null) : null
+  );
   const tally = $derived(
     justSaved
       ? `Logged · ${justSaved.setCount} ${justSaved.setCount === 1 ? "set" : "sets"}`
@@ -751,7 +753,8 @@
     recap = recapOf(p, saved);
     void findNext();
     savedLogId = saved.id;
-    pickNote = null; // "not logged yet" is no longer true
+    // why the session was picked ("…not logged yet") is stale now; a note about the date stays
+    if (pickNote?.startsWith("Picked ")) pickNote = null;
     undo = {
       logId: saved.id,
       count: p.count,
