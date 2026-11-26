@@ -51,9 +51,10 @@ function chipFallbacks(name: string): string[] {
 
 /** The chip is the one worked out from the name, not one the trainer typed: edit
  *  forms show it blank and saving keeps it untyped, so a rename still moves it.
- *  A collision fallback (`chipFallbacks`) is auto too. */
-export const isAutoChip = (l: { name: string; chip: string }): boolean =>
-  l.chip === l.name || l.chip === autoChip(l.name) || chipFallbacks(l.name).includes(l.chip);
+ *  A merged own label says so itself (`chipAuto`), so a typed chip that happens
+ *  to equal a collision fallback ("Speed L") stays typed. */
+export const isAutoChip = (l: { name: string; chip: string; chipAuto?: boolean }): boolean =>
+  l.chipAuto ?? (l.chip === l.name || l.chip === autoChip(l.name));
 
 /** One entry of a trainer's label list: a built-in (overrides applied) or their own. */
 export interface RoleLabel {
@@ -70,6 +71,8 @@ export interface RoleLabel {
   category: RoleCategory | null;
   rank: number;
   archived: boolean;
+  /** Own labels: no chip was typed, so it's worked out from the name (and may fall back on a collision). */
+  chipAuto?: boolean;
 }
 
 /** A `role_labels` row as the merge needs it (db rows and mock rows both fit). */
@@ -142,20 +145,21 @@ export function mergeRoleLabels(rows: readonly RoleLabelRowLike[]): RoleLabel[] 
         category: null,
         rank: r.rank,
         archived: r.archivedAt !== null,
+        chipAuto: !r.chip?.trim(),
       })
     );
-  // Two auto chips (or an auto one and another label's chip) must not read the same: the auto one falls back.
+  // Two live auto chips (or a live auto one and another live label's chip) must not read the same:
+  // the auto one falls back. Archived labels never move a live one, but their chips stay taken.
   const all = [...builtins, ...own];
-  const used = new Map<string, number>();
   const norm = (c: string) => c.toLowerCase();
-  for (const l of all) used.set(norm(l.chip), (used.get(norm(l.chip)) ?? 0) + 1);
-  const shared = new Set([...used].filter(([, n]) => n > 1).map(([c]) => c));
+  const live = new Map<string, number>();
+  for (const l of all) if (!l.archived) live.set(norm(l.chip), (live.get(norm(l.chip)) ?? 0) + 1);
+  const taken = new Set(all.map((l) => norm(l.chip)));
   for (const l of own) {
-    const row = rows.find((r) => r.id === l.id);
-    if (row?.chip?.trim() || !shared.has(norm(l.chip))) continue;
-    const alt = chipFallbacks(l.name).find((c) => !used.has(norm(c)));
+    if (l.archived || !l.chipAuto || (live.get(norm(l.chip)) ?? 0) < 2) continue;
+    const alt = chipFallbacks(l.name).find((c) => !taken.has(norm(c)));
     if (!alt) continue;
-    used.set(norm(alt), 1);
+    taken.add(norm(alt));
     l.chip = alt;
   }
   return all.sort((a, b) => a.rank - b.rank);

@@ -106,6 +106,17 @@ describe("mergeRoleLabels", () => {
     expect(emoji.filter((l) => l.id).every((l) => Array.from(l.chip).length <= ROLE_LABEL_CHIP_MAX)).toBe(true);
   });
 
+  test("a typed chip equal to a fallback stays typed; an archived label never moves a live one", () => {
+    const typed = mergeRoleLabels([row({ id: id1, name: "Speed ladder drills", chip: "Speed ladder" })]).find((l) => l.id === id1)!;
+    expect(typed.chip).toBe("Speed ladder");
+    expect(roles.isAutoChip(typed)).toBe(false);
+    const archived = row({ id: id1, name: "Speed ladder drills", chip: null, archivedAt: "2026-01-01" });
+    const live = row({ id: id2, name: "Speed sled pushes", chip: null });
+    const merged = mergeRoleLabels([archived, live]);
+    expect(merged.find((l) => l.id === id2)!.chip).toBe("Speed");
+    expect(merged.find((l) => l.id === id1)!.chip).toBe("Speed");
+  });
+
   test("a long chip is cut by characters, never mid-emoji", () => {
     const chip = autoChip("💪".repeat(13));
     expect(Array.from(chip)).toHaveLength(ROLE_LABEL_CHIP_MAX);
