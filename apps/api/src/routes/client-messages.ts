@@ -1,3 +1,4 @@
+import { MEMBER_NOT_FOUND } from "../lib/messages";
 import { Elysia, t } from "elysia";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import {
@@ -32,7 +33,7 @@ export const clientMessageRoutes = new Elysia({ prefix: "/v1/client-messages", t
     async ({ body, status, trainerId }) => {
       try {
         const [client] = await db.select().from(clients).where(eq(clients.id, body.clientId));
-        if (!client) return status(404, { error: "client not found" });
+        if (!client) return status(404, { error: MEMBER_NOT_FOUND });
 
         const [program] = await db.select().from(programs).where(eq(programs.id, body.programId));
         if (!program) return status(404, { error: "program not found" });

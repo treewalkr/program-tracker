@@ -1,3 +1,4 @@
+import { MEMBER_NOT_FOUND } from "./messages";
 import { and, desc, eq, gte, inArray } from "drizzle-orm";
 import {
   db,
@@ -51,7 +52,7 @@ export async function loadContext(
   focus?: { focusWeek: number }
 ) {
   const [client] = await db.select().from(clients).where(eq(clients.id, clientId));
-  if (!client) throw new ContextError(404, "client not found");
+  if (!client) throw new ContextError(404, MEMBER_NOT_FOUND);
 
   const catalog = await db.select().from(exercises);
   const catalogByTrainer = catalog.filter((e) => e.trainerId === null || e.trainerId === trainerId);

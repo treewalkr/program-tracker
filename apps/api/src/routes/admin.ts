@@ -1,3 +1,4 @@
+import { MEMBER_NOT_FOUND } from "../lib/messages";
 import { Elysia, t } from "elysia";
 import { and, asc, count, desc, eq, inArray, isNull, max, min } from "drizzle-orm";
 import { clients, db, emailLog, feedbackItems, programs, sessionLogs, trainers, type ProgramRow } from "@pt/db";
@@ -214,7 +215,7 @@ export const adminRoutes = new Elysia({ prefix: "/v1/admin", tags: ["admin"] })
         .from(clients)
         .innerJoin(trainers, eq(trainers.id, clients.trainerId))
         .where(eq(clients.id, params.id));
-      if (!row) return status(404, { error: "client not found" });
+      if (!row) return status(404, { error: MEMBER_NOT_FOUND });
       const { client: c, trainer: t } = row;
       const [[last], active] = await Promise.all([
         db.select({ at: max(sessionLogs.date) }).from(sessionLogs).where(eq(sessionLogs.clientId, c.id)),

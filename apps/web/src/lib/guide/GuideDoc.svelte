@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, type Snippet } from "svelte";
+  import { activeSection, hashId } from "./tocSpy";
 
   /**
    * The guides' page body: a sticky "On this page" rail beside the article
@@ -23,20 +24,42 @@
 
   onMount(() => {
     const ids = toc.map(([id]) => id);
-    const seen = new Set<string>();
-    const io = new IntersectionObserver(
-      (entries) => {
-        for (const e of entries) (e.isIntersecting ? seen.add(e.target.id) : seen.delete(e.target.id));
-        const first = ids.find((id) => seen.has(id));
-        if (first) current = first;
-      },
-      { rootMargin: "0px 0px -65% 0px" },
-    );
-    for (const id of ids) {
-      const el = document.getElementById(id);
-      if (el) io.observe(el);
-    }
-    return () => io.disconnect();
+    let frame = 0;
+    // The hash names the section a TOC click or search jump went to (goto() changes it without a
+    // hashchange, so it's read on every update). Once the reader scrolls by hand it's forgotten, so a
+    // stale jump never outranks what's on screen at the page bottom.
+    let handHash: string | null = null;
+    const update = () => {
+      frame = 0;
+      const sections = ids.flatMap((id) => {
+        const r = document.getElementById(id)?.getBoundingClientRect();
+        return r ? [{ id, top: r.top, bottom: r.bottom }] : [];
+      });
+      const root = document.documentElement;
+      current = activeSection(sections, {
+        line: window.innerHeight * 0.35,
+        viewport: window.innerHeight,
+        atBottom: window.scrollY + window.innerHeight >= root.scrollHeight - 2,
+        hash: location.hash === handHash ? "" : hashId(location.hash),
+      });
+    };
+    const schedule = () => {
+      if (!frame) frame = requestAnimationFrame(update);
+    };
+    const onHandScroll = () => {
+      handHash = location.hash;
+    };
+    update();
+    // scrollend lands the final position of a smooth jump; hashchange covers a TOC click or search jump.
+    const spyOn = ["scroll", "scrollend", "resize", "hashchange"];
+    const hand = ["wheel", "touchmove", "keydown"];
+    for (const type of spyOn) window.addEventListener(type, schedule, { passive: true });
+    for (const type of hand) window.addEventListener(type, onHandScroll, { passive: true });
+    return () => {
+      for (const type of spyOn) window.removeEventListener(type, schedule);
+      for (const type of hand) window.removeEventListener(type, onHandScroll);
+      cancelAnimationFrame(frame);
+    };
   });
 </script>
 

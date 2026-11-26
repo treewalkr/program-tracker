@@ -1,3 +1,4 @@
+import { MEMBER_NOT_FOUND } from "../lib/messages";
 import { Elysia, t } from "elysia";
 import { and, eq, isNull } from "drizzle-orm";
 import { db, clients, trainerPreferences } from "@pt/db";
@@ -57,7 +58,7 @@ export const preferenceRoutes = new Elysia({
             )
           );
         if (!c) {
-          return status(404, { error: "client not found" });
+          return status(404, { error: MEMBER_NOT_FOUND });
         }
         clientName = c.name;
       }

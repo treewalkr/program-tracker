@@ -70,6 +70,6 @@ describe("mockApi client messages", () => {
         programId: "pg-maya-a",
         week: 5,
       })
-    ).rejects.toThrow("client not found");
+    ).rejects.toThrow("Member not found.");
   });
 });
