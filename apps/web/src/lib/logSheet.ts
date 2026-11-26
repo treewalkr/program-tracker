@@ -1,5 +1,6 @@
 import { resolveLoadKg, type PrescribedSet, type SetType, type SkipReason } from "@pt/shared";
 import { parseFlags, parseReadiness, readinessRated, type ExerciseFlags, type ReadinessForm } from "./logFlags";
+import { showWeight, weightUnit } from "./units.svelte";
 import type { LoadMode } from "./loadMode";
 
 /**
@@ -43,8 +44,15 @@ export interface SheetRow {
 export type SheetField = "weight" | "reps" | "rpe";
 export type FieldErrors = Record<string, Partial<Record<SheetField, string>>>;
 
-/** One short message per field, shared by client checks and server 422s. */
-const MSG: Record<SheetField, string> = { weight: "kg 0–600", reps: "Reps 0–200", rpe: "RPE is 1–10" };
+/** One short message per field, shared by client checks and server 422s. The
+ *  weight bound is on the stored kg; the hint names the unit the trainer reads
+ *  it in and that bound in it (600 kg ≈ 1,323 lb). */
+const fieldMsg = (field: SheetField): string =>
+  field === "weight"
+    ? `${weightUnit()} 0–${Math.round(showWeight(600)).toLocaleString("en-US")}`
+    : field === "reps"
+      ? "Reps 0–200"
+      : "RPE is 1–10";
 
 export const isBlank = (v: Cell): boolean => v == null || (typeof v === "string" && v.trim() === "");
 
@@ -99,13 +107,13 @@ export function validateRows(rows: SheetRow[]): FieldErrors {
     const reps = cellNumber(r.reps);
     if (reps === undefined && r.prescribedReps == null && rowFilled(r)) put(r.key, "reps", "Enter reps");
     if (reps !== undefined) {
-      if (!Number.isFinite(reps) || reps < 0 || reps > 200) put(r.key, "reps", MSG.reps);
+      if (!Number.isFinite(reps) || reps < 0 || reps > 200) put(r.key, "reps", fieldMsg("reps"));
       else if (!Number.isInteger(reps)) put(r.key, "reps", "Whole reps only");
     }
     const kg = cellNumber(r.weight);
-    if (kg !== undefined && (!Number.isFinite(kg) || kg < 0 || kg > 600)) put(r.key, "weight", MSG.weight);
+    if (kg !== undefined && (!Number.isFinite(kg) || kg < 0 || kg > 600)) put(r.key, "weight", fieldMsg("weight"));
     const rpe = cellNumber(r.rpe);
-    if (rpe !== undefined && (!Number.isFinite(rpe) || rpe < 1 || rpe > 10)) put(r.key, "rpe", MSG.rpe);
+    if (rpe !== undefined && (!Number.isFinite(rpe) || rpe < 1 || rpe > 10)) put(r.key, "rpe", fieldMsg("rpe"));
   }
   return out;
 }
@@ -126,7 +134,7 @@ export function serverFieldErrors(issues: unknown, rows: SheetRow[]): FieldError
     if (!row || !props) return;
     for (const [wire, node] of Object.entries(props)) {
       const field = WIRE_TO_FIELD[wire];
-      if (field && node?.errors?.length) (out[row.key] ??= {})[field] = MSG[field];
+      if (field && node?.errors?.length) (out[row.key] ??= {})[field] = fieldMsg(field);
     }
   });
   return out;

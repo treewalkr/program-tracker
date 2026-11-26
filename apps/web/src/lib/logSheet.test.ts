@@ -36,6 +36,7 @@ import {
   type SheetRow,
 } from "./logSheet";
 import { EMPTY_READINESS } from "./logFlags";
+import { applyUnits } from "./units.svelte";
 
 const row = (over: Partial<SheetRow> = {}): SheetRow => ({
   key: "pe1-1",
@@ -115,6 +116,17 @@ describe("validateRows", () => {
 
   test("skipped rows are not validated", () => {
     expect(validateRows([row({ key: "s", reps: -4, skipped: true })])).toEqual({});
+  });
+
+  test("the weight hint names the display unit and its bound in it", () => {
+    applyUnits({ weight: "lb", distance: "km" });
+    try {
+      const errs = validateRows([row({ key: "w", reps: 5, weight: 700 })]);
+      expect(errs.w?.weight).toBe("lb 0–1,323");
+    } finally {
+      applyUnits({ weight: "kg", distance: "km" });
+    }
+    expect(validateRows([row({ key: "k", reps: 5, weight: 700 })]).k?.weight).toBe("kg 0–600");
   });
 });
 
