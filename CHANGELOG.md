@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.1.55 — 2026-11-27
+
 ### Fixed
 - Overview no longer marks a planned session done because of a different kind of log that day. A run the member logged without picking a session now counts only for a cardio session, and shows on its own when that day has only strength planned.
   - th: Overview ไม่ขึ้นว่าเซสชันที่วางแผนไว้เสร็จแล้ว เพียงเพราะวันนั้นมีบันทึกคนละประเภท ถ้าเมมเบอร์บันทึกการวิ่งโดยไม่ได้เลือกเซสชัน ก็จะนับให้แค่เซสชันคาร์ดิโอ และถ้าวันนั้นวางแผนไว้แค่เวท การวิ่งนั้นจะขึ้นแยกต่างหาก
