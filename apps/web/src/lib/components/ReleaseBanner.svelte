@@ -105,6 +105,12 @@
     .toast { top: calc(env(safe-area-inset-top, 0px) + 60px); bottom: auto; animation-name: toast-down; }
     .msg { flex: 1; }
   }
+  /* Touch: the link and Dismiss keep their look and get a 44px hit area. */
+  @media (pointer: coarse) {
+    a, .close { position: relative; }
+    a::after { content: ""; position: absolute; inset: -15px -2px; }
+    .close::after { content: ""; position: absolute; inset: -10px -6px; }
+  }
   @keyframes toast-down {
     from { opacity: 0; transform: translateY(-12px); }
   }

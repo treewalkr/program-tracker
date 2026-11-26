@@ -950,6 +950,11 @@ a.rowlink { color: var(--ink); font-weight: 600; }
 .tabs a.on,
 .tabs button.on { color: var(--ink); font-weight: 600; border-bottom-color: var(--tab-on); }
 .tabs button:disabled { opacity: 0.5; cursor: default; }
+/* Touch: a tab is a 44px target (WCAG 2.5.5); the underline stays on its bottom edge. */
+@media (pointer: coarse) {
+  .tabs a,
+  .tabs button { min-height: 44px; }
+}
 
 /* Sideways scrollers (tab bars, phone action rows, .x-scroll) keep a thin
    bar in a wide window with a mouse; phones hide it with every other bar. */

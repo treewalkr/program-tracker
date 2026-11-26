@@ -1221,6 +1221,11 @@
     color: var(--muted);
     cursor: pointer;
   }
+  /* Touch: the 24px text button gets a 44px hit area without growing. */
+  @media (pointer: coarse) {
+    .details-toggle { position: relative; }
+    .details-toggle::after { content: ""; position: absolute; inset: -10px 0; }
+  }
   .details-toggle:hover {
     color: var(--ink);
     background: var(--hover-soft);

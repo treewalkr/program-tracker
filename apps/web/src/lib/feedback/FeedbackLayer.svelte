@@ -795,7 +795,7 @@
       padding: 10px 12px;
     }
     .start {
-      min-height: 40px;
+      min-height: 44px;
       padding: 0 14px;
     }
   }

@@ -1068,6 +1068,10 @@
   .lib-state { font-size: 13px; }
   .lib-link { font-size: 13px; color: var(--muted); text-decoration: none; }
   .lib-link:hover { text-decoration: underline; }
+  @media (pointer: coarse) {
+    .lib-link { position: relative; }
+    .lib-link::after { content: ""; position: absolute; inset: -12px -6px; }
+  }
 
   .mark-form {
     display: grid;

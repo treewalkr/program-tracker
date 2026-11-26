@@ -2054,6 +2054,11 @@
   /* The plan's kg stays; the chip offers the load today's numbers give. */
   .sugg-chip { color: var(--blue); background: transparent; border: 1px solid var(--line); }
   .sugg-chip:hover { background: var(--well-2); border-color: var(--line-strong); }
+  /* Touch: the 28px chip keeps its look and gets a 44px hit area. */
+  @media (pointer: coarse) {
+    .sugg-chip { position: relative; }
+    .sugg-chip::after { content: ""; position: absolute; inset: -9px -4px; }
+  }
   .sugg-chip[aria-expanded="true"] { background: var(--well-2); border-color: var(--blue-line); }
   .cl-use {
     margin-left: 6px;
