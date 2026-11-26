@@ -208,15 +208,18 @@ const anchorOf = (program: DatedProgram, logs: readonly AnchorLog[]) =>
 /**
  * Each week's calendar window and whether it is over, under way or still to
  * come — the same 7-day buckets the logs, pulse and portal use. Drafts have no
- * calendar yet: null. `today` is the local date (YYYY-MM-DD).
+ * calendar yet: null. An archived block is all history: no week is "now", not
+ * even one whose calendar window still contains today. `today` is the local
+ * date (YYYY-MM-DD).
  */
 export function weekTabDates(program: DatedProgram, logs: readonly AnchorLog[], today: string): WeekTabDate[] | null {
   if (program.status === "draft") return null;
   const anchor = anchorOf(program, logs);
+  const over = program.status === "archived";
   return program.weeks.map(({ week }) => {
     const start = blockWeekStart(anchor, week);
     const end = addDay(start, 6);
-    const state: WeekState = today > end ? "past" : today < start ? "upcoming" : "now";
+    const state: WeekState = over || today > end ? "past" : today < start ? "upcoming" : "now";
     return { week, start, end, state };
   });
 }
