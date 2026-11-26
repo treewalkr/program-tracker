@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { keepFocusOnMouse } from './pointer';
 	import { untrack } from 'svelte';
 	import Dropdown from './select/Dropdown.svelte';
 	import Icon from './Icon.svelte';
@@ -129,7 +130,7 @@
 				class="n {scale?.(v) ?? ''}"
 				class:on={v === value}
 				class:hov={i === active}
-				onpointerdown={(e) => e.preventDefault()}
+				onpointerdown={keepFocusOnMouse}
 				onpointermove={() => (active = i)}
 				onclick={() => (set(v), (open = false))}
 			>{v}</div>

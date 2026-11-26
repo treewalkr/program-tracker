@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { keepFocusOnMouse } from "$lib/ui/pointer";
   import { roleLabels } from "$lib/roleLabelStore.svelte";
   import { onMount, tick } from "svelte";
   import { page } from "$app/state";
@@ -626,7 +627,7 @@
         class="sel-note"
         style:left="{selection.x}px"
         style:top="{selection.y}px"
-        onpointerdown={(e) => e.preventDefault()}
+        onpointerdown={keepFocusOnMouse}
         onclick={noteOnSelection}
       >
         <Icon name="comment" />Note on this

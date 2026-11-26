@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { keepFocusOnMouse } from "$lib/ui/pointer";
   import { tick } from "svelte";
   import type { ExerciseDto, ExerciseInput } from "$lib/api/types";
   import { exerciseMeta, groupByPattern, guessExercise, searchExercises } from "$lib/exerciseSearch";
@@ -279,7 +280,7 @@
               class:active={i === active}
               aria-selected={ex.id === value}
               onpointermove={() => (active = i)}
-              onpointerdown={(e) => e.preventDefault()}
+              onpointerdown={keepFocusOnMouse}
               onclick={() => pick(ex)}
             >
               <span class="xp-check">{#if ex.id === value}<Icon name="check" />{/if}</span>
@@ -303,7 +304,7 @@
             class:alone={flat.length === 0}
             aria-selected="false"
             onpointermove={() => (active = flat.length)}
-            onpointerdown={(e) => e.preventDefault()}
+            onpointerdown={keepFocusOnMouse}
             onclick={startCreate}
           >
             <span class="xp-check"><Icon name="plus" /></span>

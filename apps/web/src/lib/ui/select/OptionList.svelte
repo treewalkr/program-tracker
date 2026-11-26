@@ -1,4 +1,5 @@
 <script lang="ts" generics="T extends string">
+	import { keepFocusOnMouse } from '../pointer';
 	import type { Snippet } from 'svelte';
 	import Icon from '../Icon.svelte';
 	import { matchParts, type SelectOption } from './options';
@@ -63,7 +64,7 @@
 			class:hov={i === active}
 			class:act={o.action}
 			class:two={!!o.description}
-			onpointerdown={(e) => e.preventDefault()}
+			onpointerdown={keepFocusOnMouse}
 			onpointermove={() => onhover?.(i)}
 			onclick={() => onpick(o)}
 		>

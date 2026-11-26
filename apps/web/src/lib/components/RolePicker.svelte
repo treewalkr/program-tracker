@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { keepFocusOnMouse } from "$lib/ui/pointer";
   import { tick } from "svelte";
   import { isAutoChip, type ExerciseRole, type RoleLabel } from "@pt/shared";
   import { canCreateLabel, groupRoleLabels, pickableLabels, roleDisplay, searchRoleLabels } from "$lib/roleLabels";
@@ -288,7 +289,7 @@
               class:active={active === 0}
               aria-selected={!value}
               onpointermove={() => (active = 0)}
-              onpointerdown={(e) => e.preventDefault()}
+              onpointerdown={keepFocusOnMouse}
               onclick={() => choose({ kind: "none" })}
             >
               <span class="rp-check">{#if !value}<Icon name="check" />{/if}</span>
@@ -307,7 +308,7 @@
                 class:active={i === active}
                 aria-selected={l.key === value}
                 onpointermove={() => (active = i)}
-                onpointerdown={(e) => e.preventDefault()}
+                onpointerdown={keepFocusOnMouse}
                 onclick={() => choose({ kind: "label", label: l })}
               >
                 <span class="rp-check">{#if l.key === value}<Icon name="check" />{/if}</span>
@@ -339,7 +340,7 @@
               class:alone={matches.length === 0}
               aria-selected="false"
               onpointermove={() => (active = i)}
-              onpointerdown={(e) => e.preventDefault()}
+              onpointerdown={keepFocusOnMouse}
               onclick={startCreate}
             >
               <span class="rp-check"><Icon name="plus" /></span>

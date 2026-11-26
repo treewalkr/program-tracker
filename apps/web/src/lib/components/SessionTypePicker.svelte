@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { keepFocusOnMouse } from "$lib/ui/pointer";
   import { tick } from "svelte";
   import { groupSessionTypes, presetParent, sessionTypePath, type SessionKind } from "@pt/shared";
   import type { SessionTypeDto, SessionTypeInput } from "$lib/api/types";
@@ -232,7 +233,7 @@
               aria-selected={t.id === value}
               aria-label={sessionTypePath(t)}
               onpointermove={() => (active = i)}
-              onpointerdown={(ev) => ev.preventDefault()}
+              onpointerdown={keepFocusOnMouse}
               onclick={() => pick(t)}
             >
               <span class="tp-check">{#if t.id === value}<Icon name="check" />{/if}</span>
@@ -257,7 +258,7 @@
             aria-disabled={saving}
             aria-label="New type {typed}, records {FORMAT_LABEL[f].toLowerCase()}"
             onpointermove={() => (active = i)}
-            onpointerdown={(e) => e.preventDefault()}
+            onpointerdown={keepFocusOnMouse}
             onclick={() => create(f)}
           >
             <span class="tp-check"><Icon name="plus" /></span>

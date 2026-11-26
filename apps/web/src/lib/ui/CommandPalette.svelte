@@ -1,4 +1,5 @@
 <script lang="ts" module>
+  import { keepFocusOnMouse } from "./pointer";
   export interface PaletteGroup<T> {
     id: string;
     label: string;
@@ -194,7 +195,7 @@
                 aria-selected={i === active}
                 class="opt"
                 class:on={i === active}
-                onpointerdown={(e) => e.preventDefault()}
+                onpointerdown={keepFocusOnMouse}
                 onpointermove={() => (active = i)}
                 onclick={(e) => pick(item, e.metaKey || e.ctrlKey)}
               >
