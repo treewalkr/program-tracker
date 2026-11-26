@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { fmtLoad, fmtWeight, gridKg, showLoad, showWeight, weightCells, weightStepIn, weightUnit } from "$lib/units.svelte";
+  import { fmtWeight, gridKg, showLoad, showWeight, weightCells, weightStepIn, weightUnit } from "$lib/units.svelte";
   /** Weight cells hold kg; the steppers show and take the display unit. */
   const kgCells = weightCells();
   import { onMount, tick } from "svelte";
@@ -1221,7 +1221,7 @@
     const reps = `${r.reps}${r.timed ? " s" : ""}`;
     const kg = !isBlank(r.weight)
       ? typeof r.weight === "number"
-        ? fmtLoad(r.weight, undefined, "")
+        ? fmtWeight(r.weight, undefined, "") // a typed 182 lb stays 182 lb; filled cells already sit on the plate grid
         : String(r.weight)
       : takesNoKg(r, isBodyweight)
         ? "BW"
