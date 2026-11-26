@@ -127,6 +127,8 @@ function historyBests(history: E1rmHistorySet[]): Map<string, number> {
 }
 
 const fmtKg = (n: number) => String(showWeight(n));
+/** A source set's load as the trainer reads it: "100 kg" / "220.5 lb". */
+const fmtSetKg = (n: number) => fmtWeight(n);
 const setName = (r: Pick<CoachRow, "type" | "setNumber">) => `${r.type === "backoff" ? "back-off set" : "set"} ${r.setNumber}`;
 
 /**
@@ -193,8 +195,8 @@ export function coachSheet(rows: CoachRow[], ctx: CoachCtx): SheetCoach {
     if (rpe != null) {
       const off = lastOff.get(r.exerciseId);
       const base = off
-        ? { e1rm: e1rmAtRpe(off.set.kg!, off.set.reps, off.set.rpe), label: `today's ${setName(off.row)}: ${fmtE1rmSet(off.set)}` }
-        : bestE1rm(r.exerciseId, { today, history: ctx.history, stored: ctx.stored, now: ctx.now });
+        ? { e1rm: e1rmAtRpe(off.set.kg!, off.set.reps, off.set.rpe), label: `today's ${setName(off.row)}: ${fmtE1rmSet(off.set, fmtSetKg)}` }
+        : bestE1rm(r.exerciseId, { today, history: ctx.history, stored: ctx.stored, now: ctx.now, fmtKg: fmtSetKg });
       if (!base) continue;
       const kg = roundLoad(loadFor(base.e1rm, reps, rpe), eq);
       if (kg == null) continue;

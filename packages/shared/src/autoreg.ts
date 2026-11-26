@@ -100,9 +100,11 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 /** "2026-11-02" → "Nov 2" — locale-free, so the label reads the same everywhere. */
 export const shortDate = (iso: string): string => `${MONTHS[Number(iso.slice(5, 7)) - 1]} ${Number(iso.slice(8, 10))}`;
 
-/** "100 × 5 @ 8"; no RPE → "100 × 5". */
-export const fmtE1rmSet = (s: Pick<E1rmSet, "kg" | "reps" | "rpe">): string =>
-  `${s.kg} × ${s.reps}${s.rpe != null ? ` @ ${s.rpe}` : ""}`;
+/** "100 × 5 @ 8"; no RPE → "100 × 5". `fmtKg` renders the set's load —
+ *  the default prints the stored kg; a caller showing another unit passes its
+ *  converter so the set reads the way the rest of its line does. */
+export const fmtE1rmSet = (s: Pick<E1rmSet, "kg" | "reps" | "rpe">, fmtKg: (kg: number) => string = String): string =>
+  `${s.kg != null ? fmtKg(s.kg) : ""} × ${s.reps}${s.rpe != null ? ` @ ${s.rpe}` : ""}`;
 
 /** ISO date `days` before `iso` (both YYYY-MM-DD, UTC arithmetic so no DST drift). */
 function daysBefore(iso: string, days: number): string {
@@ -124,14 +126,22 @@ function bestOf<S extends E1rmSet>(sets: S[]): { set: S; e1rm: number } | null {
  * The e1RM to suggest loads from, by priority: the best RPE-adjusted set
  * entered today; else the best in the last 6 weeks of logs (sets over 12 reps
  * and timed sets ignored); else the stored 1RM. Null = no basis to suggest.
+ * `ctx.fmtKg`, when given, renders the source set's load in the caller's unit.
  */
 export function bestE1rm(
   exerciseId: string,
-  ctx: { today?: E1rmTodaySet[]; history?: E1rmHistorySet[]; stored?: OneRepMaxes | null; now: string }
+  ctx: {
+    today?: E1rmTodaySet[];
+    history?: E1rmHistorySet[];
+    stored?: OneRepMaxes | null;
+    now: string;
+    fmtKg?: (kg: number) => string;
+  }
 ): BestE1rm | null {
+  const fmt = ctx.fmtKg ?? String;
   const today = bestOf((ctx.today ?? []).filter((s) => s.exerciseId === exerciseId));
   if (today) {
-    return { e1rm: today.e1rm, source: { kind: "today", set: today.set }, label: `today's set ${today.set.setNumber}: ${fmtE1rmSet(today.set)}` };
+    return { e1rm: today.e1rm, source: { kind: "today", set: today.set }, label: `today's set ${today.set.setNumber}: ${fmtE1rmSet(today.set, fmt)}` };
   }
   const since = daysBefore(ctx.now, E1RM_HISTORY_DAYS);
   const recent = bestOf(
@@ -143,7 +153,7 @@ export function bestE1rm(
     return {
       e1rm: recent.e1rm,
       source: { kind: "history", set: recent.set },
-      label: `${shortDate(recent.set.date)}, ${fmtE1rmSet(recent.set)}`,
+      label: `${shortDate(recent.set.date)}, ${fmtE1rmSet(recent.set, fmt)}`,
     };
   }
   const stored = oneRepMaxKg(ctx.stored, exerciseId);
