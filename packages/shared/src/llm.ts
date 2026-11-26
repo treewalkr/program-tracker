@@ -124,8 +124,8 @@ export type NoteScope = (typeof NOTE_SCOPES)[number];
 
 export const NOTE_SCOPE_LABELS: Record<NoteScope, string> = {
   once: "Just this once",
-  client: "This client",
-  always: "All clients",
+  client: "This member",
+  always: "All members",
 };
 
 /** Where a note points: one exercise (or session) of a draft, or a quote in a reply. */
