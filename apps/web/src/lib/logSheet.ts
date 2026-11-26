@@ -46,10 +46,10 @@ export type FieldErrors = Record<string, Partial<Record<SheetField, string>>>;
 
 /** One short message per field, shared by client checks and server 422s. The
  *  weight bound is on the stored kg; the hint names the unit the trainer reads
- *  it in and that bound in it (600 kg ≈ 1,323 lb). */
+ *  it in and that bound in it (600 kg is 1,322 lb, rounded down so the limit itself passes). */
 const fieldMsg = (field: SheetField): string =>
   field === "weight"
-    ? `${weightUnit()} 0–${Math.round(showWeight(600)).toLocaleString("en-US")}`
+    ? `${weightUnit()} 0–${Math.floor(showWeight(600)).toLocaleString("en-US")}`
     : field === "reps"
       ? "Reps 0–200"
       : "RPE is 1–10";

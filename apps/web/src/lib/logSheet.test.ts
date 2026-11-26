@@ -122,7 +122,8 @@ describe("validateRows", () => {
     applyUnits({ weight: "lb", distance: "km" });
     try {
       const errs = validateRows([row({ key: "w", reps: 5, weight: 700 })]);
-      expect(errs.w?.weight).toBe("lb 0–1,323");
+      // 1,323 lb is 600.1 kg, over the bound: the hint names a limit that passes
+      expect(errs.w?.weight).toBe("lb 0–1,322");
     } finally {
       applyUnits({ weight: "kg", distance: "km" });
     }
