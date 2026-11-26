@@ -13,6 +13,14 @@ describe('relativeDay', () => {
 		expect(relativeDay('2026-11-18', today)).toBe('3 days ago');
 		expect(relativeDay('2026-12-01', today)).toBe('in 10 days');
 	});
+	test('says far dates in calendar months, then years', () => {
+		expect(relativeDay('2026-09-22', today)).toBe('60 days ago');
+		expect(relativeDay('2026-01-21', today)).toBe('10 months ago');
+		expect(relativeDay('2026-01-22', today)).toBe('9 months ago');
+		expect(relativeDay('2027-05-21', today)).toBe('in 6 months');
+		expect(relativeDay('1990-04-12', today)).toBe('36 years ago');
+		expect(relativeDay('1990-11-22', today)).toBe('35 years ago');
+	});
 });
 
 describe('isMonday', () => {
