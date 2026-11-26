@@ -184,7 +184,7 @@
           <span class="chip-text" title="Chip">{l.chip}</span>
           {@const twin = builtinNameTwin(l)}
           <span class="name-text">
-            <span class="nm">{l.name}</span>{#if l.builtinKey} <Pill>built-in</Pill>{/if}
+            <span class="nm" title={l.name}>{l.name}</span>{#if l.builtinKey} <Pill>built-in</Pill>{/if}
             {#if twin}<span class="twin">Same name as a built-in — rename it</span>{/if}
           </span>
           <span class="meaning-text">{l.description}</span>
@@ -257,10 +257,19 @@
     border: 1px solid var(--line-soft);
     font: 500 12px var(--font-ui);
     color: var(--muted);
+    /* a typed or derived chip stays one line, cut with an ellipsis if the column is narrower */
+    max-width: 100%;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .name-text { display: flex; align-items: center; gap: 6px; font: 600 14px var(--font-ui); color: var(--ink); flex-wrap: wrap; }
   /* long built-in names ("Strength / Supplemental") stay on one line; the pill wraps under them */
   .name-text .nm { white-space: nowrap; }
+  /* a very long name is cut with an ellipsis inside its column, never run into the meaning */
+  .name-text { min-width: 0; }
+  .name-text .nm { max-width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   /* an older own label sharing a built-in's name: a quiet nudge, not an error */
   .twin { flex-basis: 100%; font: 500 12px var(--font-ui); color: var(--warn-ink); }
   .meaning-text { font-size: 13px; color: var(--muted); }

@@ -19,6 +19,18 @@ export const ROLE_LABEL_NAME_MAX = 40;
 export const ROLE_LABEL_CHIP_MAX = 12;
 export const ROLE_LABEL_DESCRIPTION_MAX = 200;
 
+/**
+ * The chip a label shows when its trainer typed none: the name itself when it
+ * fits `ROLE_LABEL_CHIP_MAX`, else its first word, else that word cut short with
+ * an ellipsis. So a long name never makes a long chip.
+ */
+export function autoChip(name: string): string {
+  const full = name.trim();
+  if (full.length <= ROLE_LABEL_CHIP_MAX) return full;
+  const first = full.split(/\s+/)[0] ?? full;
+  return first.length <= ROLE_LABEL_CHIP_MAX ? first : `${first.slice(0, ROLE_LABEL_CHIP_MAX - 1)}…`;
+}
+
 /** One entry of a trainer's label list: a built-in (overrides applied) or their own. */
 export interface RoleLabel {
   /** The value stored on a program exercise: a built-in key or `label:<uuid>`. */
@@ -101,7 +113,7 @@ export function mergeRoleLabels(rows: readonly RoleLabelRowLike[]): RoleLabel[] 
         builtinKey: null,
         id: r.id,
         name: r.name,
-        chip: r.chip?.trim() || r.name,
+        chip: r.chip?.trim() || autoChip(r.name),
         description: r.description ?? "",
         category: null,
         rank: r.rank,

@@ -6,6 +6,7 @@ import {
   builtinNameTwin,
   overrideRowName,
   BUILTIN_ROLE_LABELS,
+  ROLE_LABEL_CHIP_MAX,
   fixDraftRoles,
   isKnownRole,
   mergeRoleLabels,
@@ -65,6 +66,17 @@ describe("mergeRoleLabels", () => {
     const merged = mergeRoleLabels([row({})]);
     expect(merged.map((l) => l.name).slice(0, 5)).toEqual(["Movement Prep", "Plyometric", "Power", "Speed", "Primary"]);
     expect(merged[3]).toMatchObject({ key: `label:${id1}`, chip: "Speed", category: null, builtinKey: null, archived: false });
+  });
+
+  test("a long label name without a chip gets a short chip, never the whole name", () => {
+    const long = "Speed and agility and reactive strength drills extra long label name here";
+    const [own] = mergeRoleLabels([row({ id: id1, name: long, chip: null })]).filter((l) => l.key === `label:${id1}`);
+    expect(own.name).toBe(long);
+    expect(own.chip).toBe("Speed");
+    expect(own.chip.length).toBeLessThanOrEqual(ROLE_LABEL_CHIP_MAX);
+    const [one] = mergeRoleLabels([row({ id: id2, name: "Plyometrics-and-ballistics", chip: null })]).filter((l) => l.key === `label:${id2}`);
+    expect(one.chip).toBe("Plyometrics…");
+    expect(one.chip.length).toBeLessThanOrEqual(ROLE_LABEL_CHIP_MAX);
   });
 
   test("an override row changes a built-in's chip, meaning and rank — never its key or name", () => {
