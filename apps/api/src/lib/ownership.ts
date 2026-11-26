@@ -1,3 +1,4 @@
+import { MEMBER_NOT_FOUND } from "./messages";
 import { and, eq, isNull, or } from "drizzle-orm";
 import type { PgColumn, PgTable } from "drizzle-orm/pg-core";
 import {
@@ -99,7 +100,7 @@ async function owns(table: Owned, id: unknown, trainerId: string, global = false
 const fieldsOf = (v: unknown): Record<string, unknown> =>
   v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
 
-/** "client not found"-style error for the first id the trainer doesn't own, or null. */
+/** "not found"-style error for the first id the trainer doesn't own, or null. */
 export async function foreignReference(
   trainerId: string,
   req: { route: string; params?: unknown; query?: unknown; body?: unknown },
@@ -122,4 +123,4 @@ export async function foreignReference(
   return null;
 }
 
-const notFound = (table: Owned) => `${NOUN.get(table)} not found`;
+const notFound = (table: Owned) => (table === clients ? MEMBER_NOT_FOUND : `${NOUN.get(table)} not found`);

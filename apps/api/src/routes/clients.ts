@@ -1,3 +1,4 @@
+import { MEMBER_NOT_FOUND } from "../lib/messages";
 import { Elysia, t } from "elysia";
 import { eq } from "drizzle-orm";
 import { db, clients, programs, type ClientRow } from "@pt/db";
@@ -99,7 +100,7 @@ export const clientRoutes = new Elysia({ prefix: "/v1/clients", tags: ["clients"
     "/:id",
     async ({ params, status, trainerId }) => {
       const [client] = await db.select().from(clients).where(eq(clients.id, params.id));
-      if (!client) return status(404, { error: "client not found" });
+      if (!client) return status(404, { error: MEMBER_NOT_FOUND });
 
       const activeProgram = await db
         .select()
@@ -149,14 +150,14 @@ export const clientRoutes = new Elysia({ prefix: "/v1/clients", tags: ["clients"
       // Archiving is the delete: it also turns the portal off, in the same write — on the
       // change to archived only, so a later edit of an archived member leaves the portal alone.
       const [before] = await db.select({ status: clients.status }).from(clients).where(eq(clients.id, params.id));
-      if (!before) return status(404, { error: "client not found" });
+      if (!before) return status(404, { error: MEMBER_NOT_FOUND });
       const archiving = body.status === "archived" && before.status !== "archived";
       const [updated] = await db
         .update(clients)
         .set({ ...normPhone(normEmail(body)), ...(archiving ? PORTAL_OFF : {}) })
         .where(eq(clients.id, params.id))
         .returning();
-      if (!updated) return status(404, { error: "client not found" });
+      if (!updated) return status(404, { error: MEMBER_NOT_FOUND });
       if (archiving) await deleteClientSessions(updated.id);
       return clientDto(updated, await trainerDeloadSettings(trainerId));
     },
@@ -171,7 +172,7 @@ export const clientRoutes = new Elysia({ prefix: "/v1/clients", tags: ["clients"
     "/:id/deload",
     async ({ params, body, status, trainerId }) => {
       const [updated] = await db.update(clients).set({ deloadSettings: body }).where(eq(clients.id, params.id)).returning();
-      if (!updated) return status(404, { error: "client not found" });
+      if (!updated) return status(404, { error: MEMBER_NOT_FOUND });
       return clientDto(updated, await trainerDeloadSettings(trainerId));
     },
     {
@@ -185,7 +186,7 @@ export const clientRoutes = new Elysia({ prefix: "/v1/clients", tags: ["clients"
     "/:id/deload",
     async ({ params, status, trainerId }) => {
       const [updated] = await db.update(clients).set({ deloadSettings: null }).where(eq(clients.id, params.id)).returning();
-      if (!updated) return status(404, { error: "client not found" });
+      if (!updated) return status(404, { error: MEMBER_NOT_FOUND });
       return clientDto(updated, await trainerDeloadSettings(trainerId));
     },
     {
@@ -198,7 +199,7 @@ export const clientRoutes = new Elysia({ prefix: "/v1/clients", tags: ["clients"
     "/:id/portal",
     async ({ params, status }) => {
       const [client] = await db.select().from(clients).where(eq(clients.id, params.id));
-      if (!client) return status(404, { error: "client not found" });
+      if (!client) return status(404, { error: MEMBER_NOT_FOUND });
       return portalStatus(client);
     },
     {
@@ -211,7 +212,7 @@ export const clientRoutes = new Elysia({ prefix: "/v1/clients", tags: ["clients"
     "/:id/portal",
     async ({ params, status }) => {
       const [client] = await db.select().from(clients).where(eq(clients.id, params.id));
-      if (!client) return status(404, { error: "client not found" });
+      if (!client) return status(404, { error: MEMBER_NOT_FOUND });
       const [updated] = await db
         .update(clients)
         .set({ portalEnabledAt: client.portalEnabledAt ?? new Date(), portalToken: client.portalToken ?? newPortalToken() })
@@ -233,7 +234,7 @@ export const clientRoutes = new Elysia({ prefix: "/v1/clients", tags: ["clients"
         .set({ portalToken: newPortalToken() })
         .where(eq(clients.id, params.id))
         .returning();
-      if (!updated) return status(404, { error: "client not found" });
+      if (!updated) return status(404, { error: MEMBER_NOT_FOUND });
       await deleteClientSessions(updated.id);
       return portalStatus(updated);
     },
@@ -251,7 +252,7 @@ export const clientRoutes = new Elysia({ prefix: "/v1/clients", tags: ["clients"
         .set(PORTAL_OFF)
         .where(eq(clients.id, params.id))
         .returning();
-      if (!updated) return status(404, { error: "client not found" });
+      if (!updated) return status(404, { error: MEMBER_NOT_FOUND });
       await deleteClientSessions(updated.id);
       return portalStatus(updated);
     },

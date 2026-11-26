@@ -947,7 +947,7 @@ describe.skipIf(!dbUp)("full trainer loop (mock provider)", () => {
       providerId: "mock",
     });
     expect(unknownRes.status).toBe(404);
-    expect(unknownRes.body.error).toBe("client not found");
+    expect(unknownRes.body.error).toBe("Member not found.");
 
     const freshClientRes = await call("POST", "/v1/clients", {
       name: "Fresh Client",
@@ -2405,7 +2405,7 @@ describe.skipIf(!dbUp)("client messages (mock provider)", () => {
       providerId: "mock",
     });
     expect(noClient.status).toBe(404);
-    expect(noClient.body.error).toBe("client not found");
+    expect(noClient.body.error).toBe("Member not found.");
 
     const noProgram = await call("POST", "/v1/client-messages/generate", {
       clientId,
@@ -2623,7 +2623,7 @@ describe.skipIf(!dbUp)("chat surface (mock provider)", () => {
       providerId: "mock",
     });
     expect(unknown.status).toBe(404);
-    expect(unknown.body.error).toBe("client not found");
+    expect(unknown.body.error).toBe("Member not found.");
   });
 
   test("chat turn with a change request returns a proposal and no generation", async () => {

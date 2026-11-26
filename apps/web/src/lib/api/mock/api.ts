@@ -888,7 +888,7 @@ const rawMockApi: TrainerApi = {
   async client(id) {
     await delay(250);
     const client = state.clients.find((c) => c.id === id);
-    if (!client) throw new Error("client not found");
+    if (!client) throw new Error("Member not found.");
     const programs = state.programs.filter((p) => p.clientId === id).map(withNames);
     return {
       client: clientDto(client),
@@ -944,7 +944,7 @@ const rawMockApi: TrainerApi = {
   async setClientDeload(id, settings) {
     await delay(250);
     const c = state.clients.find((x) => x.id === id);
-    if (!c) throw new Error("client not found");
+    if (!c) throw new Error("Member not found.");
     c.deloadSettings = DeloadSettingsSchema.parse(settings);
     return clientDto(c);
   },
@@ -952,7 +952,7 @@ const rawMockApi: TrainerApi = {
   async resetClientDeload(id) {
     await delay(200);
     const c = state.clients.find((x) => x.id === id);
-    if (!c) throw new Error("client not found");
+    if (!c) throw new Error("Member not found.");
     c.deloadSettings = null;
     return clientDto(c);
   },
@@ -2224,7 +2224,7 @@ const rawMockApi: TrainerApi = {
   async generateClientMessage(input) {
     await delay(800);
     const client = state.clients.find((c) => c.id === input.clientId);
-    if (!client) throw new Error("client not found");
+    if (!client) throw new Error("Member not found.");
     const program = state.programs.find((p) => p.id === input.programId);
     if (!program) throw new Error("program not found");
     if (program.clientId !== input.clientId) {
@@ -2441,7 +2441,7 @@ const rawMockApi: TrainerApi = {
   async sendChatMessage(input) {
     await delay(1200);
     const client = state.clients.find((c) => c.id === input.clientId);
-    if (!client) throw new Error("client not found");
+    if (!client) throw new Error("Member not found.");
     const trimmed = input.message.trim();
     if (!trimmed) throw new Error("message must not be empty");
 
