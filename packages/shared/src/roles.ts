@@ -33,9 +33,27 @@ export function autoChip(name: string): string {
   return chars.length <= ROLE_LABEL_CHIP_MAX ? first : `${chars.slice(0, ROLE_LABEL_CHIP_MAX - 1).join("")}…`;
 }
 
+const cutChip = (text: string): string => {
+  const chars = Array.from(text);
+  return chars.length <= ROLE_LABEL_CHIP_MAX ? text : `${chars.slice(0, ROLE_LABEL_CHIP_MAX - 1).join("")}…`;
+};
+
+/**
+ * Chips tried, in order, when the auto chip is already another label's: the
+ * first word plus the second word's initial ("Speed L"), then the first two
+ * words. Empty for a one-word name. Cut by characters, like `autoChip`.
+ */
+function chipFallbacks(name: string): string[] {
+  const [first, second] = name.trim().split(/\s+/);
+  if (!first || !second) return [];
+  return [cutChip(`${first} ${Array.from(second)[0].toUpperCase()}`), cutChip(`${first} ${second}`)];
+}
+
 /** The chip is the one worked out from the name, not one the trainer typed: edit
- *  forms show it blank and saving keeps it untyped, so a rename still moves it. */
-export const isAutoChip = (l: { name: string; chip: string }): boolean => l.chip === l.name || l.chip === autoChip(l.name);
+ *  forms show it blank and saving keeps it untyped, so a rename still moves it.
+ *  A collision fallback (`chipFallbacks`) is auto too. */
+export const isAutoChip = (l: { name: string; chip: string }): boolean =>
+  l.chip === l.name || l.chip === autoChip(l.name) || chipFallbacks(l.name).includes(l.chip);
 
 /** One entry of a trainer's label list: a built-in (overrides applied) or their own. */
 export interface RoleLabel {
@@ -126,7 +144,21 @@ export function mergeRoleLabels(rows: readonly RoleLabelRowLike[]): RoleLabel[] 
         archived: r.archivedAt !== null,
       })
     );
-  return [...builtins, ...own].sort((a, b) => a.rank - b.rank);
+  // Two auto chips (or an auto one and another label's chip) must not read the same: the auto one falls back.
+  const all = [...builtins, ...own];
+  const used = new Map<string, number>();
+  const norm = (c: string) => c.toLowerCase();
+  for (const l of all) used.set(norm(l.chip), (used.get(norm(l.chip)) ?? 0) + 1);
+  const shared = new Set([...used].filter(([, n]) => n > 1).map(([c]) => c));
+  for (const l of own) {
+    const row = rows.find((r) => r.id === l.id);
+    if (row?.chip?.trim() || !shared.has(norm(l.chip))) continue;
+    const alt = chipFallbacks(l.name).find((c) => !used.has(norm(c)));
+    if (!alt) continue;
+    used.set(norm(alt), 1);
+    l.chip = alt;
+  }
+  return all.sort((a, b) => a.rank - b.rank);
 }
 
 /** The label a stored role points at, or null (unknown / not loaded). */
