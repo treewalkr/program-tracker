@@ -35,6 +35,16 @@
   </PageHead>
 </Story>
 
+<Story name="Wrapping actions" asChild>
+  <PageHead title="Feedback" sub="Wide buttons wrap on a phone instead of scrolling." wrapActions>
+    {#snippet actions()}
+      <Button>New ticket</Button>
+      <Button>Open export</Button>
+      <Button variant="primary">Copy 12 for agent</Button>
+    {/snippet}
+  </PageHead>
+</Story>
+
 <Story name="With crumbs + pill" asChild>
   <PageHead
     title="Block A — strength"

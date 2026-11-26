@@ -489,6 +489,7 @@
 <div class="page">
   <PageHead
     title="Feedback"
+    wrapActions
     sub={isAdmin
       ? "Comments pinned to the app in feedback mode. Accept what should be built — accepted items are what the coding agent reads."
       : "What you've pinned to the app in feedback mode, and where each item stands."}
