@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { fmtWeight, gridKg, showLoad, showWeight, weightCells, weightStepIn, weightUnit } from "$lib/units.svelte";
+  import { fmtLoad, fmtWeight, gridKg, showLoad, showWeight, weightCells, weightStepIn, weightUnit } from "$lib/units.svelte";
   /** Weight cells hold kg; the steppers show and take the display unit. */
   const kgCells = weightCells();
   import { onMount, tick } from "svelte";
@@ -1214,10 +1214,18 @@
   /** A card is done once every set is entered or skipped. */
   const blockDone = (b: { rows: Row[] }) => b.rows.every((r) => r.skipped || !isBlank(r.reps));
 
-  /** One set in the as-prescribed dialog: "65×5 @8", "BW×12" (a BW set), "—×5" (no load), "45 s". */
+  /** One set in the as-prescribed dialog: "65kg×5 @8", "≈ 182.5lb×5" (a snapped
+   *  load), "BW×12" (a BW set), "—×5" (no load), "45 s" — the load reads like
+   *  the sheet's prescription line: the grid value with its unit. */
   const fmtPreviewSet = (r: Row) => {
     const reps = `${r.reps}${r.timed ? " s" : ""}`;
-    const kg = !isBlank(r.weight) ? String(typeof r.weight === "number" ? showWeight(r.weight) : r.weight) : takesNoKg(r, isBodyweight) ? "BW" : "—";
+    const kg = !isBlank(r.weight)
+      ? typeof r.weight === "number"
+        ? fmtLoad(r.weight, undefined, "")
+        : String(r.weight)
+      : takesNoKg(r, isBodyweight)
+        ? "BW"
+        : "—";
     const load = r.timed && isBlank(r.weight) ? reps : `${kg}×${reps}`;
     return isBlank(r.rpe) ? load : `${load} @${r.rpe}`;
   };
