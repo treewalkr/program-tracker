@@ -191,6 +191,8 @@ export interface WeekTabDate {
   start: string;
   end: string;
   state: WeekState;
+  /** An archived block's week that was still under way: over, but it never reached its end date. */
+  stopped?: true;
 }
 
 type AnchorLog = { programId: string; date: string };
@@ -208,9 +210,9 @@ const anchorOf = (program: DatedProgram, logs: readonly AnchorLog[]) =>
 /**
  * Each week's calendar window and whether it is over, under way or still to
  * come — the same 7-day buckets the logs, pulse and portal use. Drafts have no
- * calendar yet: null. An archived block is all history: no week is "now", not
- * even one whose calendar window still contains today. `today` is the local
- * date (YYYY-MM-DD).
+ * calendar yet: null. An archived block has no "now": the week under way is
+ * over (`stopped`, its end date never came) and later weeks stay to come.
+ * `today` is the local date (YYYY-MM-DD).
  */
 export function weekTabDates(program: DatedProgram, logs: readonly AnchorLog[], today: string): WeekTabDate[] | null {
   if (program.status === "draft") return null;
@@ -219,7 +221,8 @@ export function weekTabDates(program: DatedProgram, logs: readonly AnchorLog[], 
   return program.weeks.map(({ week }) => {
     const start = blockWeekStart(anchor, week);
     const end = addDay(start, 6);
-    const state: WeekState = over || today > end ? "past" : today < start ? "upcoming" : "now";
+    const state: WeekState = today > end ? "past" : today < start ? "upcoming" : "now";
+    if (over && state === "now") return { week, start, end, state: "past" as const, stopped: true as const };
     return { week, start, end, state };
   });
 }
@@ -230,13 +233,13 @@ const addDay = (iso: string, n: number) => {
   return d.toISOString().slice(0, 10);
 };
 
-/** The week to open the program page on: the client's current week, clamped to
- *  the block (the last week once it is over, the first before it starts). 0-based index. */
+/** The week to open the program page on: the client's current week, else the last
+ *  week that is over (an ended or archived block), else the first. 0-based index. */
 export function currentWeekIndex(dates: readonly WeekTabDate[] | null): number {
   if (!dates || dates.length === 0) return 0;
   const now = dates.findIndex((d) => d.state === "now");
   if (now >= 0) return now;
-  return dates.every((d) => d.state === "past") ? dates.length - 1 : 0;
+  return Math.max(0, dates.findLastIndex((d) => d.state === "past"));
 }
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -277,6 +280,7 @@ export function weekLine(dates: readonly WeekTabDate[] | null): string | null {
 export function endedNote(dates: readonly WeekTabDate[] | null, week: number, clientName: string | null): string | null {
   const d = dates?.find((x) => x.week === week);
   if (!d || d.state !== "past") return null;
+  if (d.stopped) return `W${week} was under way when the block was archived.`;
   const now = dates!.find((x) => x.state === "now");
   const who = clientName?.trim().split(/\s+/)[0] || "The client";
   return `W${week} ended ${dayMonth(d.end)} — ${now ? `${who} is in W${now.week}.` : "the block has ended."}`;

@@ -227,13 +227,15 @@ describe("weekTabDates", () => {
     expect(weekLine(d)).toBe("Week 1 started Tue 10 Nov · ended");
   });
 
-  test("an archived block never marks a week now, even mid-window", () => {
-    // Today sits inside W2's window, but the block is archived: all history.
+  test("an archived block marks no week now; the week under way stopped and later weeks never came", () => {
+    // Today sits inside W2's window, but the block is archived.
     const d = weekTabDates(prog({ status: "archived" }), [], "2026-11-19")!;
-    expect(d.map((w) => w.state)).toEqual(["past", "past", "past", "past"]);
+    expect(d.map((w) => w.state)).toEqual(["past", "past", "upcoming", "upcoming"]);
+    expect(d[1].stopped).toBe(true);
     expect(weekLine(d)).toBe("Week 1 started Tue 10 Nov · ended");
-    expect(endedNote(d, 2, "Ann Lee")).toBe("W2 ended 23 Nov — the block has ended.");
-    expect(currentWeekIndex(d)).toBe(3);
+    expect(endedNote(d, 1, "Ann Lee")).toBe("W1 ended 16 Nov — the block has ended.");
+    expect(endedNote(d, 2, "Ann Lee")).toBe("W2 was under way when the block was archived.");
+    expect(currentWeekIndex(d)).toBe(1);
   });
 
   test("labels", () => {
