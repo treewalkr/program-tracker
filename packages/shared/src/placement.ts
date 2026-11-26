@@ -121,6 +121,9 @@ type Ctx = {
   focus: Map<string, SessionFocus>;
   load: Map<string, CardioLoad | null>;
   preferred: Set<number> | null;
+  /** Approving a draft: the days its easy runs were suggested for. A re-placed key run
+   *  takes one only when no other day is as good, so it never moves an easy run for nothing. */
+  easyHints: Set<number>;
 };
 
 const lowerWeight = (f: SessionFocus | undefined) => (f === "lower" ? 1 : f === "full" ? 0.3 : 0);
@@ -132,7 +135,10 @@ function weekCost(entries: readonly (readonly [ProgramSession, number])[], ctx: 
   const liftDays = new Set<number>();
   for (const [s, d] of entries) {
     if (s.kind === "exercises") liftDays.add(d);
-    else if (ctx.preferred && !ctx.preferred.has(d)) cost += 1.5;
+    else {
+      if (ctx.preferred && !ctx.preferred.has(d)) cost += 1.5;
+      if (isKey(ctx.load.get(s.id)) && ctx.easyHints.has(d)) cost += 0.5;
+    }
   }
   // Even spread of exercise days around the (repeating) week: small cost per tight gap.
   const ld = [...liftDays].sort((a, b) => a - b);
@@ -307,7 +313,11 @@ function placeOnce(
     focus: new Map(exerciseSessions.map((s) => [s.id, sessionFocus(s, patternOf)])),
     load: new Map(cardio.map((s) => [s.id, cardioLoad(s)])),
     preferred: avail.preferred,
+    easyHints: new Set<number>(),
   };
+  if (opts.keepWeekdays) {
+    for (const s of cardio) if (s.weekday != null && !isKey(ctx.load.get(s.id))) ctx.easyHints.add(s.weekday);
+  }
   const fixed: [ProgramSession, number][] = [];
   const isFixed = new Set<string>();
   const count = (entries: readonly (readonly [ProgramSession, number])[], d: number) => entries.filter(([, x]) => x === d).length;

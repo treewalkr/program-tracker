@@ -450,3 +450,23 @@ describe("placeSessions — approval with a skipped key run", () => {
     expect(placementConflicts(out, days, patternOf)).toEqual([]);
   });
 });
+
+describe("placeSessions — a re-placed key run leaves an easy run's day alone", () => {
+  // The long run was suggested for Sunday, off the member's days, so it is
+  // re-placed; Mon, Wed, Fri and Sat all cost the same. Taking Monday (the
+  // earliest) would push the easy run off the day the draft gave it for nothing.
+  const days = { trainingDays: [2, 4], cardioDays: [1, 3, 5, 6] };
+  const week: ProgramSession[] = [
+    { ...lift(1, ["bench", "row"]), weekday: 2 },
+    { ...lift(2, ["bench", "row"]), weekday: 4 },
+    { ...run(1, "Long run", 80, 2), weekday: 7 },
+    { ...run(2, "Easy run", 30, 2), weekday: 1 },
+  ];
+  const out = placeSessions(week, days, patternOf, { keepWeekdays: true });
+
+  test("the easy run keeps Monday and the long run takes another free day", () => {
+    expect(dayOf(out, "C2")).toBe(1);
+    expect(dayOf(out, "C1")).not.toBe(1);
+    expect(placementConflicts(out, days, patternOf)).toEqual([]);
+  });
+});
