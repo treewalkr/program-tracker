@@ -30,6 +30,14 @@
   /** Switched on by hand with nothing set yet; any saved cardio setting keeps the switch on (restore, Discard). */
   let cardioPicked = $state(false);
   const cardio = $derived(cardioPicked || hasCardio(form));
+  // A new form (saved, discarded, restored) reads cardio from its settings again, so the
+  // switch and its hint never outlive the edit they were for.
+  let seenForm: ProfileForm | null = null;
+  $effect(() => {
+    const f = form;
+    if (seenForm && f !== seenForm) cardioPicked = false;
+    seenForm = f;
+  });
 
   const sessions = $derived(Number(form.sessionsPerWeek));
   const stack = $derived(stackNote(sessions, form.trainingDays.length));
