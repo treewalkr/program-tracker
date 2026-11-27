@@ -555,8 +555,8 @@ code,
 .btn.primary:hover { background: var(--green-btn-hov); }
 
 .btn.small { min-height: 28px; padding: 3px 12px; font-size: 12px; } /* Primer small */
-/* Phone: a medium button is a 44px target too, as inputs and selects grow under 720px. */
-@media (max-width: 720px) {
+/* Phone or touch screen: a medium button is a 44px target too, as inputs and selects grow. */
+@media (max-width: 720px), (pointer: coarse) {
   .btn { min-height: 44px; }
 }
 
@@ -638,8 +638,8 @@ code,
 }
 .panel-head h2 { font: 600 14px/1.3 var(--font-ui); }
 .panel-head .act { margin-left: auto; font: 400 13px/1 var(--font-ui); }
-/* Phone: the head link keeps its look but takes a 44px-tall hit area, spilling into the head's padding. */
-@media (max-width: 720px) {
+/* Phone or touch screen: the head link keeps its look but takes a 44px-tall hit area, spilling into the head's padding. */
+@media (max-width: 720px), (pointer: coarse) {
   .panel-head a.act { position: relative; }
   .panel-head a.act::before { content: ""; position: absolute; inset: -16px -8px; }
 }
@@ -842,8 +842,8 @@ a.rowlink { color: var(--ink); font-weight: 600; }
   white-space: nowrap;
 }
 .snooze:hover { color: var(--blue-hov); }
-/* Phone: a 44px target beside the signal's 44px action button. */
-@media (max-width: 720px) {
+/* Phone or touch screen: a 44px target beside the signal's 44px action button. */
+@media (max-width: 720px), (pointer: coarse) {
   .snooze { display: inline-flex; align-items: center; min-height: 44px; padding: 6px 8px; font-size: 13px; }
 }
 
