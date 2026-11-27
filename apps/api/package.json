@@ -1,6 +1,6 @@
 {
   "name": "@pt/api",
-  "version": "0.1.58",
+  "version": "0.1.59",
   "type": "module",
   "scripts": {
     "dev": "bun run --watch src/index.ts",

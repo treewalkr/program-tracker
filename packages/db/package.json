@@ -1,6 +1,6 @@
 {
   "name": "@pt/db",
-  "version": "0.1.58",
+  "version": "0.1.59",
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
