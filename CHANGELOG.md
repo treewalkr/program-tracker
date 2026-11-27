@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### New
+- **Add an exercise while logging.** On Log a session, **+ Add exercise** under the last card adds one that isn't in the program: pick it from the library, or create a new one there. Its sets start from the member's last time on it (3 × 10 if they've never done it). Turn on **Also add to program** to put it in the same session for every later week, using the sets you just logged as targets.
+  - th: **เพิ่มท่าระหว่างบันทึกได้แล้ว** ในหน้า Log a session กด **+ Add exercise** ใต้การ์ดท่าสุดท้ายเพื่อเพิ่มท่าที่ไม่มีในโปรแกรม เลือกจากคลังหรือสร้างท่าใหม่ตรงนั้นเลยก็ได้ เซ็ตจะขึ้นตามครั้งล่าสุดที่เมมเบอร์ทำท่านั้น (ถ้ายังไม่เคยทำ จะขึ้น 3 × 10) ถ้าเปิด **Also add to program** ท่านี้จะเข้าไปอยู่ในเซสชันเดียวกันของทุกสัปดาห์ถัดไป โดยใช้เซ็ตที่เพิ่งบันทึกเป็นเป้า
+- Swap exercise on the log page can also create a new exercise.
+  - th: ตอน Swap exercise ในหน้า Log ก็สร้างท่าใหม่ได้เหมือนกัน
+
 ## v0.1.56 — 2026-11-27
 
 ### Fixed
