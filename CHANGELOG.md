@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Improved
+- On a phone or iPad, buttons and links are easier to hit: member names, row actions, Dismiss on a message, settings links, the Feedback button and more now take a fingertip-sized tap, even where they look small. Member links that wrap onto a second line no longer catch each other's taps.
+  - th: บนมือถือหรือ iPad ปุ่มและลิงก์กดง่ายขึ้น ชื่อเมมเบอร์ ปุ่มในแต่ละแถว ปุ่ม Dismiss บนข้อความแจ้งเตือน ลิงก์ในหน้าตั้งค่า ปุ่ม Feedback และอื่นๆ แตะด้วยนิ้วได้สบายแล้ว ถึงจะดูเล็กก็ตาม ส่วนชื่อเมมเบอร์ที่ขึ้นบรรทัดใหม่ก็ไม่แตะโดนชื่อข้างๆ แล้ว
+- A member's page and Log a session open faster: they load everything at once instead of one piece after another.
+  - th: หน้าเมมเบอร์และหน้า Log a session เปิดเร็วขึ้น เพราะโหลดข้อมูลทั้งหมดพร้อมกัน ไม่ต้องรอทีละส่วนแล้ว
+
 ## v0.1.58 — 2026-11-27
 
 ### Improved
