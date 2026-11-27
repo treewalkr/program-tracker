@@ -6,7 +6,8 @@ describe("mockApi clientsOverview", () => {
     const rows = await mockApi.clientsOverview();
     const listed = await mockApi.clients();
     expect(rows.map((r) => r.client)).toEqual(listed);
-    for (const row of rows) {
+    // every member at once: the mock sleeps on each call, and one by one ran close to the 5 s test limit on CI
+    const checks = rows.map(async (row) => {
       const id = row.client.id;
       const [detail, logs, portal] = await Promise.all([
         mockApi.client(id),
@@ -26,7 +27,8 @@ describe("mockApi clientsOverview", () => {
         }))
       );
       expect(row.portalLink).toBe(portal.link);
-    }
+    });
+    await Promise.all(checks);
     // the seed has at least one member training, one with logs and one with the portal on
     expect(rows.some((r) => r.currentProgram)).toBe(true);
     expect(rows.some((r) => r.logs.length > 0)).toBe(true);
