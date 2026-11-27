@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Improved
+- Overview opens much faster, especially with many members: it now loads everything in one go instead of fetching each member one by one.
+  - th: หน้า Overview เปิดเร็วขึ้นมาก โดยเฉพาะตอนมีเมมเบอร์เยอะ เพราะตอนนี้โหลดข้อมูลทั้งหมดในครั้งเดียว ไม่ต้องดึงทีละคนแล้ว
+
+### Fixed
+- On a short phone, members logging a session now see Set 1 above the Save session button, and the field they type in stays clear of it.
+  - th: บนมือถือจอเตี้ย ตอนเมมเบอร์บันทึกเซสชัน เซ็ตแรกจะอยู่เหนือปุ่ม Save session แล้ว และช่องที่กำลังพิมพ์ก็ไม่โดนปุ่มบัง
+
 ## v0.1.57 — 2026-11-27
 
 ### New
