@@ -1,11 +1,11 @@
 import { Elysia, t } from "elysia";
 import { z } from "zod";
-import { and, desc, eq, gte, inArray, lte } from "drizzle-orm";
+import { and, eq, gte, inArray } from "drizzle-orm";
 import { db, clients, sessionLogs, setLogs, exercises } from "@pt/db";
 import { addDays, localDateOf } from "@pt/shared";
 import { trainerContext } from "../lib/trainer-context";
 import { buildHistory } from "../lib/history";
-import { createSessionLog, deleteSessionLog, SessionLogInput, serializeSets } from "../lib/log-service";
+import { createSessionLog, deleteSessionLog, loadLogsWithSets, SessionLogInput } from "../lib/log-service";
 import { loadLogPrograms, timedIdsOf, timedSlotIdsOf } from "../lib/signals-service";
 import { LogModel } from "../models/logs";
 import { ErrorBody } from "../models/shared";
@@ -13,32 +13,6 @@ import { ErrorBody } from "../models/shared";
 /** Logs carry no trainer_id — scope them through the trainer's clients. */
 const ofTrainer = (trainerId: string) =>
   inArray(sessionLogs.clientId, db.select({ id: clients.id }).from(clients).where(eq(clients.trainerId, trainerId)));
-
-async function loadSessionWithSets(
-  trainerId: string,
-  clientId?: string,
-  from?: string,
-  to?: string,
-  programId?: string,
-  limit = 200
-) {
-  const conds = [ofTrainer(trainerId)];
-  if (clientId) conds.push(eq(sessionLogs.clientId, clientId));
-  if (programId) conds.push(eq(sessionLogs.programId, programId));
-  if (from) conds.push(gte(sessionLogs.date, from));
-  if (to) conds.push(lte(sessionLogs.date, to));
-  const logs = await db
-    .select()
-    .from(sessionLogs)
-    .where(conds.length ? and(...conds) : undefined)
-    .orderBy(desc(sessionLogs.date))
-    .limit(limit);
-  const sets = logs.length
-    ? await db.select().from(setLogs).where(inArray(setLogs.sessionLogId, logs.map((l) => l.id)))
-    : [];
-  const byLog = serializeSets(sets);
-  return logs.map((l) => ({ ...l, sets: byLog.filter((s) => s.sessionLogId === l.id) }));
-}
 
 export const logRoutes = new Elysia({ prefix: "/v1/logs", tags: ["logs"] })
   .use(trainerContext)
@@ -112,7 +86,14 @@ export const logRoutes = new Elysia({ prefix: "/v1/logs", tags: ["logs"] })
   .get(
     "/sessions",
     async ({ query, trainerId }) =>
-      loadSessionWithSets(trainerId, query.clientId, query.from, query.to, query.programId, query.limit),
+      loadLogsWithSets({
+        scope: ofTrainer(trainerId),
+        clientIds: query.clientId ? [query.clientId] : undefined,
+        programId: query.programId,
+        from: query.from,
+        to: query.to,
+        limit: query.limit ?? 200,
+      }),
     {
       query: t.Object({
         clientId: t.Optional(t.String()),
