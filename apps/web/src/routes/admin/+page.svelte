@@ -280,7 +280,7 @@
     const failed: { t: TrainerAccount; detail: string }[] = [];
     for (const t of batch) {
       try {
-        await adminApi.removeTrainer(t.id);
+        await adminApi.removeTrainer(t.id); // guard-ok: n+1 admin sweep of invites, the server re-checks each one
         trainers = trainers!.filter((x) => x.id !== t.id);
       } catch (err) {
         failed.push({ t, detail: (err as Error).message });

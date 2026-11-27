@@ -139,7 +139,7 @@
     const updated = await Promise.all(
       ids.map((id) => {
         const e = list.find((x) => x.id === id)!;
-        return api.patchExercise(id, patch(e));
+        return api.patchExercise(id, patch(e)); // guard-ok: n+1 bulk edit of the rows the trainer ticked, not a page load
       })
     );
     updated.forEach(put);

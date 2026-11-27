@@ -280,7 +280,57 @@ export const RATCHET_HELP: Record<string, string> = {
   "raw-btn": 'class="btn" markup: use the Button component from src/lib/ui/',
   "raw-panel": 'class="panel" markup: use the Panel component from src/lib/ui/',
   "raw-fetch": "a hand-written fetch(): call the API through the Eden Treaty client (src/lib/api/treaty.ts)",
+  "n-plus-one": "an API call per item of a list: add or reuse a list endpoint that returns the whole set in one call (AGENTS.md › No N+1 from the web)",
 };
+
+const API_CALL = /(?<![.\w$])(?:api|\w+Api)\.[A-Za-z]\w*\(/g;
+const N_PLUS_ONE_OK = /guard-ok:\s*n\+1\b/;
+/** Page code only: the route files, and the reads they delegate to (src/lib/pageLoads.ts). */
+const N_PLUS_ONE_FILES = /^apps\/web\/src\/(routes\/.*\.svelte|lib\/pageLoads\.ts)$/;
+
+/** The index just past the bracket that closes the one at `open`; the end of the text if it never closes. */
+function closeOf(text: string, open: number): number {
+  const pair: Record<string, string> = { "(": ")", "{": "}" };
+  const [o, c] = [text[open], pair[text[open]]];
+  let depth = 0;
+  for (let i = open; i < text.length; i++) {
+    if (text[i] === o) depth++;
+    else if (text[i] === c && --depth === 0) return i + 1;
+  }
+  return text.length;
+}
+
+/**
+ * Lines (1-based) with an API call inside something that runs once per item: an async `.map` /
+ * `.flatMap` / `.forEach` callback, a `.map` / `.flatMap` straight inside `Promise.all(…)`, or a
+ * `for (… of|in …)` body. `// guard-ok: n+1 <why>` on the call's line or the loop's line clears it.
+ */
+export function nPlusOneLines(content: string): number[] {
+  const lineAt = (i: number) => content.slice(0, i).split("\n").length;
+  const lines = content.split("\n");
+  const found = new Set<number>();
+  const scan = (from: number, to: number, openerLine: number) => {
+    for (const call of content.slice(from, to).matchAll(API_CALL)) {
+      const line = lineAt(from + call.index);
+      if (!N_PLUS_ONE_OK.test(lines[line - 1]) && !N_PLUS_ONE_OK.test(lines[openerLine - 1])) found.add(line);
+    }
+  };
+  for (const m of content.matchAll(/\.(?:map|flatMap|forEach)\(/g)) {
+    const open = m.index + m[0].length - 1;
+    const asyncCb = /^\(\s*async\b/.test(content.slice(open, open + 40));
+    const inPromiseAll = /Promise\.(?:all|allSettled)\(\s*[\w.$?!]*$/.test(content.slice(Math.max(0, m.index - 60), m.index));
+    if (asyncCb || inPromiseAll) scan(open, closeOf(content, open), lineAt(m.index));
+  }
+  for (const m of content.matchAll(/\bfor\s+(?:await\s*)?\(/g)) {
+    const open = m.index + m[0].length - 1;
+    if (!/\b(?:of|in)\b/.test(content.slice(open, closeOf(content, open)))) continue;
+    let body = closeOf(content, open);
+    while (/\s/.test(content[body] ?? "")) body++;
+    const end = content[body] === "{" ? closeOf(content, body) : Math.max(content.indexOf(";", body), content.indexOf("\n", body));
+    scan(body, end < 0 ? content.length : end, lineAt(m.index));
+  }
+  return [...found].sort((a, b) => a - b);
+}
 
 /** Hand-rolled controls and fetch calls in one file, by rule. Zero-count rules are left out. */
 export function countRatchets(path: string, content: string): Record<string, number> {
@@ -288,6 +338,7 @@ export function countRatchets(path: string, content: string): Record<string, num
   const add = (rule: string, n = 1) => {
     if (n) counts[rule] = (counts[rule] ?? 0) + n;
   };
+  if (N_PLUS_ONE_FILES.test(path)) add("n-plus-one", nPlusOneLines(content).length);
   const isRoute = ROUTES.test(path);
   const isWeb = WEB_SOURCE.test(path) && !isTestFile(path) && path !== EDEN_CLIENT;
   if (!isRoute && !isWeb) return counts;
@@ -318,7 +369,7 @@ export function checkRatchet(files: { path: string; content: string }[], baselin
     for (const [rule, count] of Object.entries(countRatchets(f.path, f.content))) {
       const allowed = baseline[rule]?.[f.path] ?? 0;
       if (count > allowed) {
-        out.push(v(rule, `${f.path}: ${count} (baseline ${allowed}) — ${RATCHET_HELP[rule]}. Or mark a justified line \`// guard-ok: ${rule === "raw-fetch" ? "eden" : "raw-controls"} <why>\`.`));
+        out.push(v(rule, `${f.path}: ${count} (baseline ${allowed}) — ${RATCHET_HELP[rule]}. Or mark a justified line \`// guard-ok: ${rule === "raw-fetch" ? "eden" : rule === "n-plus-one" ? "n+1" : "raw-controls"} <why>\`.`));
       }
     }
   }

@@ -15,6 +15,7 @@ import {
   checkSvelteRunes,
   commitSkipsHooks,
   computeBaseline,
+  nPlusOneLines,
   countRatchets,
   formatProofTrailer,
   judgeProof,
@@ -275,6 +276,38 @@ describe("pre-commit: ratchet on hand-rolled controls and fetch", () => {
     expect(countRatchets("apps/web/src/lib/x.test.ts", "fetch('/x')")).toEqual({});
     expect(countRatchets("apps/web/src/lib/x.ts", "await event.fetch('/x'); capturingFetch(a)")).toEqual({});
     expect(countRatchets("apps/web/src/lib/x.ts", "await fetch(url) // guard-ok: eden image bytes, not the API")).toEqual({});
+  });
+  describe("n-plus-one: an API call per item", () => {
+    const page = "apps/web/src/routes/x/+page.svelte";
+    const count = (content: string, path = page) => countRatchets(path, content)["n-plus-one"] ?? 0;
+    test("red: async map, Promise.all over a map, and a for…of body", () => {
+      expect(nPlusOneLines("const rows = await Promise.all(clients.map(async (c) => ({ c, logs: await api.sessionLogs(c.id) })));")).toEqual([1]);
+      expect(nPlusOneLines("const all = await Promise.all(ids.map((id) => api.client(id)));")).toEqual([1]);
+      expect(nPlusOneLines("await Promise.allSettled(\n  ids.map((id) =>\n    api.snoozeSignal(id)\n  ));")).toEqual([3]);
+      expect(nPlusOneLines("for (const c of clients) {\n  const d = await api.client(c.id);\n}")).toEqual([2]);
+      expect(nPlusOneLines("for (const c of clients) await adminApi.removeTrainer(c.id);")).toEqual([1]);
+      expect(nPlusOneLines("list.forEach(async (c) => { await api.client(c.id); });")).toEqual([1]);
+    });
+    test("red: counted in routes and in pageLoads.ts, so it rides the ratchet", () => {
+      const bad = "for (const c of cs) await api.client(c.id);";
+      expect(count(bad)).toBe(1);
+      expect(count(bad, "apps/web/src/lib/pageLoads.ts")).toBe(1);
+      expect(rules(checkRatchet([{ path: page, content: bad }], {}))).toEqual(["n-plus-one"]);
+      expect(checkRatchet([{ path: page, content: bad }], { "n-plus-one": { [page]: 1 } })).toEqual([]);
+    });
+    test("green: one list call, a plain loop, api before the loop, and other files", () => {
+      expect(nPlusOneLines("const rows = await api.clientsOverview();\nfor (const r of rows) total += r.logs.length;")).toEqual([]);
+      expect(nPlusOneLines("const [a, b] = await Promise.all([api.client(id), api.exercises()]);")).toEqual([]);
+      expect(nPlusOneLines("const names = clients.map((c) => c.name);\nawait api.save(names);")).toEqual([]);
+      expect(nPlusOneLines("for (const k in obj) {}\nawait api.save(1);")).toEqual([]);
+      expect(count("for (const c of cs) await api.client(c.id);", "apps/web/src/lib/x.ts")).toBe(0);
+      expect(count("for (const c of cs) await api.client(c.id);", "apps/web/src/routes/x/page.test.ts")).toBe(0);
+    });
+    test("green: a justified line on the call or on the loop opener", () => {
+      expect(nPlusOneLines("for (const c of cs) await api.client(c.id); // guard-ok: n+1 admin sweep")).toEqual([]);
+      expect(nPlusOneLines("for (const c of cs) { // guard-ok: n+1 bulk edit of ticked rows\n  await api.client(c.id);\n}")).toEqual([]);
+      expect(nPlusOneLines("ids.map(async (id) => {\n  await api.client(id); // guard-ok: n+1 one per ticked row\n});")).toEqual([]);
+    });
   });
   test("computeBaseline records today's counts, sorted", () => {
     const b = computeBaseline([
