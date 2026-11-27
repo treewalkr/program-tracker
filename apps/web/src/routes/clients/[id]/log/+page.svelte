@@ -871,14 +871,13 @@
     next = { state: "loading" };
     try {
       const weeks = stripWeeks(new Date(), 1);
-      const roster = await api.clients();
-      const strips = await Promise.all(
-        roster.map(async (c) => {
-          // This client was just logged, others that aren't training can't be next: no need to fetch them.
-          if (c.id === id || c.status !== "active") return buildClientStrip(c, null, [], weeks, today);
-          const [detail, logs] = await Promise.all([api.client(c.id), api.sessionLogs(c.id)]);
-          return buildClientStrip(c, detail.currentProgram, logs, weeks, today);
-        })
+      // One call for the whole roster (like Overview), never one per member.
+      const roster = await api.clientsOverview();
+      const strips = roster.map(({ client: c, currentProgram, logs }) =>
+        // This client was just logged, others that aren't training can't be next.
+        c.id === id || c.status !== "active"
+          ? buildClientStrip(c, null, [], weeks, today)
+          : buildClientStrip(c, currentProgram, logs, weeks, today)
       );
       if (token === nextToken) next = { state: "ready", client: nextToLog(strips, id, today) };
     } catch {
