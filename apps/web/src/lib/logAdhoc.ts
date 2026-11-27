@@ -10,6 +10,7 @@ import {
   type ProgramWeek,
   type WeekEdit,
 } from "@pt/shared";
+import type { WeekTabDate } from "./programEdit";
 import type { SheetRow } from "./logSheet";
 
 // ---------------------------------------------------------------------------
@@ -179,4 +180,15 @@ export function weeksText(weeks: readonly number[]): string {
   if (w.length === 1) return `week ${w[0]}`;
   const run = w.every((n, i) => i === 0 || n === w[i - 1] + 1);
   return run ? `weeks ${w[0]}–${w[w.length - 1]}` : `weeks ${w.join(", ")}`;
+}
+
+/**
+ * The client's week for "later weeks": the current one; before the start W1;
+ * past the end nothing is later; a draft has none (null). The program page reads it the same way.
+ */
+export function clientNowWeek(dates: readonly Pick<WeekTabDate, "week" | "state">[] | null): number | null {
+  if (!dates) return null;
+  const now = dates.find((d) => d.state === "now");
+  if (now) return now.week;
+  return dates.every((d) => d.state === "past") ? dates.length + 1 : 1;
 }

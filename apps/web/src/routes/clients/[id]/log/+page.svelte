@@ -11,12 +11,14 @@
   import { saveErrorText } from "$lib/api/errors";
   import { fmtSet } from "$lib/format";
   import { buildClientStrip, localIso, stripWeeks } from "$lib/overview";
+  import { weekTabDates } from "$lib/programEdit";
   import { nextToLog, recapCounts, recapNotes, saveRecap, type RecapNote } from "$lib/logRecap";
   import SaveRecap, { type NextState } from "$lib/components/SaveRecap.svelte";
   import {
     DuplicateLogError,
     type ClientDto,
     type ExerciseDto,
+    type ExerciseInput,
     type ExistingLogDto,
     type ProgramDto,
     type ProgramSessionDto,
@@ -24,12 +26,13 @@
     type SessionLogDto,
     type SessionLogInput,
   } from "$lib/api/types";
-  import { groupKind, logToInput, mainWork, movementPrep, oneRepMaxKg, prepTag, sessionTag, sessionsByWeekday, timedExerciseIds, timedSlotIds, type Equipment, type ExerciseRole } from "@pt/shared";
+  import { groupKind, logToInput, mainWork, type ProgramWeek, movementPrep, oneRepMaxKg, prepTag, sessionTag, sessionsByWeekday, timedExerciseIds, timedSlotIds, type Equipment, type ExerciseRole } from "@pt/shared";
   import { SvelteMap, SvelteSet } from "svelte/reactivity";
   import { chipFor, coachSheet, historySets, suggestionNote, type Suggestion } from "$lib/logCoach";
   import { dateForSession, linkedPick, openingPick, sessionForDate, type SessionPick } from "$lib/logDate";
   import Icon from "$lib/ui/Icon.svelte";
   import Button from "$lib/ui/Button.svelte";
+  import ToggleChip from "$lib/ui/ToggleChip.svelte";
   import OverflowMenu, { type OverflowItem } from "$lib/ui/OverflowMenu.svelte";
   import PageHead from "$lib/ui/PageHead.svelte";
   import Panel from "$lib/ui/Panel.svelte";
@@ -65,6 +68,20 @@
   import LoadCell, { type LoadCellText } from "$lib/components/LoadCell.svelte";
   import { asSent, draftLoad, isBwSet, restartLoads, setLoad, startLoad, type LoadMode } from "$lib/loadMode";
   import { feedbackMode } from "$lib/feedback/mode.svelte";
+  import {
+    addAdhocToProgram,
+    adhocPrefill,
+    clientNowWeek,
+    adhocProgramExercise,
+    adhocRows,
+    isAdhocSlot,
+    isUnplanned,
+    newAdhocSlot,
+    weeksText,
+    withoutAdhoc,
+    withToProgram,
+    type LoggedAdhocSet,
+  } from "$lib/logAdhoc";
   import {
     asPrescribed,
     prescriptionOf,
@@ -638,6 +655,15 @@
     sent: Row[] | null;
     count: number;
     snapshot: Snapshot;
+    /** Added exercises the trainer also wants in the program's later weeks, once the log is saved. */
+    programAdd: ProgramAdd | null;
+  }
+
+  /** "Also add to program": the session, and each added exercise with the sets just logged. */
+  interface ProgramAdd {
+    week: number;
+    session: { kind: "exercises"; seq: number; name: string };
+    exercises: { exerciseId: string; sets: LoggedAdhocSet[] }[];
   }
 
   type Ask =
@@ -695,7 +721,19 @@
       sent,
       count: sent.length,
       snapshot: snapshot(sheetRows),
+      programAdd: programAddOf(sent),
     };
+  }
+
+  /** The added exercises set to also join the program, with their logged sets; null when none. */
+  function programAddOf(sent: Row[]): ProgramAdd | null {
+    const s = selectedSession;
+    if (!s || s.kind !== "exercises") return null;
+    const exercises = [...new Set(sent.filter((r) => isAdhocSlot(r.programExerciseId) && r.toProgram).map((r) => r.programExerciseId))].map((pe) => {
+      const own = sent.filter((r) => r.programExerciseId === pe);
+      return { exerciseId: own[0].exerciseId, sets: own.map(toLoggedSet) };
+    });
+    return exercises.length ? { week: selectedWeekNumber, session: { kind: "exercises", seq: s.seq, name: s.name }, exercises } : null;
   }
 
   /** The save for a cardio form, or the field it's missing (shown on the form). */
@@ -717,6 +755,7 @@
       sent: null,
       count: 1,
       snapshot: { ...snapshot(rows), cardio: $state.snapshot(form) as CardioForm },
+      programAdd: null,
     };
   }
 
@@ -764,6 +803,40 @@
       sessionName: sessionName(),
     };
     undoLeft = UNDO_SECONDS;
+    // The log is saved whatever happens next: a program failure only adds a message.
+    if (p.programAdd) await addToProgram(p.programAdd);
+  }
+
+  /**
+   * Put the logged exercises into the same session of every later week the client hasn't
+   * finished (A/B letter kept). Reads the program fresh and saves against its version, so
+   * an edit made elsewhere since this page opened is never overwritten.
+   */
+  async function addToProgram(add: ProgramAdd) {
+    const names = add.exercises.map((e) => nameOf(e.exerciseId)).join(", ");
+    try {
+      const fresh = await api.program(program!.id);
+      let weeks = fresh.weeks as ProgramWeek[];
+      const nowWeek = clientNowWeek(weekTabDates(fresh, pastLogs, today));
+      const reached: string[] = [];
+      const notes: RecapNote[] = [];
+      for (const e of add.exercises) {
+        const exercise = adhocProgramExercise({ exerciseId: e.exerciseId, exerciseName: nameOf(e.exerciseId), sets: e.sets });
+        if (!exercise) continue;
+        const r = addAdhocToProgram(weeks, { from: add.week, session: add.session, exercise, nowWeek, phasing: fresh.phasing ?? null });
+        weeks = r.weeks;
+        if (r.changed.length) reached.push(`${nameOf(e.exerciseId)} → ${weeksText(r.changed)}`);
+        else notes.push({ tone: "muted", text: `${nameOf(e.exerciseId)} not added to the program: ${r.already.length ? "it's already in the later weeks" : "no later weeks to add it to"}` });
+      }
+      if (reached.length) {
+        program = await api.saveProgram(fresh.id, weeks as ProgramDto["weeks"], undefined, fresh.version);
+        notes.unshift({ tone: "muted", text: `Added to ${add.session.name}: ${reached.join("; ")}` });
+        announce = `Added ${names} to the program.`;
+      }
+      if (recap) recap = { ...recap, notes: [...recap.notes, ...notes] };
+    } catch (err) {
+      error = `The log is saved, but ${names} wasn't added to the program: ${saveErrorText(err)}`;
+    }
   }
 
   function recapOf(p: Pending, saved: SavedLogDto): NonNullable<typeof recap> {
@@ -888,7 +961,7 @@
       (r) =>
         !r.skipped &&
         (!pe || r.programExerciseId === pe) &&
-        (field === "reps" ? !r.extra && isBlank(r.reps) : rowFilled(r) && isBlank(r.weight) && !r.timed && !takesNoKg(r, isBodyweight))
+        (field === "reps" ? !isUnplanned(r) && isBlank(r.reps) : rowFilled(r) && isBlank(r.weight) && !r.timed && !takesNoKg(r, isBodyweight))
     );
     if (target) await focusCell(target.key, field);
   }
@@ -1130,6 +1203,63 @@
     rows = withoutExtra(rows, key);
   }
 
+  // ---- Add an exercise beyond the session (FB-029) ----
+
+  /** The "+ Add exercise" picker is open. */
+  let addOpen = $state(false);
+
+  /** New exercise from a picker: save to the library, keep the catalog in sync. */
+  async function addToLibrary(input: ExerciseInput) {
+    const created = await api.createExercise(input);
+    catalog.push(created);
+    return created;
+  }
+
+  /** The picked exercise opens as a card of its own, filled from the member's last sets of it. */
+  async function addExercise(ex: ExerciseDto) {
+    const sets = adhocPrefill(pastLogs, ex.id);
+    const seen = pastLogs.some((l) => l.sets.some((s) => s.exerciseId === ex.id));
+    rows = [
+      ...rows,
+      ...adhocRows({ slot: newAdhocSlot(), exerciseId: ex.id, sets }).map(
+        (r, i): Row => ({
+          ...r,
+          rx: null,
+          timed: false,
+          last: null,
+          // last time at no load reads as BW, like a prescribed set; with no history, kg (BW for a bodyweight move)
+          load: loadAtStart(ex.id, null, seen ? { date: "", weightKg: sets[i].weightKg, reps: sets[i].reps, rpe: null } : null),
+        })
+      ),
+    ];
+    addOpen = false;
+    await tick();
+    current = Math.max(0, blocks.length - 1);
+  }
+
+  async function openAdd() {
+    addOpen = true;
+    await tick();
+    // straight to the search: the panel's own trigger would be a second tap
+    document.querySelector<HTMLButtonElement>("#add-exercise .xp-btn")?.click();
+  }
+
+  function setToProgram(programExerciseId: string, on: boolean) {
+    rows = withToProgram(rows, programExerciseId, on);
+  }
+
+  /** Drop an added exercise with all its sets; the programmed sets stay as they were. */
+  function removeAdhoc(programExerciseId: string) {
+    const keys = new Set(rows.filter((r) => r.programExerciseId === programExerciseId).map((r) => r.key));
+    rows = withoutAdhoc(rows, programExerciseId);
+    fieldErrors = Object.fromEntries(Object.entries(fieldErrors).filter(([k]) => !keys.has(k)));
+    const { [programExerciseId]: _, ...rest } = flags;
+    flags = rest;
+    if (flagOpen === programExerciseId) flagOpen = null;
+    skipBefore.delete(programExerciseId);
+    current = Math.max(0, Math.min(current, blocksOf(rows).length - 1));
+  }
+
   function swap(programExerciseId: string, exerciseId: string) {
     // the new lift opens its sets as a fresh sheet would; a mode picked by hand stays
     rows = restartLoads(swapSlot(rows, programExerciseId, exerciseId), programExerciseId, loadOf);
@@ -1193,6 +1323,14 @@
   function cardActions(b: { programExerciseId: string; rows: Row[] }, swapped: boolean, flagged: boolean): OverflowItem[] {
     const pe = b.programExerciseId;
     const head = b.rows[0];
+    // an added exercise has no slot to swap into: pick another one instead
+    if (isAdhocSlot(pe)) {
+      return [
+        { label: flagged ? "Edit flag" : "Flag", icon: "flag", hint: flagged ? undefined : "pain · technique", onselect: () => openPanel("flag", pe) },
+        { label: "Skip exercise", icon: "skip", onselect: () => skipBlock(b) },
+        { label: "Remove exercise", icon: "x", hint: "not saved", onselect: () => removeAdhoc(pe) },
+      ];
+    }
     return [
       ...(swapped
         ? [{ label: `Undo swap`, icon: "undo" as const, hint: nameOf(head.slotExerciseId), onselect: () => swap(pe, head.slotExerciseId) }]
@@ -1470,6 +1608,9 @@
                 {#if tag}<GroupTag {tag} />{/if}
                 {#if role}<RoleChip {role} />{/if}
                 <h3 id={`blk-${b.programExerciseId}`}>{nameOf(head.exerciseId)}</h3>
+                {#if isAdhocSlot(b.programExerciseId)}
+                  <span class="pill adhoc-pill">Added</span>
+                {/if}
                 {#if swapped}
                   <span class="pill warn swap-pill">swapped · was {nameOf(head.slotExerciseId)}</span>
                 {/if}
@@ -1549,6 +1690,12 @@
                   <Button variant="ghost" small type="button" onclick={() => (flagOpen = null)}>Done</Button>
                 </div>
               {/if}
+              {#if isAdhocSlot(b.programExerciseId) && !exSkip}
+                <div class="blk-prog">
+                  <ToggleChip on={!!head.toProgram} aria-label={`Also add ${blockName(b)} to the program`} onclick={() => setToProgram(b.programExerciseId, !head.toProgram)}>Also add to program</ToggleChip>
+                  <span class="subtle">{head.toProgram ? "On save, added last to this session in every later week." : "This log only — the program stays as it is."}</span>
+                </div>
+              {/if}
               {#if swapOpen === b.programExerciseId && !exSkip}
                 <div class="blk-swap" id={`blk-swap-${b.programExerciseId}`}>
                   <ExercisePicker
@@ -1556,12 +1703,30 @@
                     {catalog}
                     label={`Log ${nameOf(head.slotExerciseId)} as`}
                     onpick={(ex) => swap(b.programExerciseId, ex.id)}
+                    oncreate={addToLibrary}
                   />
                   <span class="subtle">Every set of this exercise logs under the pick. History shows the swap.</span>
                   <Button variant="ghost" small type="button" onclick={() => (swapOpen = null)}>Cancel</Button>
                 </div>
               {/if}
             </header>
+        {/snippet}
+
+        {#snippet addExerciseBar()}
+          <div class="add-ex">
+            {#if addOpen}
+              <div class="blk-swap" id="add-exercise">
+                <ExercisePicker value="" {catalog} label="Add exercise" onpick={addExercise} oncreate={addToLibrary} />
+                <span class="subtle">An extra exercise for this session. To replace one, use Swap on its card.</span>
+                <Button variant="ghost" small type="button" onclick={() => (addOpen = false)}>Cancel</Button>
+              </div>
+            {:else}
+              <Button variant="ghost" type="button" onclick={openAdd}>
+                {#snippet icon()}<Icon name="plus" />{/snippet}
+                Add exercise
+              </Button>
+            {/if}
+          </div>
         {/snippet}
 
         {#snippet setRow(r: Row, tag: string | null)}
@@ -1692,9 +1857,12 @@
                 <span>Next: {cardTitle(blocks[bi + 1])}</span>
                 <Icon name="chevron" />
               </button>
+            {:else}
+              {@render addExerciseBar()}
             {/if}
           </section>
         {/each}
+        {#if blocks.length === 0}{@render addExerciseBar()}{/if}
       </div>
         <div class="panel-body foot">
           <div class="notes">
@@ -1938,6 +2106,16 @@
     padding: 4px 0 6px;
   }
   .blk-swap .subtle { font-size: 13px; }
+  .add-ex { padding: 8px 0 4px; }
+  .blk-prog {
+    flex: 1 0 100%;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 12px;
+    padding: 2px 0 6px;
+  }
+  .blk-prog .subtle { font-size: 13px; }
 
   .set {
     min-height: 44px;
@@ -2397,6 +2575,8 @@
     .fb-word { display: none; }
     .save-bar :global(.recap .action .btn) { min-height: 44px; padding: 0 16px; }
     .blk-act { flex-wrap: wrap; justify-content: flex-end; }
+    .blk-prog :global(.tchip) { min-height: 44px; padding: 0 16px; font-size: 14px; }
+    .add-ex :global(.btn) { min-height: 44px; width: 100%; justify-content: center; }
     .blk-reason .subtle { flex-basis: 100%; }
     .reason-chip { height: 44px; padding: 0 6px; font-size: 14px; flex: 1; }
     .blk-flag .subtle { flex-basis: 100%; }

@@ -6,6 +6,7 @@ import {
   adhocPrefill,
   adhocProgramExercise,
   adhocRows,
+  clientNowWeek,
   isAdhocSlot,
   newAdhocSlot,
   weeksText,
@@ -43,8 +44,10 @@ describe("ad-hoc slot ids", () => {
 
     const rows = adhocRows({ slot, exerciseId: FLY, sets: [{ weightKg: 20, reps: 12 }] });
     expect(toLoggedSet(rows[0])).toEqual({ programExerciseId: null, exerciseId: FLY, setNumber: 1, type: "working", weightKg: 20, reps: 12, rpe: undefined });
+    // a pain flag on it goes out with no slot; skipping an unplanned exercise sends no flag at all
+    expect(sessionFlags(rows, { [slot]: { kind: "pain", note: "" } })).toEqual([{ programExerciseId: null, exerciseId: FLY, kind: "pain" }]);
     const skipped = rows.map((r) => ({ ...r, exerciseSkip: { reason: "time" as const } }));
-    expect(sessionFlags(skipped, {})).toEqual([{ programExerciseId: null, exerciseId: FLY, kind: "skipped", reason: "time" }]);
+    expect(sessionFlags(skipped, {})).toEqual([]);
   });
 });
 
@@ -232,6 +235,14 @@ describe("also add to program", () => {
   test("the last week has nothing after it: no change", () => {
     const r = addAdhocToProgram(weeks(3), { from: 3, session: { kind: "exercises", seq: 1, name: "Session 1" }, exercise, nowWeek: 3 });
     expect(r.changed).toEqual([]);
+  });
+
+  test("the client's week: now, W1 before the start, past the end nothing later, drafts none", () => {
+    const d = (...states: ("past" | "now" | "upcoming")[]) => states.map((state, i) => ({ week: i + 1, state }));
+    expect(clientNowWeek(d("past", "now", "upcoming"))).toBe(2);
+    expect(clientNowWeek(d("upcoming", "upcoming"))).toBe(1);
+    expect(clientNowWeek(d("past", "past"))).toBe(3);
+    expect(clientNowWeek(null)).toBeNull();
   });
 
   test("weeks read as a range or a list", () => {

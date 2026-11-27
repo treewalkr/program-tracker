@@ -3,7 +3,7 @@
  * technique, skipped + reason). Pure helpers — the page only wires them.
  */
 import type { Readiness, SessionFlag } from "@pt/shared";
-import { wirePe } from "./logAdhoc";
+import { isAdhocSlot, wirePe } from "./logAdhoc";
 import type { SheetRow } from "./logSheet";
 
 // ---------------------------------------------------------------------------
@@ -110,7 +110,8 @@ export function sessionFlags(rows: SheetRow[], flags: ExerciseFlags): SessionFla
       const note = f.note.trim().slice(0, FLAG_NOTE_MAX);
       out.push({ programExerciseId: wirePe(r.programExerciseId), exerciseId: r.exerciseId, kind: f.kind, ...(note ? { note } : {}) });
     }
-    if (r.exerciseSkip) {
+    // skipping an exercise that was never in the program says nothing: its sets just aren't sent
+    if (r.exerciseSkip && !isAdhocSlot(r.programExerciseId)) {
       const reason = r.exerciseSkip.reason;
       out.push({ programExerciseId: wirePe(r.programExerciseId), exerciseId: r.exerciseId, kind: "skipped", ...(reason ? { reason } : {}) });
     }
