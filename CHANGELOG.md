@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.1.56 — 2026-11-27
+
 ### Fixed
 - On an iPhone or iPad, tapping an option in a list now picks it. Before, a tap did nothing: members couldn't pick an RPE on a cardio log, and the exercise, label and session-type pickers ignored taps.
   - th: บน iPhone หรือ iPad แตะตัวเลือกในรายการแล้วเลือกได้แล้ว ก่อนหน้านี้แตะแล้วไม่มีอะไรเกิดขึ้น เมมเบอร์เลือก RPE ตอนบันทึกคาร์ดิโอไม่ได้ ส่วนตัวเลือกท่าออกกำลังกาย ป้าย และประเภทเซสชันก็ไม่รับการแตะ
