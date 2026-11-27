@@ -1042,6 +1042,11 @@ a.rowlink { color: var(--ink); font-weight: 600; }
 a.rowlink-name { color: inherit; text-decoration: none; font-weight: 600; }
 a.rowlink-name:hover { text-decoration: underline; text-underline-offset: 3px; }
 a.rowlink-name:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
+/* Touch: the name keeps its look and gets a 44px hit area inside its row. */
+@media (pointer: coarse) {
+  a.rowlink-name { position: relative; }
+  a.rowlink-name::after { content: ""; position: absolute; inset: -14px -4px; }
+}
 
 .divider { border: none; border-top: 1px solid var(--line); margin: 14px 0; }
 

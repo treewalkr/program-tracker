@@ -90,6 +90,12 @@
 		cursor: pointer;
 		transition: color 120ms;
 	}
+	/* Touch: the same 44px target as "Turn on…" beside it. */
+	@media (pointer: coarse) {
+		.quiet {
+			min-height: 44px;
+		}
+	}
 	.quiet:hover .word {
 		text-decoration: underline;
 		text-underline-offset: 3px;
