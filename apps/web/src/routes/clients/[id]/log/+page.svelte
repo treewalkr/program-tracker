@@ -803,8 +803,12 @@
       sessionName: sessionName(),
     };
     undoLeft = UNDO_SECONDS;
-    // The log is saved whatever happens next: a program failure only adds a message.
-    if (p.programAdd) await addToProgram(p.programAdd);
+    // The log is saved whatever happens next: a program failure only adds a message,
+    // and the Save button is free again before the program round-trips start.
+    if (p.programAdd) {
+      saving = false;
+      await addToProgram(p.programAdd);
+    }
   }
 
   /**
