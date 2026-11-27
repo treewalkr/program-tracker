@@ -187,7 +187,8 @@
      still 44px tall. */
   @container lstep (max-width: 149px) {
     .lstep-row { flex-wrap: wrap; }
-    .lstep-input { order: -1; flex: 1 0 100%; border-radius: 6px 6px 0 0; }
+    /* the steppers hang 44px under the field: scrolling to it keeps them clear of a sticky bar too */
+    .lstep-input { order: -1; flex: 1 0 100%; border-radius: 6px 6px 0 0; scroll-margin-bottom: 44px; }
     .lstep-btn { flex: 1 1 0; border-top: 0; }
     .lstep-btn:first-child { border-radius: 0 0 0 6px; border-right: 1px solid var(--line); }
     .lstep-btn:last-child { border-radius: 0 0 6px 0; border-left: 0; }

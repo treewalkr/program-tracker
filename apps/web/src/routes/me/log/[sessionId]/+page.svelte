@@ -268,6 +268,22 @@
     // a restored draft or a saved log may already carry a skip or pain: never hide it
     issuesOpen = flaggedAt(0);
     loadState = "ready";
+    void clearSaveBar();
+  }
+
+  /**
+   * A short phone can't fit the page's head, the coach's note and a whole first set above the Save bar: on the first
+   * screen and on paging to a card, nudge the page down the few pixels that bring Set 1 clear of the bar, so it is there
+   * to see and tap. Never up, never on a page the member has already scrolled.
+   */
+  async function clearSaveBar(paged = false) {
+    await tick();
+    if ((!paged && window.scrollY > 0) || !window.matchMedia("(max-width: 699px)").matches) return;
+    const set = document.querySelector(".ex .set");
+    const bar = document.querySelector(".savebar");
+    if (!set || !bar) return;
+    const over = set.getBoundingClientRect().bottom - bar.getBoundingClientRect().top;
+    if (over > 0) window.scrollBy({ top: over + 8, behavior: "instant" });
   }
 
   /** This member's stored draft for the session (an older build's moves to their key). */
@@ -394,6 +410,7 @@
   function goTo(i: number) {
     current = i;
     issuesOpen = flaggedAt(i);
+    void clearSaveBar(true);
   }
   /** The bottom "Next exercise": the reader (and the eye) start again at the new exercise's name. */
   async function nextExercise() {
@@ -1033,7 +1050,7 @@
   .sk :global(.skeleton) { display: block; }
 
   /* the narrow log sheet: LogStepper's 44px steppers key off this container */
-  .log { container: logform / inline-size; display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; margin-top: 8px; padding-bottom: 96px; }
+  .log { container: logform / inline-size; display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; margin-top: 8px; }
   .head { display: grid; gap: 12px; }
   .back-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; }
   .date-chip {
@@ -1268,18 +1285,20 @@
   .sub-h { margin: 0; font: 600 16px/1.3 var(--font-ui); }
   .opt { font-weight: 400; color: var(--muted); }
 
-  /* one green action, always in reach: sticky over the safe area */
+  /* one green action, always in reach: sticky over the safe area. It sits in the form's flow, so the end of the page needs no
+     extra padding; --savebar-h is what it covers at the foot of the screen (padding + the button), and the page's
+     scroll-padding keeps a focused or scrolled-to field clear of it. */
   .savebar {
     position: sticky;
     bottom: 0;
     display: grid;
     gap: 8px;
     margin: 0 -16px;
-    padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+    padding: var(--savebar-pad, 12px) 16px calc(var(--savebar-pad, 12px) + env(safe-area-inset-bottom));
     background: var(--bg);
     border-top: 1px solid var(--line);
   }
-  .save { justify-content: center; width: 100%; min-height: 52px; font-size: 16px; font-weight: 600; }
+  .save { justify-content: center; width: 100%; min-height: var(--savebar-btn, 52px); font-size: 16px; font-weight: 600; }
   .err { margin: 0; font-size: 14px; font-weight: 500; color: var(--bad); }
   .alerts:empty { display: none; }
   .err-btn {
@@ -1336,6 +1355,27 @@
   @media (prefers-reduced-motion: reduce) {
     .feel summary :global(svg), .issues-toggle :global(svg) { transition: none; }
     .tick, .tick :global(path) { animation: none; }
+  }
+  /* the page scrolls under the bar: a field focused or scrolled to lands above it, not behind it */
+  :global(:root:has(.log)) {
+    --savebar-pad: 12px;
+    --savebar-btn: 52px;
+    --savebar-h: calc(var(--savebar-btn) + 2 * var(--savebar-pad) + 1px + env(safe-area-inset-bottom, 0px));
+    scroll-padding-bottom: calc(var(--savebar-h) + 12px);
+  }
+  /* A short phone (an SE or mini with Safari's bars up): the bar takes a tenth of the screen, so tighten the stack above
+     the first set until it fits whole above the bar. Touch targets stay 44px. */
+  @media (max-height: 720px) and (max-width: 699px) {
+    :global(:root:has(.log)) { --savebar-pad: 6px; --savebar-btn: 48px; }
+    .log { gap: 10px; }
+    .head { gap: 6px; }
+    h1 { font-size: 22px; }
+    .session-note { padding: 8px 14px; }
+    .ex { gap: 6px; padding-block: 10px; }
+    .steps { display: none; }
+    h2 { margin-top: 0; }
+    .set { padding-block: 8px; }
+    .cells { gap: 8px 12px; }
   }
   @media (min-width: 700px) {
     .savebar { margin: 0; border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow-overlay-up); bottom: 12px; }
