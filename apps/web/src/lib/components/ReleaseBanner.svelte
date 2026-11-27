@@ -113,7 +113,7 @@
   @media (pointer: coarse) {
     a, .close { position: relative; }
     a::after { content: ""; position: absolute; inset: -15px -2px; }
-    .close::after { content: ""; position: absolute; inset: -10px -6px; }
+    .close::after { content: ""; position: absolute; inset: -10px; }
   }
   @keyframes toast-down {
     from { opacity: 0; transform: translateY(-12px); }

@@ -2378,6 +2378,11 @@
     cursor: pointer;
   }
   .fb-dock:hover { color: var(--ink); border-color: var(--line-strong); }
+  /* Touch: the 28px pill keeps its look and gets a 44px hit area. */
+  @media (pointer: coarse) {
+    .fb-dock { position: relative; }
+    .fb-dock::after { content: ""; position: absolute; inset: -10px -4px; }
+  }
   .fb-dock svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
   .kbd-hint { font: 400 12px/1.2 var(--font-ui); color: var(--faint); white-space: nowrap; }
   /* A focused cell scrolls clear of the bar, not under it. */
@@ -2588,6 +2593,7 @@
     /* Phone keyboards have a Next key; the shortcut hint is desk-only. */
     .kbd-hint { display: none; }
     .fb-dock { width: 44px; height: 44px; padding: 0; justify-content: center; border-radius: 6px; }
+    .fb-dock::after { content: none; } /* already 44px */
     .fb-word { display: none; }
     .save-bar :global(.recap .action .btn) { min-height: 44px; padding: 0 16px; }
     .blk-act { flex-wrap: wrap; justify-content: flex-end; }
