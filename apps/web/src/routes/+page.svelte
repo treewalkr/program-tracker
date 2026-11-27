@@ -43,7 +43,7 @@
   let providers = $state<ProviderDto[]>([]);
   let loadError = $state<string | null>(null);
   let currentNames = $state<Record<string, string>>({});
-  /** Each client's portal access link: a string when it's on, null when it's off, absent when it didn't load. */
+  /** Each client's portal access link: a string when it's on, null when it's off. */
   let portals = $state<Record<string, string | null>>({});
   let signals = $state<SignalDto[]>([]);
   /** Signal ids hidden on this visit (snoozed; the next load leaves them out). */
@@ -87,27 +87,19 @@
   async function load() {
     loadError = null;
     try {
-      const [everyone, ps, sigs] = await Promise.all([api.clients(), api.providers(), api.notifications()]);
-      // Archived members are off Overview; Settings and the Members list still reach them.
-      const cs = everyone.filter((c) => c.status !== "archived");
+      // One call for every member's program, logs and portal link; the strips are still built here, on local "today".
+      const [overview, ps, sigs] = await Promise.all([api.clientsOverview(), api.providers(), api.notifications()]);
+      // Archived members are off Overview (the API leaves them out); Settings and the Members list still reach them.
+      const cs = overview.map((r) => r.client);
       const shown = new Set(cs.map((c) => c.id));
       clients = cs;
       providers = ps;
       signals = sigs.filter((s) => s.clientId && shown.has(s.clientId));
-      // Per-client detail + logs in parallel — sequential calls scaled linearly with the roster.
-      const built = await Promise.all(
-        cs.map(async (c) => {
-          const [detail, logs, portal] = await Promise.all([
-            api.client(c.id),
-            api.sessionLogs(c.id),
-            // A portal that won't load only costs its copy button — never the row.
-            api.clientPortal(c.id).catch(() => null),
-          ]);
-          currentNames[c.id] = detail.currentProgram?.name ?? "—";
-          if (portal) portals[c.id] = portal.link ?? null;
-          return buildClientStrip(c, detail.currentProgram, logs, weeks, today);
-        })
-      );
+      const built = overview.map((row) => {
+        currentNames[row.client.id] = row.currentProgram?.name ?? "—";
+        portals[row.client.id] = row.portalLink;
+        return buildClientStrip(row.client, row.currentProgram, row.logs, weeks, today);
+      });
       strips = exceptionOrder(built);
       rowsReady = true;
     } catch (err) {
@@ -319,8 +311,6 @@
                       <CopyButton text={portals[c.id] ?? ""} label="Copy link" quiet ariaLabel={`Copy link for ${c.name}`} />
                     {:else if portals[c.id] === null}
                       <a class="portal-on" href={`/clients/${c.id}#settings`} aria-label={`Turn on the portal for ${c.name}`}>Turn on…</a>
-                    {:else if rowsReady}
-                      <span class="subtle" title="Couldn't load this member's portal">—</span>
                     {/if}
                   </td>
                 </tr>
