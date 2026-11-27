@@ -1,6 +1,6 @@
 {
   "name": "@pt/shared",
-  "version": "0.1.57",
+  "version": "0.1.58",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"

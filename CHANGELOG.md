@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.1.58 — 2026-11-27
+
 ### Improved
 - Overview opens much faster, especially with many members: it now loads everything in one go instead of fetching each member one by one.
   - th: หน้า Overview เปิดเร็วขึ้นมาก โดยเฉพาะตอนมีเมมเบอร์เยอะ เพราะตอนนี้โหลดข้อมูลทั้งหมดในครั้งเดียว ไม่ต้องดึงทีละคนแล้ว
