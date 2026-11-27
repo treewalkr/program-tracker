@@ -61,7 +61,7 @@ async function countsFor(page: Page, id: string): Promise<{ counts: Counts; memb
 }
 
 describe("a page's API calls don't grow with the number of members", () => {
-  let restore: () => void;
+  let restore = () => {};
   const small = new Map<string, Counts>();
   const smallMembers = { n: 0 };
 

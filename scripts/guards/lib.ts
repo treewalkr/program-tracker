@@ -283,7 +283,8 @@ export const RATCHET_HELP: Record<string, string> = {
   "n-plus-one": "an API call per item of a list: add or reuse a list endpoint that returns the whole set in one call (AGENTS.md › No N+1 from the web)",
 };
 
-const API_CALL = /(?<![.\w$])(?:api|\w+Api)\.[A-Za-z]\w*\(/g;
+// `api.x(`, `this.api.x(`, `deps.trainerApi.x(`: the client may sit behind a property.
+const API_CALL = /(?<![\w$])(?:api|\w+Api)\.[A-Za-z]\w*\(/g;
 const N_PLUS_ONE_OK = /guard-ok:\s*n\+1\b/;
 /** Page code only: the route files, and the reads they delegate to (src/lib/pageLoads.ts). */
 const N_PLUS_ONE_FILES = /^apps\/web\/src\/(routes\/.*\.svelte|lib\/pageLoads\.ts)$/;
@@ -301,8 +302,8 @@ function closeOf(text: string, open: number): number {
 }
 
 /**
- * Lines (1-based) with an API call inside something that runs once per item: an async `.map` /
- * `.flatMap` / `.forEach` callback, a `.map` / `.flatMap` straight inside `Promise.all(…)`, or a
+ * Lines (1-based) with an API call inside something that runs once per item: any `.map` /
+ * `.flatMap` / `.forEach` callback (async or not, awaited now or later through `Promise.all(ps)`), or a
  * `for (… of|in …)` body. `// guard-ok: n+1 <why>` on the call's line or the loop's line clears it.
  */
 export function nPlusOneLines(content: string): number[] {
@@ -317,17 +318,17 @@ export function nPlusOneLines(content: string): number[] {
   };
   for (const m of content.matchAll(/\.(?:map|flatMap|forEach)\(/g)) {
     const open = m.index + m[0].length - 1;
-    const asyncCb = /^\(\s*async\b/.test(content.slice(open, open + 40));
-    const inPromiseAll = /Promise\.(?:all|allSettled)\(\s*[\w.$?!]*$/.test(content.slice(Math.max(0, m.index - 60), m.index));
-    if (asyncCb || inPromiseAll) scan(open, closeOf(content, open), lineAt(m.index));
+    scan(open, closeOf(content, open), lineAt(m.index));
   }
   for (const m of content.matchAll(/\bfor\s+(?:await\s*)?\(/g)) {
     const open = m.index + m[0].length - 1;
     if (!/\b(?:of|in)\b/.test(content.slice(open, closeOf(content, open)))) continue;
     let body = closeOf(content, open);
     while (/\s/.test(content[body] ?? "")) body++;
-    const end = content[body] === "{" ? closeOf(content, body) : Math.max(content.indexOf(";", body), content.indexOf("\n", body));
-    scan(body, end < 0 ? content.length : end, lineAt(m.index));
+    // An unbraced body ends at its first `;` or line break, whichever comes first.
+    const stops = [content.indexOf(";", body), content.indexOf("\n", body)].filter((i) => i >= 0);
+    const end = content[body] === "{" ? closeOf(content, body) : stops.length ? Math.min(...stops) : content.length;
+    scan(body, end, lineAt(m.index));
   }
   return [...found].sort((a, b) => a - b);
 }

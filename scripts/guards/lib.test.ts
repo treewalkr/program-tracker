@@ -287,6 +287,10 @@ describe("pre-commit: ratchet on hand-rolled controls and fetch", () => {
       expect(nPlusOneLines("for (const c of clients) {\n  const d = await api.client(c.id);\n}")).toEqual([2]);
       expect(nPlusOneLines("for (const c of clients) await adminApi.removeTrainer(c.id);")).toEqual([1]);
       expect(nPlusOneLines("list.forEach(async (c) => { await api.client(c.id); });")).toEqual([1]);
+      // promises built now, awaited later; a client behind a property; an unbraced body on one line
+      expect(nPlusOneLines("const ps = list.map((c) => api.client(c.id));\nawait Promise.all(ps);")).toEqual([1]);
+      expect(nPlusOneLines("rows.filter(ok).map((r) => this.api.sessionLogs(r.id));")).toEqual([1]);
+      expect(nPlusOneLines("for (const c of cs) n++;\nawait api.save(1);")).toEqual([]);
     });
     test("red: counted in routes and in pageLoads.ts, so it rides the ratchet", () => {
       const bad = "for (const c of cs) await api.client(c.id);";
