@@ -237,6 +237,8 @@
     cursor: pointer;
   }
   .devices button + button { border-left: 1px solid var(--line); }
+  /* Touch: each size is a 44px target. */
+  @media (pointer: coarse) { .devices button { min-height: 44px; } }
   .devices button:hover { color: var(--ink); background: var(--well); }
   .devices button.on { background: var(--well-2); color: var(--ink); font-weight: 600; }
   .devices button:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
