@@ -169,6 +169,8 @@ import {
   hrProfiles as seedHrProfiles,
   type StoredLog,
 } from "./data";
+import { bigRoster } from "./bigRoster";
+import { mockScenarioName } from "./scenario";
 import { DuplicateLogError, type OverviewLogDto, type SessionLogDto } from "../types";
 
 import { uuid } from "$lib/uuid";
@@ -302,14 +304,17 @@ const clientDto = (c: ClientDto): ClientDto => ({
   effectiveDeload: effectiveDeload(state.deload, c.deloadSettings),
 });
 
+/** `?mock=roster`: one trainer with 25 members instead of the three demo ones (bigRoster.ts). */
+const roster = mockScenarioName() === "roster" ? bigRoster() : null;
+
 const state = {
   /** The trainer's deload rule; null = the default. */
   deload: null as DeloadSettings | null,
   /** The generate page's last Weeks choice (trainers.last_weeks_choice). */
   weeksChoice: "same" as WeeksChoice,
-  clients: [...seedClients],
-  programs: [...seedPrograms],
-  logs: [...seedLogs],
+  clients: roster ? roster.clients : [...seedClients],
+  programs: roster ? roster.programs : [...seedPrograms],
+  logs: roster ? roster.logs : [...seedLogs],
   templates: [...seedTemplates],
   schemes: [...seedSchemes],
   /** Built-in scheme presets the trainer hid. */
@@ -325,9 +330,9 @@ const state = {
   examples: [...seedExamples] as ProgramExampleDto[],
   roleLabels: [] as RoleLabelRowLike[],
   /** Client portal access per client id; absent = off. The demo client starts on, seen yesterday. */
-  portal: {
+  portal: (roster?.portal ?? {
     "cl-nat": { token: "demo-nattapong", lastSeenAt: new Date(Date.now() - 86400_000).toISOString() },
-  } as Record<string, { token: string; lastSeenAt: string | null }>,
+  }) as Record<string, { token: string; lastSeenAt: string | null }>,
   /** The presets every trainer gets, plus one custom type (what the migration leaves Hypertrophy as). */
   sessionTypes: [
     ...SESSION_TYPE_PRESETS.map((p) => ({ id: `st-${p.key}`, name: p.name, format: p.format, presetKey: p.key, archivedAt: null })),
@@ -2971,4 +2976,15 @@ function mockRoster(query: RosterQuery): RosterPageDto {
 export const mockApi: TrainerApi = withKindAlias(rawMockApi);
 
 /** The client portal's mock runs over this same state, as the demo client. */
-export { state as mockState, logDto as mockLogDto, nameOf as mockExerciseName, logPrescriptionOf as mockLogPrescription };
+/**
+ * Swap the demo members, programs, logs and portal links for the 25-member roster until the
+ * returned function puts them back. For tests that compare request counts across roster sizes.
+ */
+function useBigRoster(): () => void {
+  const saved = { clients: state.clients, programs: state.programs, logs: state.logs, portal: state.portal };
+  const big = bigRoster();
+  Object.assign(state, { clients: big.clients, programs: big.programs, logs: big.logs, portal: big.portal });
+  return () => Object.assign(state, saved);
+}
+
+export { useBigRoster as mockUseBigRoster, state as mockState, logDto as mockLogDto, nameOf as mockExerciseName, logPrescriptionOf as mockLogPrescription };
