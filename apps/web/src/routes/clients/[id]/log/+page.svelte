@@ -8,7 +8,7 @@
   import { createLeaveGuard } from "$lib/leaveGuard.svelte";
   import LeaveGuard from "$lib/ui/LeaveGuard.svelte";
   import { api } from "$lib/api";
-  import { saveErrorText } from "$lib/api/errors";
+  import { errorText, saveErrorText } from "$lib/api/errors";
   import { fmtSet } from "$lib/format";
   import { buildClientStrip, localIso, stripWeeks } from "$lib/overview";
   import { weekTabDates } from "$lib/programEdit";
@@ -378,6 +378,7 @@
 
   /** Reset the sheet to the selected session — or to its draft, when one was left on this device. */
   function loadSession() {
+    addOpen = false;
     recap = null;
     savedLogId = null;
     error = null;
@@ -767,6 +768,7 @@
       const saved = await api.logSession({ ...p.input, onDuplicate });
       closeAsk();
       await afterSave(saved, p);
+      adding = p.programAdd;
     } catch (err) {
       if (err instanceof DuplicateLogError) {
         saving = false; // the choice buttons must be enabled before focus moves to them
@@ -782,7 +784,20 @@
     } finally {
       saving = false;
     }
+    // The log is saved whatever happens next: a program failure only adds a message.
+    // Runs after `saving` settles, so a second save can't have its flag cleared by this one.
+    const add = adding;
+    if (add) {
+      try {
+        await addToProgram(add);
+      } finally {
+        adding = null;
+      }
+    }
   }
+
+  /** The program add of the save that just finished, while it runs; Undo waits for it. */
+  let adding = $state<ProgramAdd | null>(null);
 
   async function afterSave(saved: SavedLogDto, p: Pending) {
     // The draft is saved now — drop it before the sheet resets, or loadSession would bring it back.
@@ -803,12 +818,6 @@
       sessionName: sessionName(),
     };
     undoLeft = UNDO_SECONDS;
-    // The log is saved whatever happens next: a program failure only adds a message,
-    // and the Save button is free again before the program round-trips start.
-    if (p.programAdd) {
-      saving = false;
-      await addToProgram(p.programAdd);
-    }
   }
 
   /**
@@ -839,7 +848,7 @@
       }
       if (recap) recap = { ...recap, notes: [...recap.notes, ...notes] };
     } catch (err) {
-      error = `The log is saved, but ${names} wasn't added to the program: ${saveErrorText(err)}`;
+      error = `The log is saved, but ${names} wasn't added to the program: ${errorText(err)}`;
     }
   }
 
@@ -1232,7 +1241,11 @@
           timed: false,
           last: null,
           // last time at no load reads as BW, like a prescribed set; with no history, kg (BW for a bodyweight move)
-          load: loadAtStart(ex.id, null, seen ? { date: "", weightKg: sets[i].weightKg, reps: sets[i].reps, rpe: null } : null),
+          load: loadAtStart(
+            ex.id,
+            sets[i].weightKg != null && sets[i].weightKg > 0 ? { targetWeightKg: sets[i].weightKg } as Prescription : null,
+            seen ? { date: "", weightKg: sets[i].weightKg, reps: sets[i].reps, rpe: null } : null
+          ),
         })
       ),
     ];
@@ -1898,7 +1911,7 @@
             {#snippet action()}
               {#if undo}
                 <span class="undo-left tnum" aria-hidden="true">{undoLeft} s</span>
-                <Button small type="button" onclick={undoSave} disabled={undoBusy}>{undoBusy ? "Undoing…" : "Undo"}</Button>
+                <Button small type="button" onclick={undoSave} disabled={undoBusy || adding !== null}>{undoBusy ? "Undoing…" : "Undo"}</Button>
               {/if}
             {/snippet}
           </SaveRecap>
