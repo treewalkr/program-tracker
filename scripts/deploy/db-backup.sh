@@ -3,7 +3,7 @@
 #   DATABASE_URL=... scripts/deploy/db-backup.sh <out.dump.age>
 # pg_dump runs in the postgres:17 image (matches Supabase 17; the runner's client is
 # older) and streams straight into age, so the plaintext dump never touches disk or
-# logs — the repo is public and the file becomes a workflow artifact. Only the
+# logs — the repo is public; the file goes to the private R2 bucket. Only the
 # owner's private key (see .github/backup-age.pub) can decrypt it.
 set -euo pipefail
 

@@ -104,13 +104,13 @@ jobs:
           mkdir -p "$RUNNER_TEMP/db-backup"
           scripts/deploy/db-backup.sh "$RUNNER_TEMP/db-backup/db-backup-$GITHUB_SHA.dump.age"
 
-      - name: Upload backup
-        uses: actions/upload-artifact@v4
-        with:
-          name: db-backup-${{ github.sha }}
-          path: ${{ runner.temp }}/db-backup/
-          retention-days: 30
-          if-no-files-found: error
+      # A failed copy stops the deploy, like a failed dump: no migration without a restore point.
+      - name: Copy backup to R2
+        env:
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: scripts/deploy/r2-upload.sh "$RUNNER_TEMP/db-backup/db-backup-$GITHUB_SHA.dump.age" deploy
 
       # Schema first. Migrations are expand-only (packages/db/src/migration-lint.ts), so the
       # API and web still running from the previous release keep working against it.
