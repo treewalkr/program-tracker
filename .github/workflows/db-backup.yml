@@ -1,0 +1,62 @@
+name: Nightly database backup
+
+# Deploys already back up before migrating (ci.yml), but a quiet month would let every
+# backup expire. This runs every night whether or not anything shipped, with the same
+# encrypted dump (scripts/deploy/db-backup.sh, readable only with the owner's age key),
+# kept as a GitHub artifact and, once the R2 secrets exist, copied to the private R2
+# bucket as a second place. Restore: docs/deploy.md › Database backups.
+on:
+  schedule:
+    - cron: "17 19 * * *" # 02:17 in Bangkok
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: db-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    # DATABASE_URL and CLOUDFLARE_ACCOUNT_ID live in the production environment; the R2 keys are repo secrets.
+    environment: production
+    timeout-minutes: 15
+    env:
+      HAS_R2: ${{ secrets.R2_ACCESS_KEY_ID != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Back up database
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq age >/dev/null
+          mkdir -p "$RUNNER_TEMP/db-backup"
+          scripts/deploy/db-backup.sh "$RUNNER_TEMP/db-backup/db-nightly-$(date -u +%Y%m%d-%H%M).dump.age"
+
+      - name: Keep on GitHub
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-nightly-${{ github.run_id }}
+          path: ${{ runner.temp }}/db-backup/
+          retention-days: 30
+          if-no-files-found: error
+
+      # Still the encrypted file: the bucket is private, and the key never leaves the owner's
+      # machine either way. Old copies are removed by the bucket's lifecycle rule.
+      - name: Copy to R2
+        if: env.HAS_R2 == 'true'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          R2_BUCKET: ${{ vars.R2_BACKUP_BUCKET || 'pt-db-backups' }}
+        run: |
+          for f in "$RUNNER_TEMP"/db-backup/*.dump.age; do
+            aws s3 cp "$f" "s3://$R2_BUCKET/nightly/$(basename "$f")" \
+              --endpoint-url "https://$CLOUDFLARE_ACCOUNT_ID.r2.cloudflarestorage.com" --only-show-errors
+          done
+          echo "copied to R2: $R2_BUCKET/nightly/"
