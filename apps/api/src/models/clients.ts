@@ -1,6 +1,6 @@
 /** Clients — request/response schemas derived from the Drizzle table(s). See ./shared.ts. */
 import { t } from "elysia";
-import { clients } from "@pt/db/schema";
+import { clients, sessionLogs, setLogs } from "@pt/db/schema";
 import {
   BODYWEIGHT_KG_RANGE,
   CARDIO_TARGET_UNITS,
@@ -9,11 +9,13 @@ import {
   CLIENT_STATUSES,
   HEIGHT_CM_RANGE,
   PHONE_MAX,
+  type CardioLog,
   type CardioTarget,
   type DeloadSettings,
   type OneRepMaxes as OneRepMaxesType,
 } from "@pt/shared";
 import { createInsertSchema, createSelectSchema, createUpdateSchema, spread } from "../utility";
+import { ProgramModel } from "./programs";
 import { str, oneOf, as } from "./shared";
 
 const Day = t.String({ pattern: "^\\d{4}-\\d{2}-\\d{2}$" });
@@ -65,6 +67,17 @@ const ClientSelectRow = createSelectSchema(clients, clientRow);
 /** Portal columns stay out of the client row; `/v1/clients/:id/portal` reports them. */
 const ClientSelect = t.Omit(ClientSelectRow, ["portalEnabledAt", "portalGoogleSub", "portalToken", "portalLastSeenAt"]);
 
+// The home overview reads only what the week strips use — a log without its notes, flags,
+// readiness, prescription snapshot or review, a set without its ids.
+const OverviewLogRow = createSelectSchema(sessionLogs, { cardio: as(t.Unsafe<CardioLog>(t.Any())) });
+/** `serializeSets` turns the numeric weight into a number. */
+const OverviewSetRow = createSelectSchema(setLogs, { weightKg: as(t.Number()) });
+const OverviewSet = t.Pick(OverviewSetRow, ["exerciseId", "type", "weightKg", "reps"]);
+const OverviewLog = t.Object({
+  ...spread(t.Pick(OverviewLogRow, ["programId", "programSessionId", "date", "kind", "cardio"])),
+  sets: t.Array(OverviewSet),
+});
+
 /** Optional client fields a trainer sets on create and edit. */
 const clientWritable = [
   "email",
@@ -85,12 +98,22 @@ const clientWritable = [
   "phone",
 ] as const;
 
+/** `clientDto`: the row plus the deload rule that applies to it. */
+const ClientDto = t.Object({ ...spread(ClientSelect), effectiveDeload: t.Unsafe<DeloadSettings>(t.Any()) });
+
 export const ClientModel = {
   create: t.Object({
     ...spread(t.Pick(ClientInsert, ["name"])),
     ...spread(t.Pick(ClientUpdate, clientWritable)),
   }),
   update: t.Pick(ClientUpdate, ["name", "status", ...clientWritable]),
-  /** `clientDto`: the row plus the deload rule that applies to it. */
-  dto: t.Object({ ...spread(ClientSelect), effectiveDeload: t.Unsafe<DeloadSettings>(t.Any()) }),
+  dto: ClientDto,
+  /** One home-overview row: the client, their active program, newest logs and portal link. */
+  overview: t.Object({
+    client: ClientDto,
+    currentProgram: t.Nullable(ProgramModel.dto),
+    logs: t.Array(OverviewLog),
+    /** The portal access link; null while the portal is off. */
+    portalLink: t.Nullable(t.String()),
+  }),
 };

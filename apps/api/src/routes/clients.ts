@@ -1,7 +1,7 @@
 import { MEMBER_NOT_FOUND } from "../lib/messages";
 import { Elysia, t } from "elysia";
-import { eq } from "drizzle-orm";
-import { db, clients, programs, type ClientRow } from "@pt/db";
+import { and, eq, inArray, ne } from "drizzle-orm";
+import { db, clients, programs, sessionLogs, type ClientRow } from "@pt/db";
 import { trainerContext } from "../lib/trainer-context";
 import { toProgramDto } from "./programs";
 import { clientDto, trainerDeloadSettings } from "../lib/deload";
@@ -10,6 +10,7 @@ import { ClientModel } from "../models/clients";
 import { ProgramModel } from "../models/programs";
 import { ErrorBody } from "../models/shared";
 import { deleteClientSessions, newPortalToken, portalLink } from "../lib/client-auth";
+import { loadLogsWithSets } from "../lib/log-service";
 import {
   birthDateError,
   startedOnError,
@@ -94,6 +95,42 @@ export const clientRoutes = new Elysia({ prefix: "/v1/clients", tags: ["clients"
         limit: t.Optional(t.Integer()),
       }),
       detail: { summary: "One page of the client roster with each client's training status" },
+    }
+  )
+  // Before "/:id", so "overview" is never read as a client id.
+  .get(
+    "/overview",
+    async ({ trainerId }) => {
+      const [rows, mine] = await Promise.all([
+        db.select().from(clients).where(and(eq(clients.trainerId, trainerId), ne(clients.status, "archived"))),
+        trainerDeloadSettings(trainerId),
+      ]);
+      if (rows.length === 0) return [];
+      const ids = rows.map((c) => c.id);
+      const [active, logs] = await Promise.all([
+        db
+          .select()
+          .from(programs)
+          .where(and(inArray(programs.clientId, ids), eq(programs.status, "active"))),
+        // Newest 200 per client, like GET /v1/logs/sessions?clientId= — block anchors read a program's first log.
+        loadLogsWithSets({ scope: inArray(sessionLogs.clientId, ids), limit: 200, perClient: true }),
+      ]);
+      const current = new Map<string, (typeof active)[number]>();
+      for (const p of active) if (p.clientId && !current.has(p.clientId)) current.set(p.clientId, p);
+      const logsOf = Map.groupBy(logs, (l) => l.clientId);
+      return rows.map((c) => {
+        const program = current.get(c.id);
+        return {
+          client: clientDto(c, mine),
+          currentProgram: program ? toProgramDto(program) : null,
+          logs: logsOf.get(c.id) ?? [],
+          portalLink: portalStatus(c).link,
+        };
+      });
+    },
+    {
+      response: t.Array(ClientModel.overview),
+      detail: { summary: "The home overview: each member who isn't archived with their active program, newest logs and portal link" },
     }
   )
   .get(
