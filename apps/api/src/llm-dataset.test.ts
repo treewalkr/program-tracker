@@ -66,7 +66,9 @@ describe.skipIf(!dbUp)("llm datasets", () => {
 
     const records = (await exportRecords("sft", { includeMock: true, purposes: ["block_generate"] })) as any[];
     const expected = await anonymized(genCall.responseRaw);
-    const mine = records.find((r) => r.messages.at(-1).content === expected);
+    // Every mock draft has the same output: pick this member's record by their alias, not by order.
+    const alias = await anonymized(name);
+    const mine = records.find((r) => r.messages.at(-1).content === expected && JSON.stringify(r.messages).includes(alias));
     expect(mine).toBeDefined();
     expect(mine.messages.map((m: any) => m.role)).toEqual(["system", "user", "assistant"]);
     const json = JSON.stringify(records);
