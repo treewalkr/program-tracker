@@ -203,6 +203,13 @@
   .foot b, .foot a { font-weight: 500; }
   .foot b { color: var(--ink); }
   .idle { display: contents; }
+  /* Touch: the member link keeps its look and gets a 44px hit area (a ~20px line plus 12px above
+     and below); rows sit 24px apart so a wrapped link's area never covers the next row's. */
+  @media (pointer: coarse) {
+    .foot { row-gap: 24px; }
+    .idle a { position: relative; }
+    .idle a::after { content: ""; position: absolute; inset: -12px -4px; }
+  }
   .carry { white-space: nowrap; }
   .when { font: 400 12px/1 var(--font-mono); margin: 0 4px; }
   .foot .pill.neutral { font-size: 11px; padding: 0 6px; }

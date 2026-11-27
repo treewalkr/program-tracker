@@ -110,6 +110,10 @@
   .seg button:hover { color: var(--ink); background: var(--well-2); }
   .seg button[aria-pressed="true"] { color: var(--ink); background: var(--surface); font-weight: 600; box-shadow: inset 0 -2px 0 var(--tab-on); }
   .rd-hint { font-size: 12px; margin-left: auto; align-self: center; }
+  /* Touch screen (an iPad shows the desk strip): every cell is a 44px target; the strip wraps. */
+  @media (pointer: coarse) {
+    .seg button { min-width: 44px; height: 44px; }
+  }
 
   /* ---- Touch: the client portal — always open, full-width scales, 44px taps ---- */
   .readiness.touch { display: grid; gap: 16px; padding: 4px 0 0; border-bottom: 0; }
@@ -151,6 +155,7 @@
     .rd-scale { --cell: 28px; display: flex; flex-wrap: wrap; gap: 1px; background: var(--line); }
     .rd-scale button + button { border-left: 0; }
     .seg button { flex: 1 0 max(var(--cell), 20% - 1px); min-width: 0; height: 40px; font-size: 14px; }
+    @media (pointer: coarse) { .seg button { height: 44px; } }
     .rd-hint { margin-left: 0; }
   }
 </style>

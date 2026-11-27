@@ -368,9 +368,16 @@
   }
   .portal-on:hover { text-decoration: underline; text-underline-offset: 3px; }
   .portal-on:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
+  /* Touch: a 44px target; the row grows rather than the hit areas of its neighbours overlapping. */
+  @media (pointer: coarse) { .portal-on { min-height: 44px; } }
   .week-links { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 13px; }
   .client-link { color: inherit; }
   .client-link:hover { color: var(--blue); }
+  /* Touch: the name keeps its look and gets a 44px hit area; the sentence doesn't move. */
+  @media (pointer: coarse) {
+    .client-link { position: relative; }
+    .client-link::after { content: ""; position: absolute; inset: -14px -4px; }
+  }
 
   .provs-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
   .prov-chip {

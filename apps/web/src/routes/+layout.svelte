@@ -842,6 +842,11 @@
   /* Rows keep their open-menu heights on the rail, so icons hold the same y
      both ways and the toggle only moves things sideways. */
   .rail .brand { flex: none; width: 32px; height: 48px; padding: 8px 0; }
+  /* Touch: the 32px mark gets a 44px-wide hit area; the rail doesn't move. */
+  @media (pointer: coarse) {
+    .rail .brand { position: relative; }
+    .rail .brand::after { content: ""; position: absolute; inset: 0 -6px; }
+  }
   /* Rail tooltip anchors span the column and reach into the side padding, so
      bubbles clear the border while the 32px buttons stay centred on x=20. */
   .rail .side :global(.anchor) {

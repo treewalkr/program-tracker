@@ -179,6 +179,11 @@
     }
   }
 
+  /* Touch: each link is a 44px target, in the column and in the strip alike. */
+  @media (pointer: coarse) {
+    a { min-height: 44px; }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     a { transition: none; }
   }
