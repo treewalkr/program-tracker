@@ -1,4 +1,4 @@
-import type { HrProfileDto, TrainerApi } from "$lib/api/types";
+import type { GenerationDto, HrProfileDto, SignalDto, TrainerApi } from "$lib/api/types";
 import { buildClientStrip, stripWeeks } from "$lib/overview";
 import { nextToLog } from "$lib/logRecap";
 
@@ -15,26 +15,29 @@ export function loadOverview(api: TrainerApi) {
   return Promise.all([api.clientsOverview(), api.providers(), api.notifications()]);
 }
 
-/** Member page (`/clients/[id]`): the member, their program list and the reads its tabs open on. */
+/**
+ * Member page (`/clients/[id]`): the member, their program list and the reads its tabs open on, all
+ * in one round. The side reads (chain week, HR profiles, alerts, AI drafts) fall back to empty, so
+ * one failing never blanks the page.
+ */
 export async function loadMember(api: TrainerApi, id: string) {
-  const [detail, exercises, chainWeek, hrProfiles] = await Promise.all([
+  const [detail, exercises, chainWeek, hrProfiles, logs, notifications, generations] = await Promise.all([
     api.client(id),
     api.exercises(),
     api.chainWeek(id).catch(() => null),
     api.hrProfiles(id).catch(() => [] as HrProfileDto[]),
+    api.sessionLogs(id),
+    api.notifications().catch(() => [] as SignalDto[]),
+    api.generations(id).catch(() => [] as GenerationDto[]),
   ]);
-  const logs = await api.sessionLogs(id);
-  const notifications = await api.notifications();
-  const generations = await api.generations(id);
   return { detail, exercises, chainWeek, hrProfiles, logs, notifications, generations };
 }
 
-/** Log a session (`/clients/[id]/log`): the member, the catalogue, the modality picker and their past logs. */
+/** Log a session (`/clients/[id]/log`): the member, the catalogue and their past logs in one round, plus the modality picker. */
 export async function loadLogPage(api: TrainerApi, id: string) {
-  const [detail, exercises] = await Promise.all([api.client(id), api.exercises()]);
   // The picker is a side read: a failure leaves it empty, nothing else.
   const modalities = api.modalities().catch(() => null);
-  const pastLogs = await api.sessionLogs(id);
+  const [detail, exercises, pastLogs] = await Promise.all([api.client(id), api.exercises(), api.sessionLogs(id)]);
   return { detail, exercises, modalities, pastLogs };
 }
 
