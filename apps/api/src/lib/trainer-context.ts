@@ -95,6 +95,13 @@ export const trainerContext = new Elysia({ name: "trainer-context" })
 const inFlight = new Set<Promise<void>>();
 /** Tests: wait for the write records started so far (after-response hooks run after the response). */
 export async function settleImpersonationWrites(): Promise<void> {
-  await new Promise((r) => setTimeout(r, 0));
-  while (inFlight.size) await Promise.all([...inFlight]);
+  // A hook can start a beat after the caller has its response (a slow CI runner): wait until
+  // no record is in flight for three ticks in a row, not just one.
+  for (let quiet = 0; quiet < 3; ) {
+    await new Promise((r) => setTimeout(r, 10));
+    if (inFlight.size) {
+      quiet = 0;
+      await Promise.all([...inFlight]);
+    } else quiet++;
+  }
 }
