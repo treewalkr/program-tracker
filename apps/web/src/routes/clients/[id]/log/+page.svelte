@@ -3,6 +3,7 @@
   /** Weight cells hold kg; the steppers show and take the display unit. */
   const kgCells = weightCells();
   import { onMount, tick } from "svelte";
+  import { loadLogPage, loadWhosNext } from "$lib/pageLoads";
   import { page } from "$app/state";
   import { browser } from "$app/environment";
   import { createLeaveGuard } from "$lib/leaveGuard.svelte";
@@ -10,9 +11,9 @@
   import { api } from "$lib/api";
   import { errorText, saveErrorText } from "$lib/api/errors";
   import { fmtSet } from "$lib/format";
-  import { buildClientStrip, localIso, stripWeeks } from "$lib/overview";
+  import { localIso } from "$lib/overview";
   import { weekTabDates } from "$lib/programEdit";
-  import { nextToLog, recapCounts, recapNotes, saveRecap, type RecapNote } from "$lib/logRecap";
+  import { recapCounts, recapNotes, saveRecap, type RecapNote } from "$lib/logRecap";
   import SaveRecap, { type NextState } from "$lib/components/SaveRecap.svelte";
   import {
     DuplicateLogError,
@@ -870,16 +871,9 @@
     const token = ++nextToken;
     next = { state: "loading" };
     try {
-      const weeks = stripWeeks(new Date(), 1);
       // One call for the whole roster (like Overview), never one per member.
-      const roster = await api.clientsOverview();
-      const strips = roster.map(({ client: c, currentProgram, logs }) =>
-        // This client was just logged, others that aren't training can't be next.
-        c.id === id || c.status !== "active"
-          ? buildClientStrip(c, null, [], weeks, today)
-          : buildClientStrip(c, currentProgram, logs, weeks, today)
-      );
-      if (token === nextToken) next = { state: "ready", client: nextToLog(strips, id, today) };
+      const client = await loadWhosNext(api, id, today);
+      if (token === nextToken) next = { state: "ready", client };
     } catch {
       // No roster: the overview link still gets the trainer on.
       if (token === nextToken) next = { state: "ready", client: null };
@@ -1104,7 +1098,7 @@
     undoBusy = true;
     try {
       // Put back what a Replace removed first: a failure here leaves the new log, never neither.
-      for (const old of u.replaced) await api.logSession(logToInput(old));
+      for (const old of u.replaced) await api.logSession(logToInput(old)); // guard-ok: n+1 undo re-saves the few logs one save replaced
       await api.deleteSessionLog(u.logId);
       undo = null;
       recap = null;
@@ -1421,13 +1415,14 @@
   };
 
   async function firstLoad() {
-    const [detail, exercises] = await Promise.all([api.client(id), api.exercises()]);
+    const { detail, exercises, modalities: picker, pastLogs: logs } = await loadLogPage(api, id);
     catalog = exercises;
-    // The modality picker; a failed read leaves the free-text field's list empty, nothing else.
-    api.modalities().then((m) => (modalities = m), () => {});
+    picker.then((m) => {
+      if (m) modalities = m;
+    });
     client = detail.client;
     program = detail.currentProgram;
-    pastLogs = await api.sessionLogs(id);
+    pastLogs = logs;
     if (program && program.weeks?.length) {
       // Open on the session and date a link named (the overview's training week);
       // otherwise on the most recent scheduled session not logged yet, dated its day.
