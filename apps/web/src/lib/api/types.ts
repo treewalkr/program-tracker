@@ -487,6 +487,21 @@ export interface ClientPortalDto {
   lastSeenAt: string | null;
 }
 
+/** The part of a log the week strips read; the overview sends no notes, flags, readiness, snapshot or review. */
+export type OverviewLogDto = Pick<SessionLogDto, "programId" | "programSessionId" | "date" | "kind" | "cardio"> & {
+  sets: Pick<SessionLogDto["sets"][number], "exerciseId" | "type" | "weightKg" | "reps">[];
+};
+
+/** One home-dashboard row (GET /v1/clients/overview): what the page used to fetch per client. */
+export interface ClientOverviewDto {
+  client: ClientDto;
+  currentProgram: ProgramDto | null;
+  /** Newest 200, newest first, each with its sets — like `sessionLogs(clientId)`, trimmed to what the strips read. */
+  logs: OverviewLogDto[];
+  /** The portal access link; null while the portal is off. */
+  portalLink: string | null;
+}
+
 /** A fresh save. `replaced` holds the logs a Replace removed, in full — Undo writes them back. */
 export type SavedLogDto = SessionLogDto & { replaced: SessionLogDto[] };
 
@@ -737,6 +752,8 @@ export interface TrainerApi {
   /** Unused custom types only; presets and used types archive via patchSessionType. */
   deleteSessionType(id: string): Promise<void>;
   clients(): Promise<ClientDto[]>;
+  /** Every member who isn't archived with their current program, newest logs and portal link — the home dashboard in one call. */
+  clientsOverview(): Promise<ClientOverviewDto[]>;
   /** One page of the client roster (server-paged): search, status, sort, page, limit. */
   roster(query: RosterQuery): Promise<RosterPageDto>;
   client(id: string): Promise<{ client: ClientDto; currentProgram: ProgramDto | null; programs: ProgramDto[] }>;

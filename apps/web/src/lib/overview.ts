@@ -13,7 +13,7 @@ import {
   type SkipReason,
 } from "@pt/shared";
 import { SKIP_REASON_LABEL } from "./cardioForm";
-import type { ClientDto, ProgramDto, SessionLogDto } from "$lib/api/types";
+import type { ClientDto, OverviewLogDto, ProgramDto } from "$lib/api/types";
 import { fmtWeightRound } from "./units.svelte";
 
 /**
@@ -142,7 +142,7 @@ const STATUS_RANK: SessionStatus[] = ["missed", "unlogged", "today", "upcoming",
 export function buildClientStrip(
   client: ClientDto,
   program: ProgramDto | null,
-  logs: SessionLogDto[],
+  logs: OverviewLogDto[],
   weeks: string[][],
   today: string
 ): ClientStrip {
@@ -169,12 +169,12 @@ export function buildClientStrip(
   const slotById = new Map(allSessions.map((s) => [s.id, slot(s)] as const));
   const nameById = new Map(allSessions.map((s) => [s.id, s.name] as const));
   const timed = program ? timedExerciseIds(program) : new Set<string>();
-  const logsByDate = new Map<string, SessionLogDto[]>();
+  const logsByDate = new Map<string, OverviewLogDto[]>();
   for (const l of logs) {
     const d = l.date.slice(0, 10);
     logsByDate.set(d, [...(logsByDate.get(d) ?? []), l]);
   }
-  const extraName = (l: SessionLogDto) =>
+  const extraName = (l: OverviewLogDto) =>
     (l.programSessionId && nameById.get(l.programSessionId)) || (l.kind === "cardio" ? "Logged cardio" : "Logged session");
 
   for (const dates of weeks) {

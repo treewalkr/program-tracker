@@ -5,6 +5,7 @@ import type {
   ClientPortalDto,
   ClientMessageDto,
   ClientDto,
+  ClientOverviewDto,
   ExerciseDto,
   GenerationDto,
   PendingGenerationDto,
@@ -87,6 +88,7 @@ export const realApi: TrainerApi = {
   providers: async () =>
     (await unwrap<{ providers: ProviderDto[] }>(client.v1.ai.providers.get())).providers,
   clients: () => unwrap<ClientDto[]>(client.v1.clients.get()),
+  clientsOverview: () => unwrap<ClientOverviewDto[]>(client.v1.clients.overview.get()),
   roster: async (query) => {
     const page = await unwrap<RosterPageDto>(client.v1.clients.roster.get({ query }));
     // Eden revives the calendar day into a Date; hand pages the YYYY-MM-DD the API sent.

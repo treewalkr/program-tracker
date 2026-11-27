@@ -169,7 +169,7 @@ import {
   hrProfiles as seedHrProfiles,
   type StoredLog,
 } from "./data";
-import { DuplicateLogError, type SessionLogDto } from "../types";
+import { DuplicateLogError, type OverviewLogDto, type SessionLogDto } from "../types";
 
 import { uuid } from "$lib/uuid";
 function mockUnits(): DisplayUnits {
@@ -204,6 +204,19 @@ const logDto = (l: StoredLog): SessionLogDto => ({
   sets: l.sets.map((s) => ({ ...s })),
   loggedBy: l.loggedBy ?? "trainer",
 });
+
+/** A log as the overview sends it: what the week strips read, from the full log. */
+const overviewLog = (l: StoredLog): OverviewLogDto => {
+  const { programId, programSessionId, date, kind, cardio, sets } = logDto(l);
+  return {
+    programId,
+    programSessionId,
+    date,
+    kind,
+    cardio,
+    sets: sets.map(({ exerciseId, type, weightKg, reps }) => ({ exerciseId, type, weightKg, reps })),
+  };
+};
 
 const seedTemplates: InstructionTemplateDto[] = [
   {
@@ -878,6 +891,26 @@ const rawMockApi: TrainerApi = {
   async clients() {
     await delay(250);
     return state.clients.filter((c) => c.status !== "archived").map(clientDto);
+  },
+
+  async clientsOverview() {
+    await delay(250);
+    // The same members as clients(); program, logs and link built like client(), sessionLogs() and clientPortal().
+    return state.clients
+      .filter((c) => c.status !== "archived")
+      .map((c) => {
+        const current = state.programs.find((p) => p.clientId === c.id && p.status === "active");
+        return {
+          client: clientDto(c),
+          currentProgram: current ? withNames(current) : null,
+          logs: state.logs
+            .filter((l) => l.clientId === c.id)
+            .sort((a, b) => b.date.localeCompare(a.date))
+            .slice(0, 200)
+            .map(overviewLog),
+          portalLink: portalDto(c.id).link,
+        };
+      });
   },
 
   async roster(query) {
