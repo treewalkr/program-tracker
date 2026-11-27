@@ -2,6 +2,7 @@ import { resolveLoadKg, type PrescribedSet, type SetType, type SkipReason } from
 import { parseFlags, parseReadiness, readinessRated, type ExerciseFlags, type ReadinessForm } from "./logFlags";
 import { showWeight, weightUnit } from "./units.svelte";
 import type { LoadMode } from "./loadMode";
+import { isAdhocSlot, isUnplanned, wirePe } from "./logAdhoc";
 
 /**
  * A log-sheet cell. Svelte number-input binds give a number, or null/undefined
@@ -39,6 +40,8 @@ export interface SheetRow {
   load?: LoadMode;
   /** The load mode was switched by hand. */
   loadPicked?: boolean;
+  /** Ad-hoc exercise only: also add it to the program's later weeks when the log saves. */
+  toProgram?: boolean;
 }
 
 export type SheetField = "weight" | "reps" | "rpe";
@@ -88,7 +91,7 @@ export const isSwapped = (r: Pick<SheetRow, "exerciseId" | "slotExerciseId">): b
 /** Row → wire set. Explicit 0 reps stays 0; only blank reps falls back to the prescription. */
 export function toLoggedSet(r: SheetRow) {
   return {
-    programExerciseId: r.programExerciseId,
+    programExerciseId: wirePe(r.programExerciseId),
     exerciseId: r.exerciseId,
     setNumber: r.setNumber,
     type: r.type,
@@ -494,7 +497,7 @@ export function prescribedSummary(rows: SheetRow[], isBodyweight: (exerciseId: s
   let openAmrap = 0;
   for (const r of rows) {
     if (r.skipped) continue;
-    if (!r.extra && isBlank(r.reps)) {
+    if (!isUnplanned(r) && isBlank(r.reps)) {
       openAmrap++;
       continue;
     }
@@ -504,7 +507,7 @@ export function prescribedSummary(rows: SheetRow[], isBodyweight: (exerciseId: s
       if (!missing.includes(r.programExerciseId)) missing.push(r.programExerciseId);
     }
   }
-  const sets = rowsToSave(rows).filter((r) => r.extra || !isBlank(r.reps)).length;
+  const sets = rowsToSave(rows).filter((r) => isUnplanned(r) || !isBlank(r.reps)).length;
   return { sets, missingLoad: missing, missingLoadSets, openAmrap };
 }
 
@@ -524,7 +527,7 @@ export function previewBlocks<R extends SheetRow>(before: SheetRow[], after: R[]
   const blocks: PreviewBlock<R>[] = [];
   let entered = 0;
   for (const r of rowsToSave(after)) {
-    if (!r.extra && isBlank(r.reps)) continue;
+    if (!isUnplanned(r) && isBlank(r.reps)) continue;
     const isTyped = typed.has(r.key);
     if (isTyped) entered++;
     let b = blocks.find((x) => x.programExerciseId === r.programExerciseId);
@@ -540,7 +543,7 @@ export function isDirty(rows: SheetRow[], notes: string, readiness: ReadinessFor
     notes.trim() !== "" ||
     readinessRated(readiness) ||
     Object.keys(flags).length > 0 ||
-    rows.some((r) => r.skipped || r.extra || isSwapped(r) || r.loadPicked || !isBlank(r.weight) || !isBlank(r.reps) || !isBlank(r.rpe))
+    rows.some((r) => r.skipped || r.extra || isAdhocSlot(r.programExerciseId) || isSwapped(r) || r.loadPicked || !isBlank(r.weight) || !isBlank(r.reps) || !isBlank(r.rpe))
   );
 }
 
@@ -581,7 +584,7 @@ export function parseDraft<R extends SheetRow>(raw: string | null, fresh: R[]): 
   }
   if (!d || !Array.isArray(d.rows) || typeof d.notes !== "string" || typeof d.date !== "string") return null;
   const keys = new Set(d.rows.map((r) => r?.key));
-  const prescribed = d.rows.filter((r) => !r?.extra);
+  const prescribed = d.rows.filter((r) => !r?.extra && !isAdhocSlot(String(r?.programExerciseId)));
   if (prescribed.length !== fresh.length || !fresh.every((r) => keys.has(r.key))) return null;
   // Drafts from before the readiness strip carry a bare energy and no flags.
   return {

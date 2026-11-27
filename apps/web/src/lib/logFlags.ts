@@ -3,6 +3,7 @@
  * technique, skipped + reason). Pure helpers — the page only wires them.
  */
 import type { Readiness, SessionFlag } from "@pt/shared";
+import { wirePe } from "./logAdhoc";
 import type { SheetRow } from "./logSheet";
 
 // ---------------------------------------------------------------------------
@@ -107,11 +108,11 @@ export function sessionFlags(rows: SheetRow[], flags: ExerciseFlags): SessionFla
     const f = flags[r.programExerciseId];
     if (f) {
       const note = f.note.trim().slice(0, FLAG_NOTE_MAX);
-      out.push({ programExerciseId: r.programExerciseId, exerciseId: r.exerciseId, kind: f.kind, ...(note ? { note } : {}) });
+      out.push({ programExerciseId: wirePe(r.programExerciseId), exerciseId: r.exerciseId, kind: f.kind, ...(note ? { note } : {}) });
     }
     if (r.exerciseSkip) {
       const reason = r.exerciseSkip.reason;
-      out.push({ programExerciseId: r.programExerciseId, exerciseId: r.exerciseId, kind: "skipped", ...(reason ? { reason } : {}) });
+      out.push({ programExerciseId: wirePe(r.programExerciseId), exerciseId: r.exerciseId, kind: "skipped", ...(reason ? { reason } : {}) });
     }
   }
   return out;
