@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { api, apiMode } from "$lib/api";
+  import { loadOverview } from "$lib/pageLoads";
   import { reasonText } from "$lib/api/errors";
   import type { ClientDto, ProviderDto, SignalDto } from "$lib/api/types";
   import {
@@ -88,7 +89,7 @@
     loadError = null;
     try {
       // One call for every member's program, logs and portal link; the strips are still built here, on local "today".
-      const [overview, ps, sigs] = await Promise.all([api.clientsOverview(), api.providers(), api.notifications()]);
+      const [overview, ps, sigs] = await loadOverview(api);
       // Archived members are off Overview (the API leaves them out); Settings and the Members list still reach them.
       const cs = overview.map((r) => r.client);
       const shown = new Set(cs.map((c) => c.id));
@@ -113,7 +114,7 @@
     hiding = key;
     hideErrors[key] = "";
     const until = new Date(Date.now() + days * 86400_000).toISOString();
-    const results = await Promise.allSettled(ids.map((id) => api.snoozeSignal(id, until)));
+    const results = await Promise.allSettled(ids.map((id) => api.snoozeSignal(id, until))); // guard-ok: n+1 one per signal of the row clicked, not per member
     // Keep what did snooze hidden; a merged row stays while any of its signals failed.
     hidden = [...hidden, ...ids.filter((_, i) => results[i].status === "fulfilled")];
     const failed = results.find((r): r is PromiseRejectedResult => r.status === "rejected");

@@ -16,6 +16,7 @@
   import { cardioLogRows, cardioTiles, cardioWeeks, dayLabel, distanceByModality, hoursMinutes } from "$lib/cardioTab";
   import ClientPortalPanel from "$lib/components/ClientPortalPanel.svelte";
   import { onMount, tick } from "svelte";
+  import { loadMember } from "$lib/pageLoads";
   import { page } from "$app/state";
   import { replaceState } from "$app/navigation";
   import { createLeaveGuard } from "$lib/leaveGuard.svelte";
@@ -257,12 +258,7 @@
   const cardioLabel = $derived(client?.cardioTarget ? cardioUnitLabel(client.cardioTarget.unit) : "");
 
   async function load() {
-    const [detail, exList, cw, hr] = await Promise.all([
-      api.client(id),
-      api.exercises(),
-      api.chainWeek(id).catch(() => null),
-      api.hrProfiles(id).catch(() => [] as HrProfileDto[]),
-    ]);
+    const { detail, exercises: exList, chainWeek: cw, hrProfiles: hr, logs, notifications, generations } = await loadMember(api, id);
     hrVersions = hr;
     catalogById = new Map(exList.map((e) => [e.id, e]));
     chainWeekData = cw;
@@ -270,11 +266,10 @@
     client = detail.client;
     current = cur;
     programs = detail.programs;
-    const logs = await api.sessionLogs(id);
     sessionLogRows = logs;
     // Client-level signals (cardio pace) exist with or without a program.
     // Feed-only kinds (the client logging a session) belong to the overview, not this list.
-    signals = (await api.notifications()).filter((s) => s.clientId === id && !FEED_ONLY_KINDS.has(s.kind));
+    signals = notifications.filter((s) => s.clientId === id && !FEED_ONLY_KINDS.has(s.kind));
     drill = null;
     if (cur) {
       pulse = blockPulse(cur, logs);
@@ -292,7 +287,7 @@
     idEmail = detail.client.email ?? "";
     idPhone = detail.client.phone ?? "";
     savedId = idKey();
-    gens = await api.generations(id);
+    gens = generations;
   }
 
   // ---- Cardio tab ----
